@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>note記事自動生成ツール</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f4f4f4;
+      --card: #ffffff;
+      --dark: #1a1a1a;
+      --mid: #555;
+      --muted: #999;
+      --border: #e4e4e4;
+      --hover-bg: #f9f9f9;
+      --accent: #1a1a1a;
+      --radius: 14px;
+      --shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+
+    body {
+      font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', sans-serif;
+      background: var(--bg);
+      color: var(--dark);
+      min-height: 100vh;
+      line-height: 1.7;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--dark);
+      color: #fff;
+      padding: 28px 20px;
+      text-align: center;
+    }
+    .header-badge {
+      display: inline-block;
+      background: #fff;
+      color: var(--dark);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+    .header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .header p  { font-size: 13px; color: #aaa; margin-top: 6px; }
+
+    /* ── Layout ── */
+    .container { max-width: 860px; margin: 0 auto; padding: 36px 16px 60px; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+      animation: fadeUp 0.35s ease both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Input Section ── */
+    .field-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .field-input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-size: 16px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+      color: var(--dark);
+      background: #fafafa;
+    }
+    .field-input::placeholder { color: #bbb; }
+    .field-input:focus { border-color: var(--dark); background: #fff; }
+
+    .api-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 12px;
+      margin: 16px 0;
+      user-select: none;
+      width: fit-content;
+    }
+    .api-toggle:hover { color: var(--dark); }
+    .api-area { display: none; margin-bottom: 4px; }
+    .api-area.open { display: block; }
+
+    .model-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .model-btn {
+      flex: 1;
+      padding: 9px 12px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: #fafafa;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+      color: var(--mid);
+    }
+    .model-btn.active { border-color: var(--dark); background: var(--dark); color: #fff; }
+    .model-btn:not(.active):hover { border-color: #999; }
+
+    /* ── Generate Button ── */
+    .generate-btn {
+      width: 100%;
+      margin-top: 20px;
+      padding: 18px;
+      background: var(--dark);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 800;
+      cursor: pointer;
+      letter-spacing: 2px;
+      font-family: inherit;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .generate-btn:hover:not(:disabled) {
+      background: #333;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    }
+    .generate-btn:active:not(:disabled) { transform: translateY(0); }
+    .generate-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    /* ── Error ── */
+    .error-box {
+      display: none;
+      margin-top: 14px;
+      padding: 14px 16px;
+      background: #fff4f4;
+      border: 1.5px solid #ffc5c5;
+      border-radius: 10px;
+      color: #c00;
+      font-size: 13px;
+    }
+    .error-box.show { display: block; }
+
+    /* ── Loading ── */
+    .loading-card { display: none; }
+    .loading-card.show { display: block; }
+    .loading-top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .spinner {
+      width: 22px; height: 22px;
+      border: 3px solid #ddd;
+      border-top-color: var(--dark);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-label { font-weight: 700; font-size: 15px; }
+    .loading-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .stream-box {
+      background: #f6f6f6;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 12px;
+      color: var(--mid);
+      max-height: 140px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-family: monospace;
+      line-height: 1.5;
+    }
+
+    .prog-bar {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-top: 14px;
+      overflow: hidden;
+    }
+    .prog-fill {
+      height: 100%;
+      background: var(--dark);
+      border-radius: 2px;
+      animation: prog 4s ease-in-out infinite;
+    }
+    @keyframes prog {
+      0%   { width: 0%; }
+      60%  { width: 75%; }
+      100% { width: 92%; }
+    }
+
+    /* ── Results ── */
+    .results { display: none; }
+    .results.show { display: block; }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .copy-btn {
+      background: #f0f0f0;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--mid);
+      transition: all 0.15s;
+    }
+    .copy-btn:hover { background: var(--dark); color: #fff; }
+
+    /* Title cards */
+    .title-list { display: grid; gap: 10px; }
+    .title-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 16px 18px;
+      background: var(--hover-bg);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .title-item:hover { border-color: #aaa; background: #fff; }
+    .title-item.picked { border-color: var(--dark); background: var(--dark); color: #fff; }
+    .title-num {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--muted);
+      padding-top: 2px;
+      min-width: 18px;
+    }
+    .title-item.picked .title-num { color: #888; }
+    .title-txt { font-size: 15px; font-weight: 600; line-height: 1.5; }
+
+    /* TOC */
+    .toc-box {
+      background: var(--hover-bg);
+      border-radius: 10px;
+      padding: 18px 22px;
+      font-size: 14px;
+      line-height: 2;
+    }
+    .toc-box p { margin: 0; }
+
+    /* Body */
+    .body-wrap {
+      background: var(--hover-bg);
+      border-radius: 10px;
+      padding: 22px 24px;
+      max-height: 520px;
+      overflow-y: auto;
+    }
+    .body-wrap h1, .body-wrap h2, .body-wrap h3 {
+      margin: 1.2em 0 0.5em;
+      line-height: 1.4;
+    }
+    .body-wrap h1 { font-size: 20px; }
+    .body-wrap h2 { font-size: 17px; border-bottom: 2px solid var(--border); padding-bottom: 6px; }
+    .body-wrap h3 { font-size: 15px; color: var(--mid); }
+    .body-wrap p  { font-size: 14px; margin: 0.7em 0; }
+    .body-wrap ul, .body-wrap ol { font-size: 14px; padding-left: 20px; margin: 0.5em 0; }
+    .body-wrap strong { font-weight: 700; }
+
+    .char-badge {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #eafbf0;
+      color: #2a9d5c;
+    }
+    .char-badge.warn { background: #fff8e6; color: #b07d00; }
+    .char-badge.low  { background: #fff0f0; color: #c44; }
+
+    /* Price */
+    .price-box {
+      background: var(--hover-bg);
+      border-radius: 10px;
+      padding: 20px 24px;
+    }
+    .price-num {
+      font-size: 42px;
+      font-weight: 900;
+      letter-spacing: -1px;
+      line-height: 1.1;
+      margin-bottom: 10px;
+    }
+    .price-reason { font-size: 13px; color: var(--mid); line-height: 1.8; }
+
+    /* Reset */
+    .reset-btn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 13px;
+      background: transparent;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--muted);
+      transition: all 0.15s;
+    }
+    .reset-btn:hover { border-color: var(--dark); color: var(--dark); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-badge">AI Powered</div>
+  <h1>note 記事自動生成ツール</h1>
+  <p>キーワードを入力してボタンを1回押すだけ — タイトル・目次・本文・価格が一括生成されます</p>
+</div>
+
+<div class="container">
+
+  <!-- ── 入力カード ── -->
+  <div class="card">
+    <label class="field-label" for="keyword">キーワード / タイトル案</label>
+    <input class="field-input" id="keyword" type="text"
+      placeholder="例: フリーランスエンジニアが副業で月10万円稼ぐ具体的な方法" />
+
+    <div class="api-toggle" id="apiToggle">
+      <span id="toggleArrow">▶</span>
+      <span>API設定（Claude APIキーを入力）</span>
+    </div>
+
+    <div class="api-area" id="apiArea">
+      <label class="field-label" for="apiKey">Claude API Key</label>
+      <input class="field-input" id="apiKey" type="password" placeholder="sk-ant-api03-..." />
+
+      <div class="model-row">
+        <button class="model-btn active" data-model="claude-sonnet-4-6" onclick="selectModel(this)">
+          Sonnet 4.6（速い・推奨）
+        </button>
+        <button class="model-btn" data-model="claude-opus-4-6" onclick="selectModel(this)">
+          Opus 4.6（高品質）
+        </button>
+      </div>
+    </div>
+
+    <button class="generate-btn" id="generateBtn" onclick="generate()">
+      ✨ 記事を生成する
+    </button>
+
+    <div class="error-box" id="errorBox"></div>
+  </div>
+
+  <!-- ── ローディング ── -->
+  <div class="card loading-card" id="loadingCard">
+    <div class="loading-top">
+      <div class="spinner"></div>
+      <div>
+        <div class="loading-label">AIが記事を生成中...</div>
+        <div class="loading-sub" id="loadingStep">プロンプトを送信しました</div>
+      </div>
+    </div>
+    <div class="stream-box" id="streamBox"></div>
+    <div class="prog-bar"><div class="prog-fill"></div></div>
+  </div>
+
+  <!-- ── 結果 ── -->
+  <div class="results" id="results">
+
+    <!-- タイトル案 -->
+    <div class="card">
+      <div class="section-head">
+        <div class="section-label">タイトル案（3つ）</div>
+        <button class="copy-btn" onclick="copySection('titles', this)">コピー</button>
+      </div>
+      <div class="title-list" id="titleList"></div>
+    </div>
+
+    <!-- 目次構成 -->
+    <div class="card">
+      <div class="section-head">
+        <div class="section-label">目次構成</div>
+        <button class="copy-btn" onclick="copySection('toc', this)">コピー</button>
+      </div>
+      <div class="toc-box" id="tocBox"></div>
+    </div>
+
+    <!-- 本文 -->
+    <div class="card">
+      <div class="section-head">
+        <div class="section-label">本文</div>
+        <button class="copy-btn" onclick="copySection('body', this)">コピー</button>
+      </div>
+      <div class="body-wrap" id="bodyWrap"></div>
+      <div id="charBadge"></div>
+    </div>
+
+    <!-- 推奨価格 -->
+    <div class="card">
+      <div class="section-head">
+        <div class="section-label">推奨価格</div>
+        <button class="copy-btn" onclick="copySection('price', this)">コピー</button>
+      </div>
+      <div class="price-box" id="priceBox"></div>
+    </div>
+
+    <button class="reset-btn" onclick="resetAll()">↩ 新しい記事を作成する</button>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+/* ────────────────────────────────── state ── */
+let selectedModel = 'claude-sonnet-4-6';
+let parsed = {};
+
+/* ── restore API key ── */
+const saved = localStorage.getItem('note_claude_key');
+if (saved) document.getElementById('apiKey').value = saved;
+
+/* ── API toggle ── */
+document.getElementById('apiToggle').addEventListener('click', () => {
+  const area = document.getElementById('apiArea');
+  const arr  = document.getElementById('toggleArrow');
+  const open = area.classList.toggle('open');
+  arr.textContent = open ? '▼' : '▶';
+});
+
+/* ── model select ── */
+function selectModel(btn) {
+  document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedModel = btn.dataset.model;
+}
+
+/* ── error helpers ── */
+function showError(msg) {
+  const el = document.getElementById('errorBox');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+function hideError() {
+  document.getElementById('errorBox').classList.remove('show');
+}
+
+/* ── section extract ── */
+function extract(text, startTag, endTag) {
+  const s = text.indexOf(startTag);
+  const e = text.indexOf(endTag);
+  if (s === -1 || e === -1 || e <= s) return '';
+  return text.slice(s + startTag.length, e).trim();
+}
+
+/* ── copy ── */
+function copySection(key, btn) {
+  const text = parsed[key] || '';
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'コピー完了 ✓';
+    setTimeout(() => btn.textContent = orig, 2000);
+  });
+}
+
+/* ── title click ── */
+function pickTitle(el) {
+  document.querySelectorAll('.title-item').forEach(t => t.classList.remove('picked'));
+  el.classList.add('picked');
+}
+
+/* ── render results ── */
+function renderResults() {
+  /* タイトル */
+  const titles = parsed.titles.split('\n').filter(l => l.trim());
+  document.getElementById('titleList').innerHTML = titles.map((t, i) => {
+    const txt = t.replace(/^[\d\.\-\)、。・\s]+/, '').trim();
+    return `<div class="title-item" onclick="pickTitle(this)">
+      <span class="title-num">0${i + 1}</span>
+      <span class="title-txt">${esc(txt)}</span>
+    </div>`;
+  }).join('');
+
+  /* 目次 */
+  document.getElementById('tocBox').innerHTML =
+    parsed.toc.split('\n').filter(l => l.trim())
+      .map(l => `<p>${esc(l)}</p>`).join('');
+
+  /* 本文（marked.js でレンダリング） */
+  try {
+    document.getElementById('bodyWrap').innerHTML = marked.parse(parsed.body);
+  } catch(_) {
+    document.getElementById('bodyWrap').textContent = parsed.body;
+  }
+  const chars = (parsed.body || '').replace(/\s/g, '').length;
+  const badge = document.getElementById('charBadge');
+  const cls   = chars >= 3500 ? '' : chars >= 2500 ? ' warn' : ' low';
+  badge.innerHTML = `<span class="char-badge${cls}">${chars.toLocaleString()} 字（スペース除く）</span>`;
+
+  /* 推奨価格 */
+  const priceMatch = parsed.price.match(/(\d[\d,]*)\s*円/);
+  let priceHtml = '';
+  if (priceMatch) {
+    priceHtml  = `<div class="price-num">${priceMatch[1]}円</div>`;
+    priceHtml += `<div class="price-reason">${esc(parsed.price)}</div>`;
+  } else {
+    priceHtml = `<div class="price-reason">${esc(parsed.price)}</div>`;
+  }
+  document.getElementById('priceBox').innerHTML = priceHtml;
+
+  /* 表示 */
+  document.getElementById('loadingCard').classList.remove('show');
+  document.getElementById('results').classList.add('show');
+  document.getElementById('generateBtn').disabled = false;
+
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ── escape ── */
+function esc(t) {
+  return String(t)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── main generate ── */
+async function generate() {
+  const keyword = document.getElementById('keyword').value.trim();
+  const apiKey  = document.getElementById('apiKey').value.trim();
+
+  hideError();
+
+  if (!keyword) { showError('キーワードまたはタイトル案を入力してください。'); return; }
+  if (!apiKey)  {
+    document.getElementById('apiArea').classList.add('open');
+    document.getElementById('toggleArrow').textContent = '▼';
+    showError('Claude APIキーを入力してください。Anthropic Console（console.anthropic.com）のAPI Keysページで取得できます。');
+    return;
+  }
+
+  localStorage.setItem('note_claude_key', apiKey);
+
+  document.getElementById('generateBtn').disabled = true;
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('loadingCard').classList.add('show');
+  document.getElementById('streamBox').textContent = '';
+  document.getElementById('loadingStep').textContent = 'AIに接続しています...';
+
+  const prompt = `あなたはnoteで月間数十万PVを誇る人気ライターです。
+以下のキーワード/タイトル案に基づき、noteに投稿できる高品質な記事一式を生成してください。
+
+キーワード/タイトル案: 「${keyword}」
+
+必ず下記のマーカー形式で出力してください（マーカーは一字一句変えないこと）:
+
+===TITLES_START===
+（タイトル案を改行区切りで3つ。クリックしたくなる魅力的なタイトルにする）
+===TITLES_END===
+
+===TOC_START===
+（目次を5〜8項目。見出し番号・階層付きで書く）
+===TOC_END===
+
+===BODY_START===
+（マークダウン形式の本文。## 見出し・### 小見出し・箇条書き・まとめを含め、約4000字で書く。読者が実際に行動できる具体的で価値ある内容にする）
+===BODY_END===
+
+===PRICE_START===
+（推奨販売価格を「〇〇円」の形式で明記し、価格設定の根拠・理由を3〜5行で説明する）
+===PRICE_END===
+
+制約:
+- 本文は必ず4000字前後にすること（少なすぎはNG）
+- note読者向けの親しみやすい文体で書くこと
+- 具体例・数字・体験談を積極的に盛り込むこと`;
+
+  let raw = '';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: selectedModel,
+        max_tokens: 8192,
+        stream: true,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!res.ok) {
+      let errMsg = `APIエラー (${res.status})`;
+      try { const j = await res.json(); errMsg = j.error?.message || errMsg; } catch(_) {}
+      throw new Error(errMsg);
+    }
+
+    document.getElementById('loadingStep').textContent = '記事を生成中...（しばらくお待ちください）';
+
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    const streamEl = document.getElementById('streamBox');
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const lines = decoder.decode(value, { stream: true }).split('\n');
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (!data || data === '[DONE]') continue;
+        try {
+          const ev = JSON.parse(data);
+          if (ev.type === 'content_block_delta' && ev.delta?.text) {
+            raw += ev.delta.text;
+            streamEl.textContent = raw.slice(-600);
+            streamEl.scrollTop  = streamEl.scrollHeight;
+          }
+        } catch(_) {}
+      }
+    }
+
+    /* parse */
+    parsed.titles = extract(raw, '===TITLES_START===', '===TITLES_END===');
+    parsed.toc    = extract(raw, '===TOC_START===',    '===TOC_END===');
+    parsed.body   = extract(raw, '===BODY_START===',   '===BODY_END===');
+    parsed.price  = extract(raw, '===PRICE_START===',  '===PRICE_END===');
+
+    if (!parsed.titles && !parsed.body) throw new Error('出力の解析に失敗しました。もう一度お試しください。');
+
+    renderResults();
+
+  } catch (err) {
+    document.getElementById('loadingCard').classList.remove('show');
+    document.getElementById('generateBtn').disabled = false;
+    showError('エラー: ' + err.message);
+  }
+}
+
+/* ── reset ── */
+function resetAll() {
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('keyword').value = '';
+  document.getElementById('keyword').focus();
+  parsed = {};
+}
+
+/* Enter key */
+document.getElementById('keyword').addEventListener('keydown', e => {
+  if (e.key === 'Enter') generate();
+});
+</script>
+</body>
+</html>
