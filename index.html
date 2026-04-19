@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>通勤定期ルート検索</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; color: #1f2937; }
+  body { display: flex; flex-direction: column; background: #f3f4f6; overflow: hidden; }
+  header { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 12px 20px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); z-index: 10; }
+  header .icon { background: #2563eb; color: #fff; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  header h1 { margin: 0; font-size: 16px; font-weight: 700; }
+  header p { margin: 0; font-size: 11px; color: #6b7280; }
+  header .badge { margin-left: auto; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; display: none; }
+  main { flex: 1; display: flex; min-height: 0; }
+  aside { width: 380px; background: #fff; border-right: 1px solid #e5e7eb; overflow-y: auto; flex-shrink: 0; }
+  .section { padding: 18px 20px; border-bottom: 1px solid #f3f4f6; }
+  .section h2 { margin: 0 0 12px 0; font-size: 13px; font-weight: 600; color: #374151; }
+  .field { margin-bottom: 8px; }
+  .field label { display: block; font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+  .field input, .field select { width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 10px; font-size: 13px; background: #fff; outline: none; font-family: inherit; }
+  .field input:focus, .field select:focus { border-color: #60a5fa; }
+  .swap { display: flex; justify-content: center; padding: 4px 0; }
+  .swap button { background: none; border: none; color: #9ca3af; cursor: pointer; padding: 6px; border-radius: 50%; font-size: 16px; }
+  .swap button:hover { background: #f3f4f6; color: #4b5563; }
+  .btn-primary { width: 100%; background: #2563eb; color: #fff; border: none; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 14px; transition: background .15s; }
+  .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+  .btn-primary:disabled { background: #d1d5db; cursor: not-allowed; }
+  .map-area { flex: 1; position: relative; padding: 14px; min-width: 0; }
+  #map { width: 100%; height: 100%; border-radius: 12px; background: #e5e7eb; }
+  .welcome { position: absolute; inset: 14px; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 5; }
+  .welcome .card { background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.12); padding: 28px; text-align: center; max-width: 280px; }
+  .welcome .card .emoji { font-size: 48px; margin-bottom: 10px; }
+  .welcome .card h3 { margin: 0 0 6px 0; font-size: 16px; }
+  .welcome .card p { margin: 0; font-size: 13px; color: #6b7280; line-height: 1.6; }
+  .empty { font-size: 13px; color: #9ca3af; padding: 8px 0; }
+  /* dropdown */
+  .combo { position: relative; }
+  .combo-input { position: relative; }
+  .combo-input input { padding-left: 30px; }
+  .combo-input::before { content: "🔍"; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 12px; opacity: .6; }
+  .combo-list { position: absolute; top: calc(100% + 2px); left: 0; right: 0; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 8px 16px rgba(0,0,0,.1); max-height: 220px; overflow-y: auto; z-index: 50; display: none; }
+  .combo-list.open { display: block; }
+  .combo-list .item { padding: 8px 12px; font-size: 13px; cursor: pointer; }
+  .combo-list .item:hover { background: #eff6ff; color: #1d4ed8; }
+  .combo-list .empty-item { padding: 8px 12px; font-size: 12px; color: #9ca3af; }
+  /* route cards */
+  .route-card { width: 100%; text-align: left; border: 2px solid #e5e7eb; background: #fff; padding: 14px; border-radius: 12px; cursor: pointer; margin-bottom: 10px; transition: all .15s; font-family: inherit; display: block; }
+  .route-card:hover { border-color: #93c5fd; box-shadow: 0 2px 6px rgba(0,0,0,.05); }
+  .route-card.selected { border-color: #3b82f6; background: #eff6ff; box-shadow: 0 2px 8px rgba(59,130,246,.15); }
+  .route-card .top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .route-card .fare { font-size: 22px; font-weight: 700; color: #111827; }
+  .route-card .fare .orig { font-size: 13px; color: #9ca3af; text-decoration: line-through; margin-left: 6px; font-weight: 400; }
+  .route-card .badge-cheap { background: #22c55e; color: #fff; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; margin-right: 4px; vertical-align: middle; }
+  .route-card .meta { font-size: 11px; color: #6b7280; display: flex; gap: 10px; align-items: center; }
+  .route-card .savings { background: #ecfdf5; color: #047857; font-size: 11px; font-weight: 500; padding: 5px 8px; border-radius: 8px; margin-bottom: 10px; display: flex; align-items: center; gap: 4px; }
+  .route-card .segs { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; margin-bottom: 10px; align-items: center; }
+  .route-card .seg { display: inline-flex; align-items: center; gap: 3px; color: #374151; }
+  .route-card .seg .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .route-card .seg .arrow { color: #9ca3af; }
+  .route-card .seg .covered { background: #dcfce7; color: #15803d; font-size: 10px; padding: 1px 6px; border-radius: 999px; font-weight: 500; }
+  .route-card .seg .paid { color: #6b7280; font-size: 10px; }
+  .route-card .seg .transfer { color: #9ca3af; font-size: 10px; }
+  .route-card .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .route-card .tag { color: #fff; font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 999px; }
+  /* legend */
+  .legend { position: absolute; bottom: 24px; left: 24px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.15); padding: 10px 12px; font-size: 11px; z-index: 1000; }
+  .legend .row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .legend .row:last-child { margin-bottom: 0; }
+  .legend .bar { width: 24px; height: 4px; border-radius: 2px; }
+  /* pass manager */
+  .pass-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid #dbeafe; background: #eff6ff; border-radius: 10px; margin-bottom: 8px; }
+  .pass-item.expired { background: #f9fafb; border-color: #e5e7eb; opacity: .6; }
+  .pass-item .line-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .pass-item .info { flex: 1; min-width: 0; }
+  .pass-item .info .title { font-size: 13px; font-weight: 500; color: #1f2937; }
+  .pass-item .info .sub { font-size: 11px; color: #6b7280; margin-top: 2px; }
+  .pass-item .info .expiry { font-size: 11px; margin-top: 2px; color: #6b7280; }
+  .pass-item .info .expiry.bad { color: #ef4444; }
+  .pass-item button.remove { background: none; border: none; color: #9ca3af; cursor: pointer; font-size: 14px; padding: 2px 4px; }
+  .pass-item button.remove:hover { color: #ef4444; }
+  .add-pass-btn { background: none; border: none; color: #2563eb; font-size: 13px; font-weight: 500; padding: 6px 0; cursor: pointer; font-family: inherit; }
+  .add-pass-btn:hover { color: #1d4ed8; }
+  .pass-form { border: 1px solid #93c5fd; background: #eff6ff; border-radius: 10px; padding: 14px; margin-top: 8px; }
+  .pass-form h4 { margin: 0 0 10px 0; font-size: 13px; font-weight: 600; color: #1e40af; }
+  .pass-form .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pass-form .estimate { font-size: 11px; color: #1d4ed8; background: #fff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 8px; margin-top: 6px; }
+  .pass-form .actions { display: flex; gap: 8px; margin-top: 10px; }
+  .pass-form .actions .save { flex: 1; background: #2563eb; color: #fff; border: none; padding: 8px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; }
+  .pass-form .actions .save:hover { background: #1d4ed8; }
+  .pass-form .actions .cancel { padding: 8px 14px; background: #fff; color: #6b7280; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; cursor: pointer; font-family: inherit; }
+  .pass-form .actions .cancel:hover { background: #f9fafb; }
+</style>
+</head>
+<body>
+<header>
+  <div class="icon">🚃</div>
+  <div>
+    <h1>通勤定期ルート検索</h1>
+    <p>定期券を登録して最安ルートを探す</p>
+  </div>
+  <div id="pass-badge" class="badge">🎫 <span id="pass-badge-count">0</span>件 有効</div>
+</header>
+<main>
+  <aside>
+    <div class="section">
+      <h2>🔍 ルート検索</h2>
+      <div class="field">
+        <label>出発駅</label>
+        <div class="combo" id="from-combo">
+          <div class="combo-input"><input id="from-input" type="text" placeholder="出発駅を入力..." autocomplete="off"></div>
+          <div class="combo-list" id="from-list"></div>
+        </div>
+      </div>
+      <div class="swap"><button id="swap-btn" title="入れ替え">⇅</button></div>
+      <div class="field">
+        <label>到着駅</label>
+        <div class="combo" id="to-combo">
+          <div class="combo-input"><input id="to-input" type="text" placeholder="到着駅を入力..." autocomplete="off"></div>
+          <div class="combo-list" id="to-list"></div>
+        </div>
+      </div>
+      <button class="btn-primary" id="search-btn" disabled>🔍 最安ルートを検索</button>
+    </div>
+    <div class="section" id="results-section" style="display:none">
+      <h2>📍 検索結果 <span id="route-from-to" style="font-weight:400;color:#9ca3af;font-size:11px"></span></h2>
+      <div id="results"></div>
+    </div>
+    <div class="section">
+      <h2>🎫 登録済み定期券 <span id="pass-list-count" style="display:none;background:#dbeafe;color:#1d4ed8;font-size:11px;padding:1px 8px;border-radius:999px;margin-left:4px"></span></h2>
+      <div id="pass-list"></div>
+      <div id="pass-form-area"></div>
+    </div>
+  </aside>
+  <div class="map-area">
+    <div class="welcome" id="welcome"><div class="card"><div class="emoji">🚃</div><h3>ルート検索を始めよう</h3><p>左パネルで出発駅・到着駅を選び、定期券を登録すると最安ルートが地図上に表示されます</p></div></div>
+    <div id="map"></div>
+  </div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+'use strict';
+
+// ========== DATA ==========
+var STATIONS = [
+  { id: 'shinagawa', name: '品川', lat: 35.6284, lng: 139.7387 },
+  { id: 'osaki', name: '大崎', lat: 35.6197, lng: 139.7283 },
+  { id: 'gotanda', name: '五反田', lat: 35.6262, lng: 139.7232 },
+  { id: 'meguro', name: '目黒', lat: 35.6332, lng: 139.7157 },
+  { id: 'ebisu', name: '恵比寿', lat: 35.6469, lng: 139.7100 },
+  { id: 'shibuya', name: '渋谷', lat: 35.6580, lng: 139.7016 },
+  { id: 'harajuku', name: '原宿', lat: 35.6697, lng: 139.7026 },
+  { id: 'yoyogi', name: '代々木', lat: 35.6831, lng: 139.7024 },
+  { id: 'shinjuku', name: '新宿', lat: 35.6896, lng: 139.7006 },
+  { id: 'shin_okubo', name: '新大久保', lat: 35.7009, lng: 139.7003 },
+  { id: 'takadanobaba', name: '高田馬場', lat: 35.7126, lng: 139.7036 },
+  { id: 'mejiro', name: '目白', lat: 35.7214, lng: 139.7073 },
+  { id: 'ikebukuro', name: '池袋', lat: 35.7295, lng: 139.7109 },
+  { id: 'otsuka', name: '大塚', lat: 35.7311, lng: 139.7284 },
+  { id: 'sugamo', name: '巣鴨', lat: 35.7334, lng: 139.7394 },
+  { id: 'komagome', name: '駒込', lat: 35.7362, lng: 139.7490 },
+  { id: 'tabata', name: '田端', lat: 35.7379, lng: 139.7609 },
+  { id: 'nishi_nippori', name: '西日暮里', lat: 35.7317, lng: 139.7668 },
+  { id: 'nippori', name: '日暮里', lat: 35.7278, lng: 139.7712 },
+  { id: 'uguisudani', name: '鶯谷', lat: 35.7198, lng: 139.7784 },
+  { id: 'ueno', name: '上野', lat: 35.7141, lng: 139.7774 },
+  { id: 'okachimachi', name: '御徒町', lat: 35.7076, lng: 139.7744 },
+  { id: 'akihabara', name: '秋葉原', lat: 35.7022, lng: 139.7742 },
+  { id: 'kanda', name: '神田', lat: 35.6918, lng: 139.7704 },
+  { id: 'tokyo', name: '東京', lat: 35.6812, lng: 139.7671 },
+  { id: 'yurakucho', name: '有楽町', lat: 35.6752, lng: 139.7634 },
+  { id: 'shimbashi', name: '新橋', lat: 35.6660, lng: 139.7583 },
+  { id: 'hamamatsucho', name: '浜松町', lat: 35.6556, lng: 139.7568 },
+  { id: 'tamachi', name: '田町', lat: 35.6452, lng: 139.7477 },
+  { id: 'ochanomizu', name: '御茶ノ水', lat: 35.6997, lng: 139.7641 },
+  { id: 'yotsuya', name: '四ツ谷', lat: 35.6867, lng: 139.7305 },
+  { id: 'nakano', name: '中野', lat: 35.7075, lng: 139.6655 },
+  { id: 'koenji', name: '高円寺', lat: 35.7060, lng: 139.6492 },
+  { id: 'asagaya', name: '阿佐ヶ谷', lat: 35.7070, lng: 139.6368 },
+  { id: 'ogikubo', name: '荻窪', lat: 35.7056, lng: 139.6207 },
+  { id: 'kichijoji', name: '吉祥寺', lat: 35.7038, lng: 139.5797 },
+  { id: 'mitaka', name: '三鷹', lat: 35.7023, lng: 139.5600 },
+  { id: 'otemachi', name: '大手町', lat: 35.6839, lng: 139.7649 },
+  { id: 'ginza', name: '銀座', lat: 35.6718, lng: 139.7644 },
+  { id: 'kasumigaseki', name: '霞ヶ関', lat: 35.6743, lng: 139.7498 },
+  { id: 'akasaka_mitsuke', name: '赤坂見附', lat: 35.6796, lng: 139.7353 },
+  { id: 'korakuen', name: '後楽園', lat: 35.7071, lng: 139.7521 },
+  { id: 'roppongi', name: '六本木', lat: 35.6641, lng: 139.7316 },
+  { id: 'nakameguro', name: '中目黒', lat: 35.6441, lng: 139.6995 },
+  { id: 'kitasenju', name: '北千住', lat: 35.7494, lng: 139.8007 },
+  // 丸ノ内線 追加駅
+  { id: 'shin_otsuka', name: '新大塚', lat: 35.7253, lng: 139.7266 },
+  { id: 'myogadani', name: '茗荷谷', lat: 35.7216, lng: 139.7390 },
+  { id: 'hongo_sanchome', name: '本郷三丁目', lat: 35.7079, lng: 139.7610 },
+  { id: 'awajicho', name: '淡路町', lat: 35.6936, lng: 139.7673 },
+  { id: 'kokkaigijido_mae', name: '国会議事堂前', lat: 35.6742, lng: 139.7441 },
+  { id: 'yotsuya_sanchome', name: '四谷三丁目', lat: 35.6858, lng: 139.7202 },
+  { id: 'shinjuku_sanchome', name: '新宿三丁目', lat: 35.6887, lng: 139.7060 },
+  { id: 'nishi_shinjuku', name: '西新宿', lat: 35.6917, lng: 139.6901 },
+  { id: 'nakanosakaue', name: '中野坂上', lat: 35.7036, lng: 139.6799 },
+  // 銀座線 追加駅
+  { id: 'omotesando', name: '表参道', lat: 35.6653, lng: 139.7128 },
+  { id: 'aoyama_itchome', name: '青山一丁目', lat: 35.6727, lng: 139.7241 },
+  { id: 'tameike_sanno', name: '溜池山王', lat: 35.6736, lng: 139.7416 },
+  { id: 'nihombashi', name: '日本橋', lat: 35.6824, lng: 139.7741 },
+  { id: 'asakusa', name: '浅草', lat: 35.7116, lng: 139.7966 },
+  // 日比谷線 追加駅
+  { id: 'hiroo', name: '広尾', lat: 35.6507, lng: 139.7197 },
+  { id: 'kayabacho', name: '茅場町', lat: 35.6783, lng: 139.7796 },
+  { id: 'ningyocho', name: '人形町', lat: 35.6857, lng: 139.7826 },
+  // 東西線
+  { id: 'waseda', name: '早稲田', lat: 35.7076, lng: 139.7186 },
+  { id: 'iidabashi', name: '飯田橋', lat: 35.7019, lng: 139.7495 },
+  { id: 'kudanshita', name: '九段下', lat: 35.6962, lng: 139.7501 },
+  { id: 'monzen_nakacho', name: '門前仲町', lat: 35.6709, lng: 139.7980 },
+  { id: 'kiba', name: '木場', lat: 35.6693, lng: 139.8104 },
+  { id: 'nishi_kasai', name: '西葛西', lat: 35.6665, lng: 139.8629 },
+  // 京浜東北線 追加駅
+  { id: 'akabane', name: '赤羽', lat: 35.7781, lng: 139.7214 },
+  { id: 'oji', name: '王子', lat: 35.7567, lng: 139.7375 },
+  { id: 'oimachi', name: '大井町', lat: 35.6097, lng: 139.7286 },
+  { id: 'kamata', name: '蒲田', lat: 35.5637, lng: 139.7162 }
+];
+
+var LINES = [
+  {
+    id: 'jr_yamanote', name: 'JR山手線', operator: 'JR', color: '#80C241',
+    stations: ['shinagawa','osaki','gotanda','meguro','ebisu','shibuya','harajuku','yoyogi','shinjuku','shin_okubo','takadanobaba','mejiro','ikebukuro','otsuka','sugamo','komagome','tabata','nishi_nippori','nippori','uguisudani','ueno','okachimachi','akihabara','kanda','tokyo','yurakucho','shimbashi','hamamatsucho','tamachi']
+  },
+  {
+    id: 'jr_chuo', name: 'JR中央線', operator: 'JR', color: '#F15A22',
+    stations: ['tokyo','kanda','ochanomizu','yotsuya','shinjuku','nakano','koenji','asagaya','ogikubo','kichijoji','mitaka']
+  },
+  {
+    id: 'metro_marunouchi', name: '丸ノ内線', operator: 'METRO', color: '#E60012',
+    stations: ['ikebukuro','shin_otsuka','myogadani','korakuen','hongo_sanchome','ochanomizu','awajicho','otemachi','tokyo','ginza','kasumigaseki','kokkaigijido_mae','akasaka_mitsuke','yotsuya','yotsuya_sanchome','shinjuku_sanchome','shinjuku','nishi_shinjuku','nakanosakaue','nakano']
+  },
+  {
+    id: 'metro_ginza', name: '銀座線', operator: 'METRO', color: '#FF9500',
+    stations: ['shibuya','omotesando','aoyama_itchome','akasaka_mitsuke','tameike_sanno','shimbashi','ginza','nihombashi','kanda','ueno','asakusa']
+  },
+  {
+    id: 'metro_hibiya', name: '日比谷線', operator: 'METRO', color: '#9CAEB7',
+    stations: ['nakameguro','ebisu','hiroo','roppongi','kasumigaseki','ginza','kayabacho','ningyocho','akihabara','ueno','kitasenju']
+  },
+  {
+    id: 'metro_tozai', name: '東西線', operator: 'METRO', color: '#009BBF',
+    stations: ['nakano','takadanobaba','waseda','iidabashi','kudanshita','otemachi','nihombashi','kayabacho','monzen_nakacho','kiba','nishi_kasai']
+  },
+  {
+    id: 'jr_keihin_tohoku', name: 'JR京浜東北線', operator: 'JR', color: '#00B2E5',
+    stations: ['akabane','oji','tabata','nishi_nippori','nippori','uguisudani','ueno','okachimachi','akihabara','kanda','tokyo','yurakucho','shimbashi','hamamatsucho','tamachi','shinagawa','oimachi','kamata']
+  }
+];
+
+var STATION_MAP = new Map();
+STATIONS.forEach(function (s) { STATION_MAP.set(s.id, s); });
+var LINE_MAP = new Map();
+LINES.forEach(function (l) { LINE_MAP.set(l.id, l); });
+
+// ========== GRAPH / FARE ==========
+function haversineKm(a, b) {
+  var R = 6371;
+  var toRad = function (d) { return d * Math.PI / 180; };
+  var dLat = toRad(b.lat - a.lat);
+  var dLng = toRad(b.lng - a.lng);
+  var la1 = toRad(a.lat), la2 = toRad(b.lat);
+  var h = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function calcFare(operator, km) {
+  if (operator === 'JR') {
+    if (km <= 3) return 150;
+    if (km <= 6) return 180;
+    if (km <= 10) return 200;
+    if (km <= 15) return 240;
+    if (km <= 20) return 320;
+    if (km <= 25) return 400;
+    if (km <= 30) return 480;
+    return 520;
+  }
+  if (km <= 8) return 180;
+  if (km <= 14) return 210;
+  if (km <= 19) return 240;
+  return 270;
+}
+
+function buildConnections() {
+  var conns = [];
+  LINES.forEach(function (line) {
+    for (var i = 0; i < line.stations.length - 1; i++) {
+      var a = STATION_MAP.get(line.stations[i]);
+      var b = STATION_MAP.get(line.stations[i + 1]);
+      if (!a || !b) continue;
+      var km = haversineKm(a, b);
+      var time = Math.max(1, Math.round(km * 2 + 1));
+      conns.push({ from: a.id, to: b.id, lineId: line.id, km: km, time: time });
+      conns.push({ from: b.id, to: a.id, lineId: line.id, km: km, time: time });
+    }
+  });
+  return conns;
+}
+
+var CONNECTIONS = buildConnections();
+
+function isPassCovered(conn, pass) {
+  if (conn.lineId !== pass.lineId) return false;
+  var line = LINE_MAP.get(pass.lineId);
+  if (!line) return false;
+  var idx = line.stations;
+  var pf = idx.indexOf(pass.fromStationId);
+  var pt = idx.indexOf(pass.toStationId);
+  var cf = idx.indexOf(conn.from);
+  var ct = idx.indexOf(conn.to);
+  if (pf < 0 || pt < 0 || cf < 0 || ct < 0) return false;
+  var pMin = Math.min(pf, pt), pMax = Math.max(pf, pt);
+  var cMin = Math.min(cf, ct), cMax = Math.max(cf, ct);
+  return cMin >= pMin && cMax <= pMax;
+}
+
+function activePasses() {
+  var now = new Date();
+  return state.passes.filter(function (p) { return new Date(p.validUntil) >= now; });
+}
+
+function buildGraph() {
+  var passes = activePasses();
+  var graph = new Map();
+  CONNECTIONS.forEach(function (c) {
+    var line = LINE_MAP.get(c.lineId);
+    if (!line) return;
+    var origFare = calcFare(line.operator, c.km);
+    var covered = false, passId = null;
+    for (var i = 0; i < passes.length; i++) {
+      if (isPassCovered(c, passes[i])) { covered = true; passId = passes[i].id; break; }
+    }
+    if (!graph.has(c.from)) graph.set(c.from, []);
+    graph.get(c.from).push({
+      to: c.to, lineId: c.lineId,
+      cost: covered ? 0 : origFare,
+      origCost: origFare,
+      time: c.time, covered: covered, passId: passId, km: c.km
+    });
+  });
+  return graph;
+}
+
+function dijkstra(fromId, toId, graph) {
+  if (fromId === toId) return null;
+  var dist = new Map();
+  dist.set(fromId, 0);
+  var queue = [{ id: fromId, cost: 0, origCost: 0, time: 0, path: [] }];
+  while (queue.length > 0) {
+    var bestIdx = 0;
+    for (var i = 1; i < queue.length; i++) {
+      if (queue[i].cost < queue[bestIdx].cost) bestIdx = i;
+    }
+    var cur = queue.splice(bestIdx, 1)[0];
+    if (cur.id === toId) return cur;
+    if (cur.cost > (dist.get(cur.id) || Infinity)) continue;
+    var edges = graph.get(cur.id) || [];
+    for (var j = 0; j < edges.length; j++) {
+      var e = edges[j];
+      var nc = cur.cost + e.cost;
+      if (nc < (dist.get(e.to) == null ? Infinity : dist.get(e.to))) {
+        dist.set(e.to, nc);
+        var step = {
+          from: cur.id, to: e.to, lineId: e.lineId,
+          fare: e.cost, origFare: e.origCost,
+          covered: e.covered, passId: e.passId, time: e.time
+        };
+        queue.push({
+          id: e.to, cost: nc,
+          origCost: cur.origCost + e.origCost,
+          time: cur.time + e.time,
+          path: cur.path.concat([step])
+        });
+      }
+    }
+  }
+  return null;
+}
+
+function mergeSegments(path) {
+  var segs = [];
+  for (var i = 0; i < path.length; i++) {
+    var p = path[i];
+    var last = segs[segs.length - 1];
+    if (last && last.lineId === p.lineId && last.covered === p.covered) {
+      last.to = p.to;
+      last.fare += p.fare;
+      last.origFare += p.origFare;
+      last.time += p.time;
+    } else {
+      segs.push({ from: p.from, to: p.to, lineId: p.lineId, fare: p.fare, origFare: p.origFare, covered: p.covered, passId: p.passId, time: p.time });
+    }
+  }
+  return segs;
+}
+
+function routeFromResult(r) {
+  if (!r) return null;
+  var segs = mergeSegments(r.path);
+  var transfers = 0;
+  for (var i = 1; i < segs.length; i++) {
+    if (segs[i].lineId !== segs[i-1].lineId) transfers++;
+  }
+  var total = 0, orig = 0;
+  segs.forEach(function (s) { total += s.fare; orig += s.origFare; });
+  return {
+    segments: segs, totalFare: total, originalFare: orig,
+    savings: Math.max(0, orig - total),
+    totalTime: r.time, transfers: transfers
+  };
+}
+
+function findRoutes(fromId, toId) {
+  var graph = buildGraph();
+  var first = dijkstra(fromId, toId, graph);
+  if (!first) return [];
+  var routes = [routeFromResult(first)];
+  // Alternative routes: remove a segment from each position in best path
+  for (var i = 0; i < first.path.length && routes.length < 3; i++) {
+    var blocked = first.path[i];
+    var g2 = new Map();
+    graph.forEach(function (edges, node) {
+      g2.set(node, edges.filter(function (e) {
+        var sameFwd = (node === blocked.from && e.to === blocked.to && e.lineId === blocked.lineId);
+        var sameBwd = (node === blocked.to && e.to === blocked.from && e.lineId === blocked.lineId);
+        return !sameFwd && !sameBwd;
+      }));
+    });
+    var alt = dijkstra(fromId, toId, g2);
+    if (alt) {
+      var r2 = routeFromResult(alt);
+      var sig = r2.segments.map(function (s) { return s.lineId + ':' + s.from + '>' + s.to; }).join('|');
+      var dup = routes.some(function (r) {
+        return r.segments.map(function (s) { return s.lineId + ':' + s.from + '>' + s.to; }).join('|') === sig;
+      });
+      if (!dup) routes.push(r2);
+    }
+  }
+  return routes.sort(function (a, b) { return a.totalFare - b.totalFare; });
+}
+
+// ========== STATE ==========
+var state = {
+  passes: [],
+  fromId: '',
+  toId: '',
+  routes: [],
+  selectedRoute: 0,
+  searched: false
+};
+
+try { state.passes = JSON.parse(localStorage.getItem('cp_passes') || '[]'); } catch (e) { state.passes = []; }
+
+function savePasses() {
+  try { localStorage.setItem('cp_passes', JSON.stringify(state.passes)); } catch (e) {}
+}
+
+// ========== MAP ==========
+var map = L.map('map', { center: [35.6812, 139.7671], zoom: 12 });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors', maxZoom: 19
+}).addTo(map);
+
+// ========== INIT ==========
+function $(id) { return document.getElementById(id); }
+
+function updateSearchBtn() {
+  var btn = $('search-btn');
+  btn.disabled = !(state.fromId && state.toId);
+}
+
+// Combo dropdowns
+function setupCombo(side) {
+  var input = $(side + '-input');
+  var list = $(side + '-list');
+  var combo = $(side + '-combo');
+
+  function render(query) {
+    var q = (query || '').trim();
+    var excludeId = side === 'from' ? state.toId : state.fromId;
+    var filtered = STATIONS.filter(function (s) {
+      if (s.id === excludeId) return false;
+      if (q === '') return true;
+      return s.name.indexOf(q) !== -1;
+    }).slice(0, 30);
+    if (filtered.length === 0) {
+      list.innerHTML = '<div class="empty-item">該当する駅がありません</div>';
+    } else {
+      list.innerHTML = filtered.map(function (s) {
+        return '<div class="item" data-id="' + s.id + '">' + s.name + '</div>';
+      }).join('');
+    }
+  }
+
+  input.addEventListener('focus', function () {
+    render(input.value);
+    list.classList.add('open');
+  });
+  input.addEventListener('input', function () {
+    if (side === 'from') state.fromId = ''; else state.toId = '';
+    updateSearchBtn();
+    render(input.value);
+    list.classList.add('open');
+  });
+  list.addEventListener('mousedown', function (e) {
+    var item = e.target.closest('.item');
+    if (!item) return;
+    var id = item.getAttribute('data-id');
+    var st = STATION_MAP.get(id);
+    if (!st) return;
+    input.value = st.name;
+    if (side === 'from') state.fromId = id; else state.toId = id;
+    list.classList.remove('open');
+    updateSearchBtn();
+  });
+  document.addEventListener('mousedown', function (e) {
+    if (!combo.contains(e.target)) list.classList.remove('open');
+  });
+}
+
+setupCombo('from');
+setupCombo('to');
+
+$('swap-btn').addEventListener('click', function () {
+  var tmp = state.fromId; state.fromId = state.toId; state.toId = tmp;
+  $('from-input').value = state.fromId ? (STATION_MAP.get(state.fromId) || {}).name || '' : '';
+  $('to-input').value = state.toId ? (STATION_MAP.get(state.toId) || {}).name || '' : '';
+  updateSearchBtn();
+});
+
+// ========== SEARCH / RESULTS ==========
+function fmtTime(min) {
+  if (min < 60) return min + '分';
+  return Math.floor(min / 60) + '時間' + (min % 60 > 0 ? (min % 60) + '分' : '');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
+}
+
+function renderResults() {
+  var section = $('results-section');
+  var container = $('results');
+  var header = $('route-from-to');
+  var from = STATION_MAP.get(state.fromId);
+  var to = STATION_MAP.get(state.toId);
+  if (from && to) header.textContent = from.name + ' → ' + to.name;
+  if (state.routes.length === 0) {
+    container.innerHTML = '<div class="empty">ルートが見つかりませんでした</div>';
+    section.style.display = 'block';
+    return;
+  }
+  var html = state.routes.map(function (route, i) {
+    var lineIds = [];
+    route.segments.forEach(function (s) { if (lineIds.indexOf(s.lineId) === -1) lineIds.push(s.lineId); });
+    var tags = lineIds.map(function (lid) {
+      var line = LINE_MAP.get(lid);
+      return line ? '<span class="tag" style="background:' + line.color + '">' + escapeHtml(line.name) + '</span>' : '';
+    }).join('');
+    var segs = route.segments.map(function (seg, j) {
+      var line = LINE_MAP.get(seg.lineId);
+      var fs = STATION_MAP.get(seg.from);
+      var ts = STATION_MAP.get(seg.to);
+      var color = line ? line.color : '#888';
+      var transferHtml = j > 0 ? '<span class="transfer">乗換</span>' : '';
+      var fareHtml = seg.covered
+        ? '<span class="covered">✓ 定期</span>'
+        : '<span class="paid">¥' + seg.fare + '</span>';
+      return transferHtml + '<span class="seg">' +
+        '<span class="dot" style="background:' + color + '"></span>' +
+        '<span>' + escapeHtml(fs ? fs.name : '?') + '</span>' +
+        '<span class="arrow">→</span>' +
+        '<span>' + escapeHtml(ts ? ts.name : '?') + '</span>' +
+        fareHtml + '</span>';
+    }).join('');
+    var selected = i === state.selectedRoute ? ' selected' : '';
+    var cheap = i === 0 ? '<span class="badge-cheap">最安</span>' : '';
+    var orig = route.savings > 0 ? '<span class="orig">¥' + route.originalFare.toLocaleString() + '</span>' : '';
+    var savings = route.savings > 0
+      ? '<div class="savings">🏷 定期券利用で ¥' + route.savings.toLocaleString() + ' 節約</div>'
+      : '';
+    return '<button class="route-card' + selected + '" data-idx="' + i + '">' +
+      '<div class="top">' +
+        '<div class="fare">' + cheap + '¥' + route.totalFare.toLocaleString() + orig + '</div>' +
+        '<div class="meta"><span>⏱ ' + fmtTime(route.totalTime) + '</span><span>🔄 乗換' + route.transfers + '回</span></div>' +
+      '</div>' +
+      savings +
+      '<div class="segs">' + segs + '</div>' +
+      '<div class="tags">' + tags + '</div>' +
+      '</button>';
+  }).join('');
+  container.innerHTML = html;
+  Array.prototype.forEach.call(container.querySelectorAll('.route-card'), function (el) {
+    el.addEventListener('click', function () {
+      state.selectedRoute = parseInt(el.getAttribute('data-idx'), 10);
+      renderResults();
+      updateMap();
+    });
+  });
+  section.style.display = 'block';
+}
+
+// ========== MAP RENDERING ==========
+var mapLayers = [];
+function clearMap() {
+  mapLayers.forEach(function (l) { map.removeLayer(l); });
+  mapLayers = [];
+}
+function addLayer(l) { map.addLayer(l); mapLayers.push(l); }
+
+function makeBadgeIcon(text, color, size) {
+  var html = '<div style="background:' + color + ';color:#fff;border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:' + Math.round(size * 0.45) + 'px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);font-family:inherit">' + text + '</div>';
+  return L.divIcon({ html: html, className: '', iconSize: [size, size], iconAnchor: [size/2, size/2] });
+}
+
+function updateMap() {
+  clearMap();
+  var welcome = $('welcome');
+  var route = state.routes[state.selectedRoute];
+  if (!route) {
+    welcome.style.display = 'flex';
+    return;
+  }
+  welcome.style.display = 'none';
+  var bounds = [];
+  route.segments.forEach(function (seg) {
+    var line = LINE_MAP.get(seg.lineId);
+    if (!line) return;
+    var color = seg.covered ? '#22c55e' : line.color;
+    var weight = seg.covered ? 7 : 5;
+    var stations = line.stations;
+    var fi = stations.indexOf(seg.from);
+    var ti = stations.indexOf(seg.to);
+    if (fi < 0 || ti < 0) return;
+    var lo = Math.min(fi, ti), hi = Math.max(fi, ti);
+    var slice = stations.slice(lo, hi + 1);
+    if (fi > ti) slice.reverse();
+    var latlngs = [];
+    slice.forEach(function (id) {
+      var s = STATION_MAP.get(id);
+      if (s) { latlngs.push([s.lat, s.lng]); bounds.push([s.lat, s.lng]); }
+    });
+    if (latlngs.length >= 2) {
+      addLayer(L.polyline(latlngs, { color: color, weight: weight, opacity: .88 }));
+    }
+  });
+  var first = route.segments[0];
+  var last = route.segments[route.segments.length - 1];
+  var start = STATION_MAP.get(first.from);
+  var end = STATION_MAP.get(last.to);
+  if (start) {
+    addLayer(L.marker([start.lat, start.lng], { icon: makeBadgeIcon('出', '#22c55e', 30) }).bindTooltip(start.name));
+    bounds.push([start.lat, start.lng]);
+  }
+  if (end) {
+    addLayer(L.marker([end.lat, end.lng], { icon: makeBadgeIcon('着', '#ef4444', 30) }).bindTooltip(end.name));
+    bounds.push([end.lat, end.lng]);
+  }
+  for (var i = 0; i < route.segments.length - 1; i++) {
+    var st = STATION_MAP.get(route.segments[i].to);
+    if (st) addLayer(L.marker([st.lat, st.lng], { icon: makeBadgeIcon('乗', '#f59e0b', 22) }).bindTooltip('乗換: ' + st.name));
+  }
+  if (bounds.length > 0) {
+    map.fitBounds(L.latLngBounds(bounds), { padding: [50, 50] });
+  }
+}
+
+$('search-btn').addEventListener('click', function () {
+  if (!state.fromId || !state.toId) return;
+  var btn = $('search-btn');
+  var orig = btn.textContent;
+  btn.textContent = '⏳ 検索中...';
+  btn.disabled = true;
+  setTimeout(function () {
+    state.routes = findRoutes(state.fromId, state.toId);
+    state.selectedRoute = 0;
+    state.searched = true;
+    btn.textContent = orig;
+    btn.disabled = false;
+    renderResults();
+    updateMap();
+  }, 50);
+});
+
+// ========== PASS MANAGER ==========
+var PASS_LABELS = { '1month': '1ヶ月', '3month': '3ヶ月', '6month': '6ヶ月' };
+
+function genId() {
+  return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function updatePassBadges() {
+  var active = activePasses();
+  var badge = $('pass-badge');
+  var count = $('pass-badge-count');
+  var listCount = $('pass-list-count');
+  if (active.length > 0) {
+    badge.style.display = 'inline-flex';
+    count.textContent = active.length;
+  } else {
+    badge.style.display = 'none';
+  }
+  if (state.passes.length > 0) {
+    listCount.style.display = 'inline-block';
+    listCount.textContent = state.passes.length;
+  } else {
+    listCount.style.display = 'none';
+  }
+}
+
+function renderPassList() {
+  var list = $('pass-list');
+  if (state.passes.length === 0) {
+    list.innerHTML = '<div class="empty">定期券が登録されていません</div>';
+    updatePassBadges();
+    return;
+  }
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  list.innerHTML = state.passes.map(function (p) {
+    var line = LINE_MAP.get(p.lineId);
+    var from = STATION_MAP.get(p.fromStationId);
+    var to = STATION_MAP.get(p.toStationId);
+    var expired = new Date(p.validUntil) < today;
+    return '<div class="pass-item' + (expired ? ' expired' : '') + '">' +
+      '<div class="line-dot" style="background:' + (line ? line.color : '#888') + '"></div>' +
+      '<div class="info">' +
+        '<div class="title">' + escapeHtml(from ? from.name : '?') + ' → ' + escapeHtml(to ? to.name : '?') + '</div>' +
+        '<div class="sub">' + escapeHtml(line ? line.name : '?') + ' · ' + PASS_LABELS[p.passType] + '</div>' +
+        '<div class="expiry' + (expired ? ' bad' : '') + '">' + (expired ? '期限切れ: ' : '有効期限: ') + escapeHtml(p.validUntil) + '</div>' +
+      '</div>' +
+      '<button class="remove" data-id="' + p.id + '" title="削除">🗑</button>' +
+    '</div>';
+  }).join('');
+  Array.prototype.forEach.call(list.querySelectorAll('.remove'), function (el) {
+    el.addEventListener('click', function () {
+      var id = el.getAttribute('data-id');
+      state.passes = state.passes.filter(function (p) { return p.id !== id; });
+      savePasses();
+      renderPassList();
+      if (state.searched && state.fromId && state.toId) {
+        state.routes = findRoutes(state.fromId, state.toId);
+        state.selectedRoute = 0;
+        renderResults();
+        updateMap();
+      }
+    });
+  });
+  updatePassBadges();
+}
+
+function estimateMonthly(lineId, fromId, toId) {
+  var line = LINE_MAP.get(lineId);
+  if (!line) return null;
+  var fi = line.stations.indexOf(fromId);
+  var ti = line.stations.indexOf(toId);
+  if (fi < 0 || ti < 0 || fi === ti) return null;
+  var lo = Math.min(fi, ti), hi = Math.max(fi, ti);
+  var km = 0;
+  for (var i = lo; i < hi; i++) {
+    var a = STATION_MAP.get(line.stations[i]);
+    var b = STATION_MAP.get(line.stations[i + 1]);
+    if (a && b) km += haversineKm(a, b);
+  }
+  var oneway = calcFare(line.operator, km);
+  var m1 = Math.round(oneway * 2 * 20 * 0.6 / 10) * 10;
+  var m3 = Math.round(m1 * 3 * 0.9 / 10) * 10;
+  var m6 = Math.round(m1 * 6 * 0.8 / 10) * 10;
+  return { m1: m1, m3: m3, m6: m6, km: km };
+}
+
+function defaultValidUntil(passType) {
+  var d = new Date();
+  if (passType === '3month') d.setMonth(d.getMonth() + 3);
+  else if (passType === '6month') d.setMonth(d.getMonth() + 6);
+  else d.setMonth(d.getMonth() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function renderPassForm(show) {
+  var area = $('pass-form-area');
+  if (!show) {
+    area.innerHTML = '<button class="add-pass-btn" id="show-pass-form-btn">+ 定期券を追加</button>';
+    $('show-pass-form-btn').addEventListener('click', function () { renderPassForm(true); });
+    return;
+  }
+  var lineOptions = LINES.map(function (l) {
+    return '<option value="' + l.id + '">' + escapeHtml(l.name) + '</option>';
+  }).join('');
+  area.innerHTML =
+    '<div class="pass-form">' +
+      '<h4>定期券を追加</h4>' +
+      '<div class="field"><label>路線</label><select id="pf-line"><option value="">路線を選択...</option>' + lineOptions + '</select></div>' +
+      '<div class="row2">' +
+        '<div class="field"><label>乗車駅</label><select id="pf-from"><option value="">選択...</option></select></div>' +
+        '<div class="field"><label>降車駅</label><select id="pf-to"><option value="">選択...</option></select></div>' +
+      '</div>' +
+      '<div class="row2">' +
+        '<div class="field"><label>種別</label><select id="pf-type">' +
+          '<option value="1month">1ヶ月</option>' +
+          '<option value="3month">3ヶ月</option>' +
+          '<option value="6month">6ヶ月</option>' +
+        '</select></div>' +
+        '<div class="field"><label>有効期限</label><input type="date" id="pf-valid" value="' + defaultValidUntil('1month') + '"></div>' +
+      '</div>' +
+      '<div id="pf-estimate" class="estimate" style="display:none"></div>' +
+      '<div class="actions">' +
+        '<button class="save" id="pf-save">追加する</button>' +
+        '<button class="cancel" id="pf-cancel">キャンセル</button>' +
+      '</div>' +
+    '</div>';
+
+  var lineSel = $('pf-line'), fromSel = $('pf-from'), toSel = $('pf-to'),
+      typeSel = $('pf-type'), validInp = $('pf-valid'), estBox = $('pf-estimate');
+
+  function repopStations() {
+    var lid = lineSel.value;
+    var line = LINE_MAP.get(lid);
+    var opts = '<option value="">選択...</option>';
+    if (line) {
+      opts += line.stations.map(function (id) {
+        var s = STATION_MAP.get(id);
+        return s ? '<option value="' + id + '">' + escapeHtml(s.name) + '</option>' : '';
+      }).join('');
+    }
+    fromSel.innerHTML = opts;
+    toSel.innerHTML = opts;
+    updateEstimate();
+  }
+
+  function updateEstimate() {
+    var est = estimateMonthly(lineSel.value, fromSel.value, toSel.value);
+    if (!est) {
+      estBox.style.display = 'none';
+      return;
+    }
+    estBox.style.display = 'block';
+    estBox.textContent = '参考料金: 1ヶ月 ¥' + est.m1.toLocaleString() +
+      ' / 3ヶ月 ¥' + est.m3.toLocaleString() +
+      ' / 6ヶ月 ¥' + est.m6.toLocaleString();
+  }
+
+  lineSel.addEventListener('change', repopStations);
+  fromSel.addEventListener('change', updateEstimate);
+  toSel.addEventListener('change', updateEstimate);
+  typeSel.addEventListener('change', function () { validInp.value = defaultValidUntil(typeSel.value); });
+
+  $('pf-cancel').addEventListener('click', function () { renderPassForm(false); });
+  $('pf-save').addEventListener('click', function () {
+    var lid = lineSel.value, fid = fromSel.value, tid = toSel.value;
+    if (!lid || !fid || !tid || fid === tid) {
+      alert('路線と異なる2つの駅を選択してください');
+      return;
+    }
+    if (!validInp.value) {
+      alert('有効期限を入力してください');
+      return;
+    }
+    state.passes.push({
+      id: genId(), lineId: lid,
+      fromStationId: fid, toStationId: tid,
+      passType: typeSel.value, validUntil: validInp.value
+    });
+    savePasses();
+    renderPassList();
+    renderPassForm(false);
+    if (state.searched && state.fromId && state.toId) {
+      state.routes = findRoutes(state.fromId, state.toId);
+      state.selectedRoute = 0;
+      renderResults();
+      updateMap();
+    }
+  });
+}
+
+renderPassList();
+renderPassForm(false);
+
+console.log('App ready. Stations:', STATIONS.length, 'Lines:', LINES.length, 'Connections:', CONNECTIONS.length, 'Passes:', state.passes.length);
+</script>
+</body>
+</html>
