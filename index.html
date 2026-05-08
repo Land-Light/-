@@ -101,7 +101,10 @@ html,body{height:100%;font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans
 <div id="hdr">
   <div class="hdr-top">
     <div class="hdr-title">会社法 ○×クイズ</div>
-    <div class="hdr-stats" id="statsText">正解率 -%</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="hdr-stats" id="statsText">正解率 -%</div>
+      <button onclick="if(confirm('最初からやり直しますか？'))resetQuiz()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:8px;color:rgba(255,255,255,.8);font-size:11px;padding:4px 8px;cursor:pointer;font-family:inherit">リセット</button>
+    </div>
   </div>
   <div class="hdr-cat">
     <div class="hdr-dot"></div>
@@ -449,10 +452,37 @@ const ALL = [
 
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 
-const questions = shuffle([...ALL]);
-const userAnswers = new Array(questions.length).fill(null);
+const SAVE_KEY = 'kaisha_quiz_v1';
+
+function saveState(){
+  const order = questions.map(q => ALL.indexOf(q));
+  localStorage.setItem(SAVE_KEY, JSON.stringify({order, answers: userAnswers, current, score}));
+}
+
+function loadState(){
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return false;
+    const s = JSON.parse(raw);
+    if(!s.order || s.order.length !== ALL.length) return false;
+    questions.length = 0;
+    s.order.forEach(i => questions.push(ALL[i]));
+    s.answers.forEach((v,i) => userAnswers[i] = v);
+    current = s.current || 0;
+    score = s.score || 0;
+    return true;
+  } catch(e){ return false; }
+}
+
+const questions = [];
+const userAnswers = new Array(ALL.length).fill(null);
 let current = 0;
 let score = 0;
+
+if(!loadState()){
+  const shuffled = shuffle([...ALL]);
+  shuffled.forEach(q => questions.push(q));
+}
 
 const qarea    = document.getElementById('qarea');
 const catName  = document.getElementById('catName');
@@ -561,7 +591,7 @@ function doAnswer(choice){
   
   userAnswers[current]=choice;
   if(choice===q.ans)score++;
-  
+
   // Show result
   const ok=(choice===q.ans);
   qResult.style.display='block';
@@ -571,6 +601,7 @@ function doAnswer(choice){
   applyAnsweredState(q, choice);
   nextBtn.disabled=false;
   updateStats();
+  saveState();
   
   // Scroll to show result
   setTimeout(()=>{qarea.scrollTop=qarea.scrollHeight},80);
@@ -579,13 +610,20 @@ function doAnswer(choice){
 function nextQ(){
   if(current+1>=questions.length){showFinish();return;}
   current++;
+  saveState();
   showQ(current);
 }
 
 function prevQ(){
   if(current===0)return;
   current--;
+  saveState();
   showQ(current);
+}
+
+function resetQuiz(){
+  localStorage.removeItem(SAVE_KEY);
+  location.reload();
 }
 
 function updateStats(){
@@ -604,6 +642,7 @@ function showFinish(){
   else if(pct>=70){emoji='🎉';msg='素晴らしい実力！';}
   else if(pct>=50){emoji='👏';msg='もう少し！';}
   else if(pct>=30){emoji='📚';msg='復習してリベンジ！';}
+  localStorage.removeItem(SAVE_KEY);
   qarea.innerHTML=`<div class="fin-card">
     <div class="emoji">${emoji}</div>
     <h2>全問終了！</h2>
