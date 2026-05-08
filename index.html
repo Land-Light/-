@@ -2,96 +2,146 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>会社法クイズ 300問</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>会社法 300問</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans-serif;background:#0f172a;color:#e2e8f0;height:100dvh;display:flex;flex-direction:column}
-header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.hd-left{display:flex;align-items:center;gap:10px}
-.avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:18px}
-.hd-info h1{font-size:15px;font-weight:700}
-.hd-info p{font-size:11px;color:#94a3b8}
-.score-badge{background:#1e3a5f;border:1px solid #3b82f6;border-radius:20px;padding:5px 13px;font-size:13px;color:#93c5fd;font-weight:700;white-space:nowrap}
-.prog-wrap{background:#1e293b;border-bottom:1px solid #334155;padding:7px 16px;flex-shrink:0}
-.prog-info{display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-bottom:4px}
-.prog-bar{height:4px;background:#334155;border-radius:2px;overflow:hidden}
-.prog-fill{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:2px;transition:width .4s ease}
-.chat{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth}
-.chat::-webkit-scrollbar{width:4px}
-.chat::-webkit-scrollbar-thumb{background:#334155;border-radius:2px}
-.msg{display:flex;align-items:flex-start;gap:9px;animation:fu .3s ease}
-@keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.msg.user{flex-direction:row-reverse}
-.mavatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px}
-.msg.bot .mavatar{background:linear-gradient(135deg,#6366f1,#8b5cf6)}
-.msg.user .mavatar{background:linear-gradient(135deg,#059669,#10b981)}
-.mcontent{max-width:80%;display:flex;flex-direction:column;gap:6px}
-.msg.user .mcontent{align-items:flex-end}
-.bubble{padding:11px 14px;border-radius:16px;font-size:14px;line-height:1.65}
-.msg.bot .bubble{background:#1e293b;border:1px solid #334155;border-top-left-radius:4px}
-.msg.user .bubble{background:linear-gradient(135deg,#6366f1,#7c3aed);border-top-right-radius:4px;color:#fff}
-.qnum{font-size:11px;color:#818cf8;font-weight:700;letter-spacing:.5px;margin-bottom:3px}
-.qtag{display:inline-block;font-size:10px;background:#312e81;color:#a5b4fc;padding:2px 8px;border-radius:10px;margin-bottom:6px}
-.qtext{font-size:15px;font-weight:600;line-height:1.55}
+html,body{height:100%;font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans-serif;background:#1a1035;color:#1e1b4b}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh}
 
-/* ○× buttons */
-.ox-wrap{display:flex;gap:12px;margin-left:41px;animation:fu .3s ease .1s both}
-.ox-btn{flex:1;max-width:140px;height:72px;border-radius:16px;border:2px solid;font-size:32px;cursor:pointer;transition:all .2s;font-family:inherit;display:flex;align-items:center;justify-content:center;font-weight:700}
-.ox-btn.maru{background:#0a2e1f;border-color:#16a34a;color:#4ade80}
-.ox-btn.batu{background:#2d0a0a;border-color:#dc2626;color:#f87171}
-.ox-btn:hover:not(:disabled){transform:scale(1.06);filter:brightness(1.15)}
-.ox-btn:disabled{cursor:default;transform:none;filter:none;opacity:.7}
-.ox-btn.selected-correct{background:#052e16;border-color:#22c55e;color:#86efac;opacity:1}
-.ox-btn.selected-wrong{background:#3b0a0a;border-color:#ef4444;color:#fca5a5;opacity:1}
-.ox-btn.reveal{background:#052e16;border-color:#22c55e;color:#86efac;opacity:1}
+/* ── HEADER ── */
+#hdr{background:linear-gradient(160deg,#7c3aed 0%,#5b21b6 100%);flex-shrink:0}
+.hdr-top{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 6px}
+.hdr-title{color:rgba(255,255,255,.9);font-size:13px;font-weight:700}
+.hdr-stats{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.25);border-radius:20px;padding:4px 12px;color:#fff;font-size:13px;font-weight:700;white-space:nowrap}
+.hdr-cat{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.25);padding:7px 14px 8px}
+.hdr-dot{width:10px;height:10px;border-radius:50%;background:#ef4444;flex-shrink:0}
+.hdr-catname{flex:1;color:#fff;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-qnum{color:rgba(255,255,255,.65);font-size:12px;white-space:nowrap}
 
-/* result */
-.result-row{display:flex;align-items:center;gap:8px;margin-left:41px;animation:fu .25s ease}
-.result-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;border-radius:20px;font-size:13px;font-weight:700}
-.result-chip.ok{background:#052e16;color:#4ade80;border:1px solid #16a34a}
-.result-chip.ng{background:#2d0a0a;color:#f87171;border:1px solid #dc2626}
-.ans-label{font-size:12px;color:#64748b}
+/* ── QUESTION AREA ── */
+#qarea{flex:1;overflow-y:auto;background:#f3f0ff;padding:18px 16px 12px}
+#qarea::-webkit-scrollbar{width:3px}
+#qarea::-webkit-scrollbar-thumb{background:#c4b5fd;border-radius:2px}
+.q-badge{display:inline-flex;align-items:center;gap:6px;margin-bottom:14px}
+.q-num{background:#7c3aed;color:#fff;font-size:11px;font-weight:800;padding:3px 9px;border-radius:10px;letter-spacing:.5px}
+.q-exam{background:#ddd6fe;color:#5b21b6;font-size:11px;font-weight:700;padding:3px 9px;border-radius:10px}
+.q-text{font-size:16px;font-weight:600;line-height:1.75;color:#1e1b4b;padding-bottom:2px}
 
-/* explanation */
-.exp-box{background:#0f2540;border:1px solid #1e3a5f;border-left:3px solid #6366f1;border-radius:12px;padding:11px 14px;font-size:13px;color:#93c5fd;line-height:1.7;margin-left:41px;animation:fu .3s ease}
-.exp-box strong{color:#a5b4fc}
+/* result section */
+.q-result{margin-top:18px;border-top:2px solid #ddd6fe;padding-top:16px;animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.result-badge{display:inline-flex;align-items:center;gap:6px;font-size:17px;font-weight:900;padding:5px 14px;border-radius:6px;margin-bottom:12px}
+.result-badge.seikai{background:#d1fae5;color:#065f46;border:1.5px solid #6ee7b7}
+.result-badge.gokai{background:#fee2e2;color:#991b1b;border:1.5px solid #fca5a5}
+.q-exp{font-size:14px;line-height:1.75;color:#374151}
 
-/* next btn */
-.next-btn{background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:12px;padding:10px 22px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;transition:opacity .2s,transform .2s;margin-left:41px;animation:fu .3s ease;font-family:inherit}
-.next-btn:hover{opacity:.85;transform:translateY(-1px)}
+/* ── ANSWER + NAV BUTTONS ── */
+#ctrl{background:#1e1035;padding:10px 8px 10px;display:flex;align-items:center;gap:6px;flex-shrink:0}
 
-/* typing */
-.typing{display:flex;gap:4px;align-items:center;padding:11px 14px;background:#1e293b;border:1px solid #334155;border-radius:16px;border-top-left-radius:4px;width:fit-content}
-.typing span{width:6px;height:6px;background:#6366f1;border-radius:50%;animation:bounce 1.2s infinite}
-.typing span:nth-child(2){animation-delay:.2s}
-.typing span:nth-child(3){animation-delay:.4s}
-@keyframes bounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}
+.nav-btn{color:#a78bfa;font-size:13px;font-weight:700;padding:0 10px;height:72px;background:rgba(167,139,250,.12);border:1.5px solid rgba(167,139,250,.3);border-radius:12px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;min-width:52px;transition:opacity .15s}
+.nav-btn:disabled{opacity:.25;cursor:default}
 
-/* finish */
-.finish-card{background:#1e293b;border:1px solid #334155;border-radius:20px;padding:28px;text-align:center;margin:0 auto;max-width:380px;animation:fu .5s ease}
-.finish-card .emoji{font-size:56px;margin-bottom:10px}
-.finish-card h2{font-size:20px;margin-bottom:6px}
-.finish-card .fscore{font-size:46px;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:10px 0}
-.finish-card p{color:#94a3b8;font-size:13px;margin-bottom:18px}
-.finish-card .rbtn{background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:12px;padding:11px 28px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;transition:opacity .2s}
-.finish-card .rbtn:hover{opacity:.85}
-.cat-badge{display:inline-block;font-size:10px;background:#1e3a5f;color:#7dd3fc;padding:2px 7px;border-radius:8px;margin-bottom:5px}
+.ans-btn{flex:1;height:80px;border-radius:16px;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;transition:transform .15s,box-shadow .15s;position:relative;overflow:hidden}
+.ans-btn:active{transform:scale(.96)}
+
+/* ○ button */
+.maru-btn{background:#fdf3e0;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.circle-g{width:46px;height:46px;border-radius:50%;border:6px solid #e53935;background:transparent;transition:border-color .2s,box-shadow .2s}
+
+/* × button */
+.batu-btn{background:#ebebeb;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.cross-g{width:44px;height:44px;position:relative;display:flex;align-items:center;justify-content:center}
+.cross-g::before,.cross-g::after{content:'';position:absolute;width:40px;height:8px;background:#999;border-radius:4px;transition:background .2s}
+.cross-g::before{transform:rotate(45deg)}
+.cross-g::after{transform:rotate(-45deg)}
+
+.verdict{font-size:12px;font-weight:800;color:#888;min-height:16px;transition:color .2s}
+
+/* Correct answer highlight */
+.maru-btn.correct .circle-g{border-color:#e53935;box-shadow:0 0 0 4px rgba(229,57,53,.2)}
+.maru-btn.correct .verdict{color:#c62828}
+.batu-btn.correct .cross-g::before,.batu-btn.correct .cross-g::after{background:#333}
+.batu-btn.correct .verdict{color:#222}
+.batu-btn.correct{background:#ddd}
+
+/* Wrong choice highlight */
+.maru-btn.user-wrong{background:#ffe8e8}
+.maru-btn.user-wrong .circle-g{border-color:#ef9a9a}
+.maru-btn.user-wrong .verdict{color:#c62828}
+.batu-btn.user-wrong{background:#ffe8e8}
+.batu-btn.user-wrong .cross-g::before,.batu-btn.user-wrong .cross-g::after{background:#ef9a9a}
+.batu-btn.user-wrong .verdict{color:#c62828}
+
+/* Dimmed state */
+.ans-btn.dimmed{opacity:.35}
+.ans-btn:disabled{cursor:default}
+
+/* ── FOOTER ── */
+#ftr{background:#150d2a;padding:6px 16px 8px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;border-top:1px solid rgba(255,255,255,.08)}
+.ftr-info{color:rgba(167,139,250,.5);font-size:11px}
+.ftr-score{color:rgba(167,139,250,.7);font-size:12px;font-weight:700}
+
+/* Progress bar */
+.prog-wrap{background:rgba(255,255,255,.08);height:3px;border-radius:2px;margin:0 16px 6px}
+.prog-fill{height:100%;background:linear-gradient(90deg,#a78bfa,#818cf8);border-radius:2px;transition:width .4s ease}
+
+/* Finish card */
+.fin-card{background:#fff;border-radius:20px;padding:32px 24px;text-align:center;margin:20px auto;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.15);animation:fadeIn .5s ease}
+.fin-card .emoji{font-size:52px;margin-bottom:10px}
+.fin-card h2{font-size:20px;color:#1e1b4b;margin-bottom:6px}
+.fin-card .fscore{font-size:48px;font-weight:900;background:linear-gradient(135deg,#7c3aed,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:10px 0}
+.fin-card p{color:#6b7280;font-size:14px;margin-bottom:20px}
+.fin-card .rbtn{background:linear-gradient(135deg,#7c3aed,#5b21b6);border:none;border-radius:12px;padding:12px 28px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit}
 </style>
 </head>
 <body>
-<header>
-  <div class="hd-left">
-    <div class="avatar">⚖️</div>
-    <div class="hd-info"><h1>会社法クイズ</h1><p>300問 ○×チャレンジ</p></div>
+<div id="app">
+
+<div id="hdr">
+  <div class="hdr-top">
+    <div class="hdr-title">会社法 ○×クイズ</div>
+    <div class="hdr-stats" id="statsText">正解率 -%</div>
   </div>
-  <div class="score-badge" id="scoreBadge">0 / 0</div>
-</header>
-<div class="prog-wrap">
-  <div class="prog-info"><span id="progText">0 / 300問</span><span id="progPct">0%</span></div>
-  <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+  <div class="hdr-cat">
+    <div class="hdr-dot"></div>
+    <div class="hdr-catname" id="catName">-</div>
+    <div class="hdr-qnum" id="qNumHdr">- / 300</div>
+  </div>
+  <div class="prog-wrap"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
 </div>
-<div class="chat" id="chat"></div>
+
+<div id="qarea">
+  <div class="q-badge">
+    <span class="q-num" id="qNumBadge">Q 1</span>
+    <span class="q-exam" id="qExamBadge">試験1</span>
+  </div>
+  <div class="q-text" id="qText"></div>
+  <div class="q-result" id="qResult" style="display:none">
+    <div class="result-badge" id="resultBadge"></div>
+    <div class="q-exp" id="qExp"></div>
+  </div>
+</div>
+
+<div id="ctrl">
+  <button class="nav-btn" id="prevBtn" onclick="prevQ()" disabled>◁<br>前へ</button>
+  <button class="ans-btn maru-btn" id="maruBtn" onclick="doAnswer(true)">
+    <div class="circle-g" id="circleG"></div>
+    <div class="verdict" id="maruVerdict"></div>
+  </button>
+  <button class="ans-btn batu-btn" id="batuBtn" onclick="doAnswer(false)">
+    <div class="cross-g"></div>
+    <div class="verdict" id="batuVerdict"></div>
+  </button>
+  <button class="nav-btn" id="nextBtn" onclick="nextQ()" disabled>次へ<br>▷</button>
+</div>
+
+<div id="ftr">
+  <div class="ftr-info" id="ftrInfo">0 / 300 回答済み</div>
+  <div class="ftr-score" id="ftrScore">0 正解</div>
+</div>
+
+</div>
 
 <script>
 const ALL = [
@@ -180,11 +230,11 @@ const ALL = [
 {cat:"決議・報告の省略",q:"取締役会の決議については、取締役が取締役会の決議の目的である事項について提案をした場合において、その提案につき取締役（その事項について議決に加わることができるものに限る。）の全員が書面により同意の意思表示をしたときは、決議の省略に係る定款の定めがなくても、その提案を可決する旨の決議があったものとみなされる。",ans:false,exp:"取締役会の書面決議（決議の省略）は定款に定めがある場合に限り認められる（会社法370条）。株主総会と異なり、定款の根拠が必要。"},
 {cat:"決議・報告の省略",q:"監査役会への報告については、監査役が監査役の全員に対して監査役会に報告すべき事項を通知したときは、その事項を報告することを要しない。",ans:true,exp:"監査役会への報告省略については、監査役が全監査役に通知したときに報告を要しない（会社法395条）。全員の同意は不要。"},
 {cat:"監査役の独立性確保",q:"監査役会の決議については、監査役が監査役会の決議の目的である事項について提案をした場合において、その提案につき監査役の全員が書面により同意の意思表示をしたときは、決議の省略に係る定款の定めがなくても、その提案を可決する旨の決議があったものとみなされる。",ans:false,exp:"監査役会には書面決議（決議の省略）の制度がない（会社法393条参照）。 第18問：監査役の独立性確保"},
-{cat:"監査役の独立性確保",q:"監査役会設置会社において、取締役が監査役の選任に関する議案を株主総会に提出するには、監査役会の同意を得なければならないとの規律",ans:true,exp:"監査役の選任議案に監査役会の同意を要求することで、取締役が自らに都合のよい監査役を選任することを防ぐ（会社法343条1項）。"},
-{cat:"監査役の独立性確保",q:"補欠の監査役を選任することができるとの規律",ans:false,exp:"補欠監査役の選任（会社法329条3項）は員数確保・機関の継続性を目的とするものであり、独立性確保とは直接関係しない。"},
-{cat:"監査役の独立性確保",q:"監査役の任期は、定款の定めによって短縮することができないとの規律",ans:true,exp:"監査役の任期（4年）を定款でも短縮できないとする規律（会社法336条1項・2項）は、監査役の地位の安定・独立性確保を目的とする。"},
-{cat:"監査役の独立性確保",q:"監査役会の決議は、監査役の過半数をもって行うとの規律",ans:false,exp:"監査役会の決議要件（会社法393条1項）は意思決定手続の明確化を目的とするものであり、独立性確保とは直接関係しない。"},
-{cat:"株主総会決議に係る訴訟",q:"監査役を辞任した者は、辞任後最初に招集される株主総会に出席して、辞任した旨及びその理由を述べることができるとの規律",ans:true,exp:"辞任した監査役が株主総会で辞任理由を述べられる規律（会社法345条2項）は、監査役の実質的独立性を間接的に保護する目的がある。 第19問：株主総会決議に係る訴訟"},
+{cat:"監査役の独立性確保",q:"監査役会設置会社において、取締役が監査役の選任に関する議案を株主総会に提出するには、監査役会の同意を得なければならないとの規律は、監査役の独立性確保を目的とするものである。",ans:true,exp:"監査役の選任議案に監査役会の同意を要求することで、取締役が自らに都合のよい監査役を選任することを防ぐ（会社法343条1項）。"},
+{cat:"監査役の独立性確保",q:"補欠の監査役を選任することができるとの規律は、監査役の独立性確保を目的とするものである。",ans:false,exp:"補欠監査役の選任（会社法329条3項）は員数確保・機関の継続性を目的とするものであり、独立性確保とは直接関係しない。"},
+{cat:"監査役の独立性確保",q:"監査役の任期は、定款の定めによって短縮することができないとの規律は、監査役の独立性確保を目的とするものである。",ans:true,exp:"監査役の任期（4年）を定款でも短縮できないとする規律（会社法336条1項・2項）は、監査役の地位の安定・独立性確保を目的とする。"},
+{cat:"監査役の独立性確保",q:"監査役会の決議は、監査役の過半数をもって行うとの規律は、監査役の独立性確保を目的とするものである。",ans:false,exp:"監査役会の決議要件（会社法393条1項）は意思決定手続の明確化を目的とするものであり、独立性確保とは直接関係しない。"},
+{cat:"株主総会決議に係る訴訟",q:"監査役を辞任した者は、辞任後最初に招集される株主総会に出席して、辞任した旨及びその理由を述べることができるとの規律は、監査役の独立性確保を目的とするものである。",ans:true,exp:"辞任した監査役が株主総会で辞任理由を述べられる規律（会社法345条2項）は、監査役の実質的独立性を間接的に保護する目的がある。 第19問：株主総会決議に係る訴訟"},
 {cat:"株主総会決議に係る訴訟",q:"株主総会の招集通知の発出に漏れがあった場合、その程度にかかわらず、株主総会決議不存在確認の訴えを提起することはできない。",ans:false,exp:"招集通知の漏れの程度が著しい場合には決議の不存在と判断されることがある（判例）。「程度にかかわらず不存在確認訴訟を提起できない」は誤り。"},
 {cat:"株主総会決議に係る訴訟",q:"株主総会決議無効確認の訴えは、確認の利益を有する限り、誰でも提起することができる。",ans:true,exp:"決議無効確認の訴えは一般の確認訴訟であり（会社法830条2項）、確認の利益を有する者であれば誰でも提起できる。"},
 {cat:"株主総会決議に係る訴訟",q:"株主総会決議取消しの訴えの提起があった場合において、株主総会の招集の手続が定款に違反するときでも、裁判所は、その違反する事実が重大でなく、かつ、決議に影響を及ぼさないものであると認めるときは、その訴えに係る請求を棄却することができる。",ans:true,exp:"裁量棄却の規定（会社法831条2項）。招集手続・決議方法の違反が法令・定款違反のいずれであっても、違反が軽微で決議に影響しないと認められるときは裁量棄却が可能。"},
@@ -195,11 +245,11 @@ const ALL = [
 {cat:"株式会社の設立",q:"設立時募集株式の引受人が所定の期日又は期間内に設立時募集株式の払込金額の全額の払込みをしなかった場合には、その引受人は、その払込みをすることにより設立時募集株式の株主となる権利を失う。",ans:true,exp:"払込期日・期間内に払込みをしなかった引受人は失権し、株主となる権利を失う（会社法63条3項）。"},
 {cat:"株式会社の設立",q:"会社の公告方法は、設立する際の定款で定めなければならない。",ans:false,exp:"公告方法は定款の任意的記載事項。定款に定めがない場合は官報による公告が法定の公告方法となる（会社法939条4項）。"},
 {cat:"株式会社の設立",q:"会社の設立を無効とする判決が確定したときは、その会社は、当初から存在しなかったことになる。",ans:false,exp:"設立無効判決は将来に向かってのみ効力を生じる（会社法839条）。遡及効はなく、判決確定前の会社の法律関係は有効なまま維持される。"},
-{cat:"定款で定めることができるか（公開会社）",q:"会社は，相続その他の一般承継により会社の譲渡制限株式を取得した者に対し，その株式を会社 に売り渡すことを請求することができる旨",ans:true,exp:"会社法174条により、相続等の一般承継により譲渡制限株式を取得した者に対して売渡請求ができる旨を定款で定めることができる。"},
-{cat:"定款で定めることができるか（公開会社）",q:"会社は，必要と認める場合には，株主総会の特別決議に基づき，その親会社の株式を取得するこ とができる旨",ans:false,exp:"親会社株式の取得は原則禁止されており（会社法135条）、定款で自由に取得できる旨を定めることはできない。"},
-{cat:"定款で定めることができるか（公開会社）",q:"単元未満株主は，その有する単元未満株式について，株主代表訴訟を提起する権利を有しないこ ととする旨",ans:false,exp:"単元未満株主から剥奪できる権利は会社法189条2項に列挙されており、株主代表訴訟提起権はその中に含まれていない。"},
-{cat:"定款で定めることができるか（公開会社）",q:"ある種類の株式の内容として，その種類の株式の種類株主を構成員とする種類株主総会におい て取締役を選任することとする旨",ans:false,exp:"役員選任権付種類株式（会社法108条1項9号）は公開会社では発行できない（会社法108条1項ただし書）。"},
-{cat:"取得請求権付株式",q:"会社法に規定する事項以外の一定の事項について，種類株主総会で決議をすることができる旨",ans:false,exp:"種類株主総会の権限は法定事項に限られており、会社法に規定のない事項について種類株主総会の決議事項とする定款の定めは認められない（会社法321条参照）。 第2問：取得請求権付株式"},
+{cat:"定款で定めることができるか（公開会社）",q:"会社は，相続その他の一般承継により会社の譲渡制限株式を取得した者に対し，その株式を会社 に売り渡すことを請求することができる旨を定款で定めることができる。",ans:true,exp:"会社法174条により、相続等の一般承継により譲渡制限株式を取得した者に対して売渡請求ができる旨を定款で定めることができる。"},
+{cat:"定款で定めることができるか（公開会社）",q:"会社は，必要と認める場合には，株主総会の特別決議に基づき，その親会社の株式を取得するこ とができる旨を定款で定めることができる。",ans:false,exp:"親会社株式の取得は原則禁止されており（会社法135条）、定款で自由に取得できる旨を定めることはできない。"},
+{cat:"定款で定めることができるか（公開会社）",q:"単元未満株主は，その有する単元未満株式について，株主代表訴訟を提起する権利を有しないこ ととする旨を定款で定めることができる。",ans:false,exp:"単元未満株主から剥奪できる権利は会社法189条2項に列挙されており、株主代表訴訟提起権はその中に含まれていない。"},
+{cat:"定款で定めることができるか（公開会社）",q:"ある種類の株式の内容として，その種類の株式の種類株主を構成員とする種類株主総会におい て取締役を選任することとする旨を定款で定めることができる。",ans:false,exp:"役員選任権付種類株式（会社法108条1項9号）は公開会社では発行できない（会社法108条1項ただし書）。"},
+{cat:"取得請求権付株式",q:"会社法に規定する事項以外の一定の事項について，種類株主総会で決議をすることができる旨を定款で定めることができる。",ans:false,exp:"種類株主総会の権限は法定事項に限られており、会社法に規定のない事項について種類株主総会の決議事項とする定款の定めは認められない（会社法321条参照）。 第2問：取得請求権付株式"},
 {cat:"取得請求権付株式",q:"取得請求権付株式の株主は，その取得の対価が金銭である場合において，株式会社に分配可能 額がないときは，取得の請求をすることができない。",ans:true,exp:"対価が金銭である場合、分配可能額がなければ取得請求はできない（会社法166条1項ただし書）。財源規制が適用される。"},
 {cat:"取得請求権付株式",q:"株式会社が株主の取得の請求によって取得請求権付株式を取得する場合には，その取得につい て株主総会の決議を経なければならない。",ans:false,exp:"取得請求権付株式の取得は株主の請求に基づくものであり、株主総会の決議は不要（会社法166条）。"},
 {cat:"取得請求権付株式",q:"株式会社が株主の取得の請求によって取得請求権付株式を取得した場合には，相当の時期に， 取得した自己株式を消却しなければならない。",ans:false,exp:"取得した自己株式を消却しなければならないという義務は会社法上規定されていない。自己株式の消却は任意（会社法178条）。"},
@@ -385,11 +435,11 @@ const ALL = [
 {cat:"スクイーズアウト",q:"特別支配株主の株式等売渡請求の手法を用いる場合には、Ａ社の新株予約権についても売り渡す ことを請求することができるが、株式の併合又は全部取得条項付種類株式の取得の手法を用いる場合 には、Ａ社の新株予約権に取得条項が定められていない限り、その新株予約権を当然には取得するこ とができない。",ans:true,exp:"特別支配株主は株式等売渡請求において新株予約権売渡請求もできる（会社法179条の2第1項2号）。株式の併合・全部取得条項付種類株式では新株予約権は当然には対象にならない。"},
 {cat:"スクイーズアウト",q:"Ｂ社がＡ社の総株主の議決権の１０分の７を有し、Ｄ株式会社（Ｂ社がその総株主の議決権の３ 分の２を有している。）がＡ社の総株主の議決権の１０分の２を有しているときは、Ｂ社は、特別支配 株主の株式等売渡請求の手法を用いることができる。",ans:true,exp:"B社が10分の7、B社が3分の2以上の議決権を持つD社がA社の10分の2を保有するため合算が可能。合計10分の9以上となりB社は特別支配株主に該当する（会社法179条1項）。"},
 {cat:"訴訟・非訟の区別",q:"Ｂ社は、Ａ社との間で株式交換契約を締結し、Ｃらに対価として金銭又はＢ社の株式を交付する ことによって、Ｃらの有するＡ社の株式を取得することができる。",ans:true,exp:"株式交換では対価として金銭または株式交換完全親会社の株式を交付することができる（会社法768条1項2号・3号）。 第91問〜第95問：訴訟・非訟の区別"},
-{cat:"訴訟・非訟の区別",q:"株式の発行の差止め",ans:false,exp:"株式発行差止めは仮処分（訴訟手続）であり、非訟事件手続ではない（会社法210条）。"},
-{cat:"訴訟・非訟の区別",q:"株式交換において反対株主による株式買取請求権が行使された場合の買取価格決定",ans:true,exp:"買取価格の決定は当事者間の協議がまとまらない場合に裁判所に申立てをする非訟事件（会社法786条2項）。"},
-{cat:"訴訟・非訟の区別",q:"自己株式の処分の無効",ans:false,exp:"自己株式の処分の無効は訴えによってのみ主張でき（会社法828条1項2号）、訴訟手続による。"},
-{cat:"訴訟・非訟の区別",q:"株主総会の招集手続等に関する検査役の選任",ans:true,exp:"検査役の選任は裁判所への申立てによる非訟事件（会社法306条1項）。"},
-{cat:"吸収合併・事業譲渡",q:"株式会社の取締役の解任",ans:false,exp:"取締役の解任の訴えは訴訟手続による（会社法854条）。 第96問〜第100問：吸収合併・事業譲渡"},
+{cat:"訴訟・非訟の区別",q:"株式の発行の差止めは，非訟事件の手続による。",ans:false,exp:"株式発行差止めは仮処分（訴訟手続）であり、非訟事件手続ではない（会社法210条）。"},
+{cat:"訴訟・非訟の区別",q:"株式交換において反対株主による株式買取請求権が行使された場合の買取価格決定は，非訟事件の手続による。",ans:true,exp:"買取価格の決定は当事者間の協議がまとまらない場合に裁判所に申立てをする非訟事件（会社法786条2項）。"},
+{cat:"訴訟・非訟の区別",q:"自己株式の処分の無効は，非訟事件の手続による。",ans:false,exp:"自己株式の処分の無効は訴えによってのみ主張でき（会社法828条1項2号）、訴訟手続による。"},
+{cat:"訴訟・非訟の区別",q:"株主総会の招集手続等に関する検査役の選任は，非訟事件の手続による。",ans:true,exp:"検査役の選任は裁判所への申立てによる非訟事件（会社法306条1項）。"},
+{cat:"訴訟・非訟の区別",q:"株式会社の取締役の解任は，非訟事件の手続による。",ans:false,exp:"取締役の解任の訴えは訴訟手続による（会社法854条）。 第96問〜第100問：吸収合併・事業譲渡"},
 {cat:"吸収合併・事業譲渡",q:"吸収合併及び事業譲渡は、いずれも、株主総会の決議によって吸収合併契約又は事業譲渡契約の 承認を受けることを要しない場合がある。",ans:true,exp:"吸収合併では略式合併・簡易合併により、事業譲渡では簡易事業譲渡により株主総会決議が不要な場合がある。"},
 {cat:"吸収合併・事業譲渡",q:"吸収合併の場合には、消滅会社はそれによって当然に解散し、事業の全部の譲渡の場合にも、譲 渡会社はそれによって当然に解散する。",ans:false,exp:"吸収合併では消滅会社は当然に解散するが（会社法471条4号）、事業の全部の譲渡では譲渡会社は当然には解散しない。"},
 {cat:"吸収合併・事業譲渡",q:"吸収合併及び事業譲渡は、いずれも、訴えによらなければその無効を主張することができない。",ans:false,exp:"事業譲渡の無効は通常の契約の無効として処理されるため、訴えによらなくても主張することができる。"},
@@ -397,178 +447,176 @@ const ALL = [
 {cat:"吸収合併・事業譲渡",q:"吸収合併及び事業譲渡は、いずれも、合併対価又は譲渡される事業の対価として交付される 財産の種類は金銭に限定されない。",ans:true,exp:"吸収合併の対価は存続会社の株式・社債・金銭等様々なものが認められる（会社法749条1項2号以下）。事業譲渡の対価も契約自由の原則により金銭以外の財産も可能。"},
 ];
 
-// shuffle
-function shuffle(a){
-  for(let i=a.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [a[i],a[j]]=[a[j],a[i]];
-  }
-  return a;
-}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 
 const questions = shuffle([...ALL]);
-let current = 0, score = 0, answered = false;
+const userAnswers = new Array(questions.length).fill(null);
+let current = 0;
+let score = 0;
 
-const chat = document.getElementById('chat');
-const scoreBadge = document.getElementById('scoreBadge');
+const qarea    = document.getElementById('qarea');
+const catName  = document.getElementById('catName');
+const qNumHdr  = document.getElementById('qNumHdr');
+const statsText= document.getElementById('statsText');
+const qNumBadge= document.getElementById('qNumBadge');
+const qExamBadge=document.getElementById('qExamBadge');
+const qText    = document.getElementById('qText');
+const qResult  = document.getElementById('qResult');
+const resultBadge=document.getElementById('resultBadge');
+const qExp     = document.getElementById('qExp');
+const maruBtn  = document.getElementById('maruBtn');
+const batuBtn  = document.getElementById('batuBtn');
+const maruVerdict=document.getElementById('maruVerdict');
+const batuVerdict=document.getElementById('batuVerdict');
+const circleG  = document.getElementById('circleG');
+const prevBtn  = document.getElementById('prevBtn');
+const nextBtn  = document.getElementById('nextBtn');
 const progFill = document.getElementById('progFill');
-const progText = document.getElementById('progText');
-const progPct  = document.getElementById('progPct');
+const ftrInfo  = document.getElementById('ftrInfo');
+const ftrScore = document.getElementById('ftrScore');
 
-function updateProg(){
-  const pct = Math.round(current/questions.length*100);
-  progFill.style.width = pct+'%';
-  progText.textContent = current+' / '+questions.length+'問';
-  progPct.textContent  = pct+'%';
-  scoreBadge.textContent = score+' / '+current;
+function examLabel(idx){
+  // ALL is in order: 0-99=試験1, 100-199=試験2, 200-299=試験3
+  // But questions is shuffled, so we track original index via q object index in ALL
+  // We don't store original index, but we can detect from question properties
+  // For now, just show category
+  return '';
 }
 
-function scrollBot(){setTimeout(()=>chat.scrollTop=chat.scrollHeight,60)}
+function resetBtns(){
+  maruBtn.className='ans-btn maru-btn';
+  batuBtn.className='ans-btn batu-btn';
+  maruVerdict.textContent='';
+  batuVerdict.textContent='';
+  maruBtn.disabled=false;
+  batuBtn.disabled=false;
+}
 
-function addTyping(cb){
-  const el=document.createElement('div');
-  el.className='msg bot';
-  el.innerHTML='<div class="mavatar">⚖️</div><div class="typing"><span></span><span></span><span></span></div>';
-  chat.appendChild(el);
-  scrollBot();
-  setTimeout(()=>{chat.removeChild(el);cb();},600);
+function applyAnsweredState(q, userAns){
+  const correct = q.ans;
+  maruBtn.disabled=true;
+  batuBtn.disabled=true;
+  
+  if(correct===true){
+    // ○ is correct
+    maruBtn.className='ans-btn maru-btn correct';
+    maruVerdict.textContent='正解';
+    if(userAns===false){
+      // user picked ×
+      batuBtn.className='ans-btn batu-btn user-wrong';
+      batuVerdict.textContent='不正解';
+    } else {
+      batuBtn.className='ans-btn batu-btn dimmed';
+    }
+  } else {
+    // × is correct
+    batuBtn.className='ans-btn batu-btn correct';
+    batuVerdict.textContent='正解';
+    if(userAns===true){
+      // user picked ○
+      maruBtn.className='ans-btn maru-btn user-wrong';
+      maruVerdict.textContent='不正解';
+    } else {
+      maruBtn.className='ans-btn maru-btn dimmed';
+    }
+  }
 }
 
 function showQ(idx){
   if(idx>=questions.length){showFinish();return;}
   const q=questions[idx];
-  answered=false;
+  const ua=userAnswers[idx];
+  
+  catName.textContent=q.cat;
+  qNumHdr.textContent=(idx+1)+' / '+questions.length;
+  qNumBadge.textContent='Q '+(idx+1);
+  qText.textContent=q.q;
+  
+  // Scroll to top of question area
+  qarea.scrollTop=0;
+  
+  if(ua===null){
+    // Not yet answered
+    resetBtns();
+    qResult.style.display='none';
+    nextBtn.disabled=true;
+  } else {
+    // Already answered — show result
+    const ok=(ua===q.ans);
+    qResult.style.display='block';
+    resultBadge.textContent=q.ans?'✓ 正しい':'✗ 誤り';
+    resultBadge.className='result-badge '+(q.ans?'seikai':'gokai');
+    qExp.textContent=q.exp;
+    applyAnsweredState(q, ua);
+    nextBtn.disabled=false;
+  }
+  
+  prevBtn.disabled=(idx===0);
+  updateStats();
+}
 
-  // question bubble
-  const msgEl=document.createElement('div');
-  msgEl.className='msg bot';
-  msgEl.innerHTML=`
-    <div class="mavatar">⚖️</div>
-    <div class="mcontent">
-      <div class="bubble">
-        <div class="qnum">Q${idx+1} / ${questions.length}</div>
-        <div class="qtag">${q.cat}</div>
-        <div class="qtext">${q.q}</div>
-      </div>
-    </div>`;
-  chat.appendChild(msgEl);
+function doAnswer(choice){
+  const q=questions[current];
+  if(userAnswers[current]!==null)return;
+  
+  userAnswers[current]=choice;
+  if(choice===q.ans)score++;
+  
+  // Show result
+  const ok=(choice===q.ans);
+  qResult.style.display='block';
+  resultBadge.textContent=q.ans?'✓ 正しい':'✗ 誤り';
+  resultBadge.className='result-badge '+(q.ans?'seikai':'gokai');
+  qExp.textContent=q.exp;
+  applyAnsweredState(q, choice);
+  nextBtn.disabled=false;
+  updateStats();
+  
+  // Scroll to show result
+  setTimeout(()=>{qarea.scrollTop=qarea.scrollHeight},80);
+}
 
-  // ○× buttons
-  const oxWrap=document.createElement('div');
-  oxWrap.className='ox-wrap';
-  oxWrap.innerHTML=`
-    <button class="ox-btn maru" data-val="true">○</button>
-    <button class="ox-btn batu" data-val="false">×</button>`;
-  chat.appendChild(oxWrap);
-  scrollBot();
+function nextQ(){
+  if(current+1>=questions.length){showFinish();return;}
+  current++;
+  showQ(current);
+}
 
-  oxWrap.querySelectorAll('.ox-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      if(answered)return;
-      answered=true;
-      const chosen=btn.dataset.val==='true';
-      const correct=q.ans;
+function prevQ(){
+  if(current===0)return;
+  current--;
+  showQ(current);
+}
 
-      oxWrap.querySelectorAll('.ox-btn').forEach(b=>b.disabled=true);
-
-      if(chosen===correct){
-        score++;
-        btn.classList.add('selected-correct');
-      } else {
-        btn.classList.add('selected-wrong');
-        const correctBtn=oxWrap.querySelector(`[data-val="${correct}"]`);
-        correctBtn.classList.add('reveal');
-      }
-
-      // user answer
-      const userMsg=document.createElement('div');
-      userMsg.className='msg user';
-      userMsg.innerHTML=`
-        <div class="mavatar">🙋</div>
-        <div class="mcontent">
-          <div class="bubble">${chosen?'○':'×'}</div>
-        </div>`;
-      chat.appendChild(userMsg);
-
-      // result
-      const resultRow=document.createElement('div');
-      resultRow.className='result-row';
-      const ok=chosen===correct;
-      resultRow.innerHTML=`
-        <div class="result-chip ${ok?'ok':'ng'}">${ok?'✅ 正解':'❌ 不正解'}</div>
-        <span class="ans-label">正解：${correct?'○':'×'}</span>`;
-      chat.appendChild(resultRow);
-
-      // explanation
-      const expEl=document.createElement('div');
-      expEl.className='exp-box';
-      expEl.innerHTML=`<strong>💡 解説：</strong>${q.exp}`;
-      chat.appendChild(expEl);
-
-      current++;
-      updateProg();
-
-      // next button
-      const nextBtn=document.createElement('button');
-      nextBtn.className='next-btn';
-      nextBtn.textContent=current<questions.length?'次の問題へ →':'結果を見る 🎉';
-      nextBtn.addEventListener('click',()=>{
-        nextBtn.remove();
-        if(current<questions.length) addTyping(()=>showQ(current));
-        else showFinish();
-      });
-      chat.appendChild(nextBtn);
-      scrollBot();
-    });
-  });
+function updateStats(){
+  const answered=userAnswers.filter(x=>x!==null).length;
+  const pct=answered>0?Math.round(score/answered*100):0;
+  statsText.textContent='正解率 '+pct+'%';
+  progFill.style.width=Math.round(answered/questions.length*100)+'%';
+  ftrInfo.textContent=answered+' / '+questions.length+' 回答済み';
+  ftrScore.textContent=score+' 正解';
 }
 
 function showFinish(){
   const pct=Math.round(score/questions.length*100);
   let emoji='😢',msg='もう一度チャレンジ！';
-  if(pct>=90){emoji='🏆';msg='完璧！会社法マスターです！';}
-  else if(pct>=70){emoji='🎉';msg='素晴らしい実力です！';}
-  else if(pct>=50){emoji='👏';msg='半分以上正解！あと一歩！';}
-  else if(pct>=30){emoji='📚';msg='復習してリベンジしましょう！';}
-  const card=document.createElement('div');
-  card.className='finish-card';
-  card.innerHTML=`
+  if(pct>=90){emoji='🏆';msg='会社法マスター！';}
+  else if(pct>=70){emoji='🎉';msg='素晴らしい実力！';}
+  else if(pct>=50){emoji='👏';msg='もう少し！';}
+  else if(pct>=30){emoji='📚';msg='復習してリベンジ！';}
+  qarea.innerHTML=`<div class="fin-card">
     <div class="emoji">${emoji}</div>
     <h2>全問終了！</h2>
     <div class="fscore">${score} / ${questions.length}</div>
     <p>正解率 ${pct}%<br>${msg}</p>
-    <button class="rbtn" onclick="location.reload()">もう一度挑戦する</button>`;
-  chat.appendChild(card);
-  scrollBot();
+    <button class="rbtn" onclick="location.reload()">もう一度挑戦する</button>
+  </div>`;
+  document.getElementById('ctrl').style.display='none';
+  catName.textContent='結果';
+  updateStats();
 }
 
-// welcome
-const welcome=document.createElement('div');
-welcome.className='msg bot';
-welcome.innerHTML=`
-  <div class="mavatar">⚖️</div>
-  <div class="mcontent">
-    <div class="bubble">
-      <strong>会社法 300問 ○×クイズ</strong>へようこそ！<br><br>
-      総則・定款・設立・株式・株主総会・取締役・<br>
-      監査役・計算・組織再編・持分会社・清算など<br>
-      全ジャンルを網羅した300問をランダム出題します。<br><br>
-      ○か×のボタンを押して答えてください！
-    </div>
-  </div>`;
-chat.appendChild(welcome);
-
-const startBtn=document.createElement('button');
-startBtn.className='next-btn';
-startBtn.style.marginLeft='41px';
-startBtn.textContent='スタート！ 🚀';
-startBtn.addEventListener('click',()=>{
-  startBtn.remove();
-  updateProg();
-  addTyping(()=>showQ(0));
-});
-chat.appendChild(startBtn);
-updateProg();
+showQ(0);
 </script>
 </body>
 </html>
