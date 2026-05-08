@@ -29,12 +29,20 @@ html,body{height:100%;font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans
 .q-text{font-size:16px;font-weight:600;line-height:1.75;color:#1e1b4b;padding-bottom:2px}
 
 /* result section */
-.q-result{margin-top:18px;border-top:2px solid #ddd6fe;padding-top:16px;animation:fadeIn .3s ease}
+.q-result{margin-top:18px;animation:popIn .25s cubic-bezier(.34,1.56,.64,1)}
+@keyframes popIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-.result-badge{display:inline-flex;align-items:center;gap:6px;font-size:17px;font-weight:900;padding:5px 14px;border-radius:6px;margin-bottom:12px}
-.result-badge.seikai{background:#d1fae5;color:#065f46;border:1.5px solid #6ee7b7}
-.result-badge.gokai{background:#fee2e2;color:#991b1b;border:1.5px solid #fca5a5}
-.q-exp{font-size:14px;line-height:1.75;color:#374151}
+
+.result-card{border-radius:16px;padding:16px 18px;margin-bottom:14px;display:flex;align-items:center;gap:14px}
+.result-card.seikai{background:linear-gradient(135deg,#15803d,#16a34a);box-shadow:0 6px 24px rgba(21,128,61,.4)}
+.result-card.gokai{background:linear-gradient(135deg,#b91c1c,#dc2626);box-shadow:0 6px 24px rgba(185,28,28,.4)}
+.result-icon{font-size:44px;line-height:1;flex-shrink:0}
+.result-text-col{display:flex;flex-direction:column;gap:3px}
+.result-word{font-size:26px;font-weight:900;color:#fff;letter-spacing:.5px}
+.result-ans{font-size:14px;color:rgba(255,255,255,.85);font-weight:600}
+
+.exp-label{font-size:11px;font-weight:800;color:#7c3aed;letter-spacing:.5px;margin-bottom:6px;text-transform:uppercase}
+.q-exp{font-size:14px;line-height:1.8;color:#374151;background:#fff;border-radius:12px;padding:12px 14px;border-left:4px solid #7c3aed}
 
 /* ── ANSWER + NAV BUTTONS ── */
 #ctrl{background:#1e1035;padding:10px 8px 10px;display:flex;align-items:center;gap:6px;flex-shrink:0}
@@ -59,22 +67,24 @@ html,body{height:100%;font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans
 .verdict{font-size:12px;font-weight:800;color:#888;min-height:16px;transition:color .2s}
 
 /* Correct answer highlight */
-.maru-btn.correct .circle-g{border-color:#e53935;box-shadow:0 0 0 4px rgba(229,57,53,.2)}
-.maru-btn.correct .verdict{color:#c62828}
-.batu-btn.correct .cross-g::before,.batu-btn.correct .cross-g::after{background:#333}
-.batu-btn.correct .verdict{color:#222}
-.batu-btn.correct{background:#ddd}
+.maru-btn.correct{background:#fff0f0;box-shadow:0 0 0 4px #e53935,0 6px 20px rgba(229,57,53,.35)}
+.maru-btn.correct .circle-g{border-color:#e53935;border-width:7px}
+.maru-btn.correct .verdict{color:#c62828;font-size:14px}
+.batu-btn.correct{background:#f0f0f0;box-shadow:0 0 0 4px #333,0 6px 20px rgba(0,0,0,.3)}
+.batu-btn.correct .cross-g::before,.batu-btn.correct .cross-g::after{background:#222;height:9px}
+.batu-btn.correct .verdict{color:#111;font-size:14px}
 
-/* Wrong choice highlight */
-.maru-btn.user-wrong{background:#ffe8e8}
-.maru-btn.user-wrong .circle-g{border-color:#ef9a9a}
-.maru-btn.user-wrong .verdict{color:#c62828}
-.batu-btn.user-wrong{background:#ffe8e8}
-.batu-btn.user-wrong .cross-g::before,.batu-btn.user-wrong .cross-g::after{background:#ef9a9a}
-.batu-btn.user-wrong .verdict{color:#c62828}
+/* Wrong choice — red tint + shake */
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+.maru-btn.user-wrong{background:#ffd7d7;animation:shake .35s ease;box-shadow:0 0 0 3px #ef4444}
+.maru-btn.user-wrong .circle-g{border-color:#ef4444;opacity:.6}
+.maru-btn.user-wrong .verdict{color:#dc2626;font-size:13px}
+.batu-btn.user-wrong{background:#ffd7d7;animation:shake .35s ease;box-shadow:0 0 0 3px #ef4444}
+.batu-btn.user-wrong .cross-g::before,.batu-btn.user-wrong .cross-g::after{background:#ef4444;opacity:.6}
+.batu-btn.user-wrong .verdict{color:#dc2626;font-size:13px}
 
 /* Dimmed state */
-.ans-btn.dimmed{opacity:.35}
+.ans-btn.dimmed{opacity:.25;filter:grayscale(.5)}
 .ans-btn:disabled{cursor:default}
 
 /* ── FOOTER ── */
@@ -121,7 +131,14 @@ html,body{height:100%;font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans
   </div>
   <div class="q-text" id="qText"></div>
   <div class="q-result" id="qResult" style="display:none">
-    <div class="result-badge" id="resultBadge"></div>
+    <div class="result-card" id="resultCard">
+      <div class="result-icon" id="resultIcon"></div>
+      <div class="result-text-col">
+        <div class="result-word" id="resultWord"></div>
+        <div class="result-ans" id="resultAns"></div>
+      </div>
+    </div>
+    <div class="exp-label">解　説</div>
     <div class="q-exp" id="qExp"></div>
   </div>
 </div>
@@ -492,7 +509,10 @@ const qNumBadge= document.getElementById('qNumBadge');
 const qExamBadge=document.getElementById('qExamBadge');
 const qText    = document.getElementById('qText');
 const qResult  = document.getElementById('qResult');
-const resultBadge=document.getElementById('resultBadge');
+const resultCard =document.getElementById('resultCard');
+const resultIcon =document.getElementById('resultIcon');
+const resultWord =document.getElementById('resultWord');
+const resultAns  =document.getElementById('resultAns');
 const qExp     = document.getElementById('qExp');
 const maruBtn  = document.getElementById('maruBtn');
 const batuBtn  = document.getElementById('batuBtn');
@@ -511,6 +531,13 @@ function examLabel(idx){
   // We don't store original index, but we can detect from question properties
   // For now, just show category
   return '';
+}
+
+function showResult(q, ok){
+  resultCard.className='result-card '+(ok?'seikai':'gokai');
+  resultIcon.textContent=ok?'⭕':'❌';
+  resultWord.textContent=ok?'正　解！':'不正解';
+  resultAns.textContent='正解は　'+(q.ans?'○（正しい）':'×（誤り）');
 }
 
 function resetBtns(){
@@ -574,8 +601,7 @@ function showQ(idx){
     // Already answered — show result
     const ok=(ua===q.ans);
     qResult.style.display='block';
-    resultBadge.textContent=q.ans?'✓ 正しい':'✗ 誤り';
-    resultBadge.className='result-badge '+(q.ans?'seikai':'gokai');
+    showResult(q, ok);
     qExp.textContent=q.exp;
     applyAnsweredState(q, ua);
     nextBtn.disabled=false;
@@ -595,8 +621,7 @@ function doAnswer(choice){
   // Show result
   const ok=(choice===q.ans);
   qResult.style.display='block';
-  resultBadge.textContent=q.ans?'✓ 正しい':'✗ 誤り';
-  resultBadge.className='result-badge '+(q.ans?'seikai':'gokai');
+  showResult(q, ok);
   qExp.textContent=q.exp;
   applyAnsweredState(q, choice);
   nextBtn.disabled=false;
