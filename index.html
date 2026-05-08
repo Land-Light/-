@@ -3,640 +3,611 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>会社法クイズ 100問</title>
+<title>会社法クイズ 300問</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans-serif;background:#0f172a;color:#e2e8f0;height:100dvh;display:flex;flex-direction:column}
+header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.hd-left{display:flex;align-items:center;gap:10px}
+.avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:18px}
+.hd-info h1{font-size:15px;font-weight:700}
+.hd-info p{font-size:11px;color:#94a3b8}
+.score-badge{background:#1e3a5f;border:1px solid #3b82f6;border-radius:20px;padding:5px 13px;font-size:13px;color:#93c5fd;font-weight:700;white-space:nowrap}
+.prog-wrap{background:#1e293b;border-bottom:1px solid #334155;padding:7px 16px;flex-shrink:0}
+.prog-info{display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-bottom:4px}
+.prog-bar{height:4px;background:#334155;border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:2px;transition:width .4s ease}
+.chat{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth}
+.chat::-webkit-scrollbar{width:4px}
+.chat::-webkit-scrollbar-thumb{background:#334155;border-radius:2px}
+.msg{display:flex;align-items:flex-start;gap:9px;animation:fu .3s ease}
+@keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{flex-direction:row-reverse}
+.mavatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px}
+.msg.bot .mavatar{background:linear-gradient(135deg,#6366f1,#8b5cf6)}
+.msg.user .mavatar{background:linear-gradient(135deg,#059669,#10b981)}
+.mcontent{max-width:80%;display:flex;flex-direction:column;gap:6px}
+.msg.user .mcontent{align-items:flex-end}
+.bubble{padding:11px 14px;border-radius:16px;font-size:14px;line-height:1.65}
+.msg.bot .bubble{background:#1e293b;border:1px solid #334155;border-top-left-radius:4px}
+.msg.user .bubble{background:linear-gradient(135deg,#6366f1,#7c3aed);border-top-right-radius:4px;color:#fff}
+.qnum{font-size:11px;color:#818cf8;font-weight:700;letter-spacing:.5px;margin-bottom:3px}
+.qtag{display:inline-block;font-size:10px;background:#312e81;color:#a5b4fc;padding:2px 8px;border-radius:10px;margin-bottom:6px}
+.qtext{font-size:15px;font-weight:600;line-height:1.55}
 
-  body {
-    font-family: 'Hiragino Kaku Gothic Pro', 'メイリオ', sans-serif;
-    background: #0f172a;
-    color: #e2e8f0;
-    height: 100dvh;
-    display: flex;
-    flex-direction: column;
-  }
+/* ○× buttons */
+.ox-wrap{display:flex;gap:12px;margin-left:41px;animation:fu .3s ease .1s both}
+.ox-btn{flex:1;max-width:140px;height:72px;border-radius:16px;border:2px solid;font-size:32px;cursor:pointer;transition:all .2s;font-family:inherit;display:flex;align-items:center;justify-content:center;font-weight:700}
+.ox-btn.maru{background:#0a2e1f;border-color:#16a34a;color:#4ade80}
+.ox-btn.batu{background:#2d0a0a;border-color:#dc2626;color:#f87171}
+.ox-btn:hover:not(:disabled){transform:scale(1.06);filter:brightness(1.15)}
+.ox-btn:disabled{cursor:default;transform:none;filter:none;opacity:.7}
+.ox-btn.selected-correct{background:#052e16;border-color:#22c55e;color:#86efac;opacity:1}
+.ox-btn.selected-wrong{background:#3b0a0a;border-color:#ef4444;color:#fca5a5;opacity:1}
+.ox-btn.reveal{background:#052e16;border-color:#22c55e;color:#86efac;opacity:1}
 
-  header {
-    background: #1e293b;
-    border-bottom: 1px solid #334155;
-    padding: 12px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-shrink: 0;
-  }
+/* result */
+.result-row{display:flex;align-items:center;gap:8px;margin-left:41px;animation:fu .25s ease}
+.result-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;border-radius:20px;font-size:13px;font-weight:700}
+.result-chip.ok{background:#052e16;color:#4ade80;border:1px solid #16a34a}
+.result-chip.ng{background:#2d0a0a;color:#f87171;border:1px solid #dc2626}
+.ans-label{font-size:12px;color:#64748b}
 
-  .header-left { display: flex; align-items: center; gap: 12px; }
+/* explanation */
+.exp-box{background:#0f2540;border:1px solid #1e3a5f;border-left:3px solid #6366f1;border-radius:12px;padding:11px 14px;font-size:13px;color:#93c5fd;line-height:1.7;margin-left:41px;animation:fu .3s ease}
+.exp-box strong{color:#a5b4fc}
 
-  .avatar {
-    width: 40px; height: 40px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 20px;
-  }
+/* next btn */
+.next-btn{background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:12px;padding:10px 22px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;transition:opacity .2s,transform .2s;margin-left:41px;animation:fu .3s ease;font-family:inherit}
+.next-btn:hover{opacity:.85;transform:translateY(-1px)}
 
-  .header-info h1 { font-size: 16px; font-weight: 600; }
-  .header-info p { font-size: 12px; color: #94a3b8; }
+/* typing */
+.typing{display:flex;gap:4px;align-items:center;padding:11px 14px;background:#1e293b;border:1px solid #334155;border-radius:16px;border-top-left-radius:4px;width:fit-content}
+.typing span{width:6px;height:6px;background:#6366f1;border-radius:50%;animation:bounce 1.2s infinite}
+.typing span:nth-child(2){animation-delay:.2s}
+.typing span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}
 
-  .score-badge {
-    background: #1e3a5f;
-    border: 1px solid #3b82f6;
-    border-radius: 20px;
-    padding: 6px 14px;
-    font-size: 13px;
-    color: #93c5fd;
-    font-weight: 600;
-  }
-
-  .progress-bar-wrap {
-    background: #1e293b;
-    border-bottom: 1px solid #334155;
-    padding: 8px 20px;
-    flex-shrink: 0;
-  }
-
-  .progress-info {
-    display: flex;
-    justify-content: space-between;
-    font-size: 11px;
-    color: #64748b;
-    margin-bottom: 5px;
-  }
-
-  .progress-bar {
-    height: 4px;
-    background: #334155;
-    border-radius: 2px;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #6366f1, #8b5cf6);
-    border-radius: 2px;
-    transition: width 0.4s ease;
-  }
-
-  .chat-area {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    scroll-behavior: smooth;
-  }
-
-  .chat-area::-webkit-scrollbar { width: 5px; }
-  .chat-area::-webkit-scrollbar-track { background: transparent; }
-  .chat-area::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-
-  .msg {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    animation: fadeUp 0.3s ease;
-  }
-
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(10px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .msg.user { flex-direction: row-reverse; }
-
-  .msg-avatar {
-    width: 34px; height: 34px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px;
-  }
-
-  .msg.bot .msg-avatar { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
-  .msg.user .msg-avatar { background: linear-gradient(135deg, #059669, #10b981); }
-
-  .msg-content { max-width: 75%; display: flex; flex-direction: column; gap: 8px; }
-  .msg.user .msg-content { align-items: flex-end; }
-
-  .bubble {
-    padding: 12px 16px;
-    border-radius: 18px;
-    font-size: 14px;
-    line-height: 1.6;
-  }
-
-  .msg.bot .bubble {
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-top-left-radius: 4px;
-  }
-
-  .msg.user .bubble {
-    background: linear-gradient(135deg, #6366f1, #7c3aed);
-    border-top-right-radius: 4px;
-    color: #fff;
-  }
-
-  .q-number {
-    font-size: 11px;
-    color: #6366f1;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    margin-bottom: 4px;
-  }
-
-  .q-text { font-size: 15px; font-weight: 600; line-height: 1.5; }
-
-  .choices {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-width: 75%;
-    margin-left: 44px;
-    animation: fadeUp 0.3s ease 0.1s both;
-  }
-
-  .choice-btn {
-    background: #1e293b;
-    border: 1px solid #475569;
-    border-radius: 12px;
-    padding: 10px 16px;
-    font-size: 14px;
-    color: #cbd5e1;
-    cursor: pointer;
-    text-align: left;
-    transition: all 0.2s;
-    font-family: inherit;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .choice-btn:hover:not(:disabled) {
-    background: #2d3f5a;
-    border-color: #6366f1;
-    color: #fff;
-    transform: translateX(3px);
-  }
-
-  .choice-btn .label {
-    width: 24px; height: 24px;
-    border-radius: 50%;
-    background: #334155;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px;
-    font-weight: 700;
-    flex-shrink: 0;
-    transition: background 0.2s;
-  }
-
-  .choice-btn:hover:not(:disabled) .label { background: #6366f1; }
-
-  .choice-btn.correct {
-    background: #052e16;
-    border-color: #16a34a;
-    color: #86efac;
-  }
-  .choice-btn.correct .label { background: #16a34a; color: #fff; }
-
-  .choice-btn.wrong {
-    background: #2d0a0a;
-    border-color: #dc2626;
-    color: #fca5a5;
-  }
-  .choice-btn.wrong .label { background: #dc2626; color: #fff; }
-
-  .choice-btn.reveal-correct {
-    background: #052e16;
-    border-color: #16a34a;
-    color: #86efac;
-  }
-  .choice-btn.reveal-correct .label { background: #16a34a; color: #fff; }
-
-  .choice-btn:disabled { cursor: default; transform: none; }
-
-  .explanation {
-    background: #0f2540;
-    border: 1px solid #1e3a5f;
-    border-left: 3px solid #6366f1;
-    border-radius: 12px;
-    padding: 12px 16px;
-    font-size: 13px;
-    color: #93c5fd;
-    line-height: 1.7;
-    max-width: 75%;
-    margin-left: 44px;
-    animation: fadeUp 0.3s ease;
-  }
-
-  .explanation strong { color: #a5b4fc; }
-
-  .result-bubble {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 600;
-  }
-
-  .result-bubble.ok  { background: #052e16; color: #4ade80; border: 1px solid #16a34a; }
-  .result-bubble.ng  { background: #2d0a0a; color: #f87171; border: 1px solid #dc2626; }
-
-  .next-btn {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    border: none;
-    border-radius: 12px;
-    padding: 10px 24px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #fff;
-    cursor: pointer;
-    transition: opacity 0.2s, transform 0.2s;
-    margin-left: 44px;
-    animation: fadeUp 0.3s ease;
-    font-family: inherit;
-  }
-
-  .next-btn:hover { opacity: 0.85; transform: translateY(-1px); }
-
-  .finish-card {
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 20px;
-    padding: 32px;
-    text-align: center;
-    margin: 0 auto;
-    max-width: 400px;
-    animation: fadeUp 0.5s ease;
-  }
-
-  .finish-card .emoji { font-size: 60px; margin-bottom: 12px; }
-  .finish-card h2 { font-size: 22px; margin-bottom: 8px; }
-  .finish-card .final-score {
-    font-size: 48px;
-    font-weight: 700;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin: 12px 0;
-  }
-  .finish-card p { color: #94a3b8; font-size: 14px; margin-bottom: 20px; }
-  .finish-card .restart-btn {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    border: none;
-    border-radius: 12px;
-    padding: 12px 32px;
-    font-size: 15px;
-    font-weight: 600;
-    color: #fff;
-    cursor: pointer;
-    font-family: inherit;
-    transition: opacity 0.2s;
-  }
-  .finish-card .restart-btn:hover { opacity: 0.85; }
-
-  .typing-indicator {
-    display: flex; gap: 5px; align-items: center;
-    padding: 12px 16px;
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 18px;
-    border-top-left-radius: 4px;
-    width: fit-content;
-  }
-
-  .typing-indicator span {
-    width: 7px; height: 7px;
-    background: #6366f1;
-    border-radius: 50%;
-    animation: bounce 1.2s infinite;
-  }
-  .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
-  .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-
-  @keyframes bounce {
-    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-    40% { transform: translateY(-6px); opacity: 1; }
-  }
+/* finish */
+.finish-card{background:#1e293b;border:1px solid #334155;border-radius:20px;padding:28px;text-align:center;margin:0 auto;max-width:380px;animation:fu .5s ease}
+.finish-card .emoji{font-size:56px;margin-bottom:10px}
+.finish-card h2{font-size:20px;margin-bottom:6px}
+.finish-card .fscore{font-size:46px;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:10px 0}
+.finish-card p{color:#94a3b8;font-size:13px;margin-bottom:18px}
+.finish-card .rbtn{background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:12px;padding:11px 28px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;transition:opacity .2s}
+.finish-card .rbtn:hover{opacity:.85}
+.cat-badge{display:inline-block;font-size:10px;background:#1e3a5f;color:#7dd3fc;padding:2px 7px;border-radius:8px;margin-bottom:5px}
 </style>
 </head>
 <body>
-
 <header>
-  <div class="header-left">
-    <div class="avatar">🧠</div>
-    <div class="header-info">
-      <h1>会社法クイズBot</h1>
-      <p>100問チャレンジ</p>
-    </div>
+  <div class="hd-left">
+    <div class="avatar">⚖️</div>
+    <div class="hd-info"><h1>会社法クイズ</h1><p>300問 ○×チャレンジ</p></div>
   </div>
   <div class="score-badge" id="scoreBadge">0 / 0</div>
 </header>
-
-<div class="progress-bar-wrap">
-  <div class="progress-info">
-    <span id="progressText">問題 0 / 100</span>
-    <span id="progressPct">0%</span>
-  </div>
-  <div class="progress-bar">
-    <div class="progress-fill" id="progressFill" style="width:0%"></div>
-  </div>
+<div class="prog-wrap">
+  <div class="prog-info"><span id="progText">0 / 300問</span><span id="progPct">0%</span></div>
+  <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
 </div>
-
-<div class="chat-area" id="chatArea"></div>
+<div class="chat" id="chat"></div>
 
 <script>
-const quizData = [
-  // ===== 会社の種類・総則 (1-5) =====
-  { q:"会社法上の「会社」に含まれないものはどれか？", choices:["株式会社","合同会社","合資会社","相互会社"], ans:3, exp:"会社法2条1号で会社とは「株式会社、合名会社、合資会社又は合同会社をいう」と定義されています。相互会社は保険業法上の法人であり、会社法上の「会社」には含まれません。" },
-  { q:"持分会社に該当しないものはどれか？", choices:["合名会社","合資会社","合同会社","株式会社"], ans:3, exp:"持分会社とは合名会社・合資会社・合同会社の総称です（会社法575条1項）。株式会社は持分会社ではありません。" },
-  { q:"会社法上、法人格を持つのはどの段階からか？", choices:["設立登記を申請したとき","設立登記が完了したとき","定款を作成したとき","発起人が出資したとき"], ans:1, exp:"株式会社は設立の登記をすることによって成立します（会社法49条）。登記完了時に法人格を取得します。" },
-  { q:"会社の住所（本店所在地）の決定について正しいものはどれか？", choices:["取締役が決める","定款で定める","株主総会で決める","法務局が決める"], ans:1, exp:"本店の所在地は定款の絶対的記載事項です（会社法27条3号）。定款に記載しなければ定款の効力自体が生じません。" },
-  { q:"合同会社の社員の責任として正しいものはどれか？", choices:["無限責任","有限責任","直接責任","連帯責任"], ans:1, exp:"合同会社の社員は全員が有限責任社員です（会社法576条4項）。これが合名会社（全員無限責任）・合資会社（無限＋有限混在）との違いです。" },
+const ALL = [
+// ===== 会社の種類・総則 =====
+{cat:"総則",q:"会社法上の「会社」には、株式会社・合名会社・合資会社・合同会社が含まれる。",ans:true,exp:"会社法2条1号の定義どおり。相互会社（保険業法）やNPO法人などは含まれません。"},
+{cat:"総則",q:"相互会社は会社法上の「会社」に含まれる。",ans:false,exp:"相互会社は保険業法が根拠の法人形態であり、会社法上の会社ではありません。"},
+{cat:"総則",q:"持分会社とは、合名会社・合資会社・合同会社の総称である。",ans:true,exp:"会社法575条1項の定義どおり。株式会社は持分会社ではありません。"},
+{cat:"総則",q:"合名会社の社員は全員が有限責任を負う。",ans:false,exp:"合名会社の社員は全員が無限責任社員です（会社法580条1項）。有限責任なのは合同会社です。"},
+{cat:"総則",q:"合資会社には無限責任社員と有限責任社員の両方が存在する。",ans:true,exp:"会社法576条3項のとおり。無限責任社員のみなら合名会社、有限責任のみなら合同会社になります。"},
+{cat:"総則",q:"合同会社の社員は全員が有限責任を負う。",ans:true,exp:"会社法576条4項のとおり。これが合同会社（日本版LLC）の最大の特徴です。"},
+{cat:"総則",q:"株式会社は設立登記が完了することで法人格を取得する。",ans:true,exp:"会社法49条「株式会社は、その本店の所在地において設立の登記をすることによって成立する」とおりです。"},
+{cat:"総則",q:"持分会社も法人格を持つ。",ans:true,exp:"合名・合資・合同のいずれも法人格を持ちます（会社法576条1項）。民法上の組合とは異なります。"},
+{cat:"総則",q:"会社法施行後（2006年以降）も有限会社を新たに設立することができる。",ans:false,exp:"2006年の会社法施行により有限会社法が廃止され、新たな有限会社の設立はできません。既存のものは「特例有限会社」として存続します。"},
+{cat:"総則",q:"株式会社の商号には必ず「株式会社」という文字を用いなければならない。",ans:true,exp:"会社法6条2項「株式会社は、その商号中に株式会社という文字を用いなければならない」とおりです。"},
+{cat:"総則",q:"既に登記されている他社と同一の商号を、同一の本店所在地で使用することは禁止されている。",ans:true,exp:"商業登記法27条により同一所在場所における同一商号の登記は却下されます。不正目的での類似商号使用も不法行為となりえます。"},
+{cat:"総則",q:"会社の本店は複数箇所設定することができる。",ans:false,exp:"本店は1箇所のみです。営業の拠点が複数あれば「支店」として登記します。"},
+{cat:"総則",q:"株式会社の最低資本金は現在100万円と定められている。",ans:false,exp:"2006年の会社法施行で最低資本金制度は廃止されました。現在は1円から設立可能です。"},
+{cat:"総則",q:"会社は定款に定められた目的の範囲を超えた行為であっても有効に行うことができる場合がある。",ans:true,exp:"判例（最判昭和27年）は目的の範囲を広く解釈し、目的遂行に必要・有益な行為は目的の範囲内とします。"},
+{cat:"総則",q:"特例有限会社は取締役会を設置することが義務付けられている。",ans:false,exp:"特例有限会社は取締役1名以上で足り、取締役会の設置義務はありません（整備法17条等）。"},
 
-  // ===== 株式会社の設立 (6-18) =====
-  { q:"株式会社の定款の絶対的記載事項として誤っているものはどれか？", choices:["目的","商号","発行可能株式総数","本店所在地"], ans:2, exp:"絶対的記載事項（会社法27条）は①目的②商号③本店所在地④設立に際して出資される財産の価額・最低額⑤発起人の氏名と住所の5つです。発行可能株式総数は設立登記前に定款で定めれば足りるため、成立時の必須記載事項ではありません。" },
-  { q:"発起設立と募集設立の違いとして正しいものはどれか？", choices:["発起設立は取締役会設置会社のみ選択できる","募集設立では設立時株主を外部から募集する","発起設立では公証人の認証が不要","募集設立では創立総会が不要"], ans:1, exp:"募集設立とは発起人以外の者（募集株主）に株式を引き受けさせる設立方法です（会社法25条1項2号）。設立後に創立総会の開催が必要です。発起設立では創立総会は開かれません。" },
-  { q:"株式会社の定款に公証人の認証が必要な理由として最も適切なものはどれか？", choices:["税務申告のため","定款の真正性と法的効力を担保するため","商号の重複を防ぐため","株主名簿作成のため"], ans:1, exp:"株式会社の定款は公証人の認証を受けなければ効力を生じません（会社法30条1項）。定款の真正を担保し、その後の改変を防ぐための措置です。" },
-  { q:"現物出資の目的となりえないものはどれか？", choices:["土地","特許権","労務（労働の提供）","著作権"], ans:2, exp:"現物出資の目的は財産（金銭以外の財産）に限られます（会社法28条1号）。労務（サービスの提供）は財産ではないため現物出資の目的にはなりません。" },
-  { q:"変態設立事項（相対的記載事項）に含まれないものはどれか？", choices:["現物出資","財産引受け","発起人の報酬","株主の剰余金配当請求権"], ans:3, exp:"変態設立事項（会社法28条）は①現物出資②財産引受け③発起人の報酬・特別利益④設立費用の4つです。株主の剰余金配当請求権は変態設立事項ではありません。" },
-  { q:"発起設立における設立時取締役の選任について正しいものはどれか？", choices:["公証人が選任する","発起人が選任する","設立時株主が選任する","裁判所が選任する"], ans:1, exp:"発起設立では、発起人全員の同意（または過半数）によって設立時取締役を選任します（会社法40条1項）。募集設立では創立総会で選任します。" },
-  { q:"株式会社の設立に際し、出資の履行完了後に選任された設立時取締役が行う職務として正しいものはどれか？", choices:["定款の作成","商号の登録","設立手続の調査","株主名簿の公告"], ans:2, exp:"設立時取締役は、設立に関する事項に違法・不当なものがないかを調査する義務があります（会社法46条1項）。この調査義務は重要な設立手続の一つです。" },
-  { q:"会社設立の無効を主張できる者として正しいものはどれか？", choices:["誰でも","株主・取締役・監査役のみ","発起人のみ","債権者のみ"], ans:1, exp:"会社設立の無効は、設立無効の訴えによってのみ主張できます（会社法828条1項1号）。提訴権者は株主等・取締役・監査役・清算人等に限られます。" },
-  { q:"設立時における仮装払込（みせ金）を行った場合、その責任を負うのは誰か？", choices:["公証人","法務局長","設立時取締役と発起人が連帯責任を負う","銀行のみ"], ans:2, exp:"払込みを仮装した発起人・設立時取締役は、払込みを仮装した出資額を支払う義務を負います（会社法52条の2）。連帯して責任を負います。" },
-  { q:"募集設立において創立総会が開催される目的として最も適切なものはどれか？", choices:["会社の解散を決議するため","設立の妥当性審査と設立時役員の選任のため","株主配当を決議するため","定款の廃止を決議するため"], ans:1, exp:"創立総会は募集設立における最高機関で、設立に関する事項の審議（会社法65条）、設立時取締役・監査役の選任（会社法88条）などを行います。" },
-  { q:"設立費用（変態設立事項の一つ）として定款に記載できる上限はどのように定まるか？", choices:["法定の上限額がある","定款自治で自由に定める","法務大臣が決める","商業登記の費用と同額"], ans:1, exp:"設立費用は定款に記載した額を限度として会社が負担します（会社法28条4号）。上限は法定されておらず、定款の記載範囲内で設立時取締役が妥当性を調査します。" },
-  { q:"合同会社（LLC）の特徴として誤っているものはどれか？", choices:["社員全員が有限責任","定款自治の範囲が広い","株式を発行できる","法人格を持つ"], ans:2, exp:"合同会社は「株式」を発行しません。社員の出資持分という形態をとります。一方で有限責任・広い定款自治・法人格の3点は合同会社の特徴です。" },
+// ===== 定款 =====
+{cat:"定款",q:"株式会社の定款は公証人の認証を受けなければ効力を生じない。",ans:true,exp:"会社法30条1項のとおり。持分会社の定款は認証不要です。電磁的記録による定款も認証が必要です。"},
+{cat:"定款",q:"合同会社の定款は公証人の認証が必要である。",ans:false,exp:"持分会社（合名・合資・合同）の定款は公証人認証が不要です（会社法575条2項）。これが株式会社との違いです。"},
+{cat:"定款",q:"定款の絶対的記載事項を欠く定款は無効である。",ans:true,exp:"絶対的記載事項（目的・商号・本店所在地・出資財産の価額・発起人の氏名住所）を欠くと定款そのものが無効になります。"},
+{cat:"定款",q:"変態設立事項の一つとして「労務出資」がある。",ans:false,exp:"変態設立事項（会社法28条）は①現物出資②財産引受け③発起人の報酬・特別利益④設立費用の4つです。労務出資は株式会社では認められません。"},
+{cat:"定款",q:"財産引受けとは、発起人が会社のために特定の財産を取得することを目的とする契約である。",ans:true,exp:"会社法28条2号のとおり。財産引受けは変態設立事項として定款に記載しなければ無効です。"},
+{cat:"定款",q:"変態設立事項を定款に記載しなかった場合、その事項は無効となる。",ans:true,exp:"現物出資・財産引受け等は定款への記載がなければ効力を生じません（会社法28条各号）。"},
+{cat:"定款",q:"定款の絶対的記載事項は5項目である。",ans:true,exp:"①目的②商号③本店所在地④設立に際して出資される財産の価額または最低額⑤発起人の氏名と住所の5つです（会社法27条）。"},
+{cat:"定款",q:"電磁的記録（電子ファイル）による定款の場合は公証人の認証は不要である。",ans:false,exp:"電磁的記録による定款も公証人の認証が必要です（会社法30条1項）。ただし電子認証の方法が認められています。"},
+{cat:"定款",q:"定款は設立後に株主総会特別決議によって変更できる。",ans:true,exp:"会社法466条・309条2項11号のとおり。株主総会の特別決議（出席者の議決権の3分の2以上の賛成）が必要です。"},
+{cat:"定款",q:"任意的記載事項を定款に記載しなくても会社の成立に影響しない。",ans:true,exp:"任意的記載事項は定款に記載しなくても定款の効力に影響はありませんが、記載することで会社法上の効力が付与されます。"},
+{cat:"定款",q:"公開会社が発行可能株式総数を定款に記載していない場合でも設立登記ができる場合がある。",ans:false,exp:"発行可能株式総数は設立登記前に定款で定めなければなりません（会社法37条・98条）。登記には必須です。"},
+{cat:"定款",q:"設立時発行株式に関する事項（発行数・払込金額等）は定款に記載または別途書面で定める必要がある。",ans:true,exp:"会社法32条のとおり。定款または発起人全員の同意書面で定めます。"},
+{cat:"定款",q:"定款に記載のない事項は全て無効である。",ans:false,exp:"任意的記載事項は記載がなくても有効に存在します。法令の規定が適用されるだけです。記載がなければ無効なのは相対的記載事項（変態設立事項等）のみです。"},
+{cat:"定款",q:"発起人全員が定款に署名または記名押印しなければ定款は効力を生じない。",ans:true,exp:"会社法26条2項（電磁的記録の場合は電子署名）のとおり。発起人全員の意思を確認するためです。"},
+{cat:"定款",q:"公開会社が非公開会社になる定款変更（全株式への譲渡制限付加）には特殊決議が必要である。",ans:true,exp:"総株主の半数以上かつ総議決権の4分の3以上の賛成が必要です（会社法309条3項1号）。株主の地位に重大な影響があるためです。"},
 
-  // ===== 株式 (19-33) =====
-  { q:"株式の特質として最も適切でないものはどれか？", choices:["有限責任の原則","株式の自由譲渡性","株主平等の原則","株主の業務執行権"], ans:3, exp:"株主は株主総会での議決権行使はできますが、原則として業務執行に直接携わる権限はありません。業務執行は取締役が行います（会社法348条）。" },
-  { q:"株主平等の原則とは何か？", choices:["全株主が同数の議決権を持つ","株主はその有する株式の内容と数に応じて平等に取り扱われる","全株主が同額の配当を受ける","全株主が経営に参加できる"], ans:1, exp:"会社法109条1項「株式会社は、株主を、その有する株式の内容及び数に応じて、平等に取り扱わなければならない」と規定されています。" },
-  { q:"譲渡制限株式とは何か？", choices:["取引所で売買できない株式","会社の承認なしに譲渡できない株式","外国人に譲渡できない株式","一定期間譲渡できない株式"], ans:1, exp:"譲渡制限株式とは、譲渡による当該株式の取得について会社の承認を要する旨の定めが定款にある株式です（会社法2条17号）。非公開会社では全株式を譲渡制限とすることができます。" },
-  { q:"自己株式の取得についての原則として正しいのはどれか？", choices:["常に禁止","株主総会の決議があれば取得可能","取締役会決議だけで自由に取得できる","代表取締役が単独で決定できる"], ans:1, exp:"自己株式の取得は原則として株主総会（普通決議）の授権が必要です（会社法156条1項）。ただし一定の場合は取締役会または代表取締役に委任できます。" },
-  { q:"株主が行使できる権利のうち「共익권（共益権）」に該当するものはどれか？", choices:["剰余金配当請求権","残余財産分配請求権","議決権","株式買取請求権"], ans:2, exp:"共益権とは会社の経営に参加するための権利で、議決権・提案権・総会招集請求権などが含まれます。剰余金配当・残余財産分配は自益権（経済的利益を受ける権利）です。" },
-  { q:"株主総会において一株一議決権の原則の例外として認められるものはどれか？", choices:["議決権制限株式","取締役が独断で決定する場合","外国株主の議決権排除","会社の規模による制限"], ans:0, exp:"会社法は一株一議決権を原則としますが（会社法308条1項）、議決権制限株式（会社法108条1項3号）を発行することで特定の事項につき議決権を制限・排除できます。" },
-  { q:"単元株制度について正しいものはどれか？", choices:["1単元未満の株式には議決権がない","1単元は法律で100株と定められている","単元未満株主は配当も受けられない","単元株式数は取締役会で自由に変更できる"], ans:0, exp:"単元株制度（会社法188条以下）では、1単元未満の株式には議決権が認められません。単元株式数は1,000株以下かつ発行済株式総数の200分の1以下の範囲で定款で定めます。" },
-  { q:"新株予約権について正しいものはどれか？", choices:["権利行使すると会社に対して社員の地位を取得する","一定期間内に一定数の株式を一定価格で取得できる権利","新株予約権を消却すると出資義務が生じる","社外取締役にのみ発行できる"], ans:1, exp:"新株予約権とは、一定期間内に会社に対して行使することで当該会社の株式の交付を受けることができる権利です（会社法2条21号）。ストックオプション等に活用されます。" },
-  { q:"株主が会社に対して株式の買取りを請求できる場面として適切でないものはどれか？", choices:["合併に反対した場合","取締役の選任に反対した場合","事業の全部の譲渡に反対した場合","定款変更によって株式が譲渡制限となった場合"], ans:1, exp:"反対株主の株式買取請求権は、組織再編（合併・会社分割等）や事業譲渡、譲渡制限の設定など一定の重要行為の場合に認められます（会社法116条等）。取締役の選任への反対では買取請求権は生じません。" },
-  { q:"株式分割と株式無償割当ての違いについて正しいものはどれか？", choices:["株式分割では既存株主の割合は変わらないが、株式無償割当では変わる","株式分割は株主総会特別決議が必要","株式無償割当では異なる種類株式を交付できる","株式分割と株式無償割当は法的効果が同じ"], ans:2, exp:"株式無償割当て（会社法185条）では異なる種類の株式を交付することができます。株式分割（会社法183条）は同一種類の株式のみです。両者は自己株式の取り扱い等でも異なります。" },
-  { q:"会社が発行できる株式総数（発行可能株式総数）の制限について公開会社の場合、正しいものはどれか？", choices:["発行済株式総数の4倍を超えてはならない","発行済株式総数の10倍を超えてはならない","制限はない","1000株を超えてはならない"], ans:0, exp:"公開会社では発行可能株式総数は発行済株式の総数の4倍を超えることができません（会社法113条3項）。これは取締役会が大量の株式発行によって株主構成を変更することを防ぐための制限です。" },
-  { q:"株主名簿の基準日について正しいものはどれか？", choices:["登記が必要","基準日から3ヵ月以内に権利を行使させる必要がある","定款にのみ記載できる","法務大臣が定める"], ans:1, exp:"基準日（会社法124条）は、基準日後3ヵ月以内に権利を行使させなければなりません（同条2項）。基準日は定款または取締役会（または取締役）で定め、公告が必要です。" },
-  { q:"端株（たんかぶ）処理について正しいものはどれか？", choices:["端株主には議決権がある","単元未満株主は会社に買取りを請求できる","端株は自動的に消却される","端株は他の株主に強制的に移転される"], ans:1, exp:"単元未満株主は会社に対して、自己の有する単元未満株式を買い取ることを請求することができます（会社法192条）。これを「売渡請求」と呼ぶこともあります。" },
-  { q:"株式の消却について正しいものはどれか？", choices:["全株主の同意が必要","自己株式を消却するには株主総会決議が必要","自己株式の消却は取締役会決議でできる","消却した株式は復活させることができる"], ans:2, exp:"自己株式の消却は取締役会決議によって行うことができます（会社法178条）。消却された株式は消滅し復活しません。発行済株式総数が減少します。" },
+// ===== 設立 =====
+{cat:"設立",q:"発起設立では発起人が設立時発行株式の全部を引き受ける。",ans:true,exp:"会社法25条1項1号のとおり。発起人以外の者も引き受けるのは募集設立（同2号）です。"},
+{cat:"設立",q:"募集設立では必ず創立総会を開催しなければならない。",ans:true,exp:"募集設立では創立総会で設立時取締役等の選任や設立手続の承認を行います（会社法65条・88条等）。"},
+{cat:"設立",q:"発起設立でも創立総会を開催しなければならない。",ans:false,exp:"発起設立では創立総会は不要です。発起人全員の同意で設立時取締役等を選任します（会社法40条）。"},
+{cat:"設立",q:"現物出資の目的財産の価額が500万円以下の場合、検査役の調査が不要である。",ans:true,exp:"会社法33条10項1号のとおり。このほか弁護士・公認会計士等の証明がある場合や市場価格のある有価証券も例外です。"},
+{cat:"設立",q:"設立時取締役は設立手続の法令・定款適合性を調査する義務を負う。",ans:true,exp:"会社法46条1項のとおり。調査の結果、違法があれば発起人（または創立総会）に報告しなければなりません。"},
+{cat:"設立",q:"設立登記は出資の履行が完了した日から2週間以内に申請しなければならない。",ans:true,exp:"会社法915条1項のとおり。登記を怠ると100万円以下の過料が科される場合があります（会社法976条1号）。"},
+{cat:"設立",q:"設立無効の訴えは誰でも提起できる。",ans:false,exp:"提訴権者は株主等・取締役・監査役・清算人等に限定されます（会社法828条2項1号）。"},
+{cat:"設立",q:"設立無効判決の効力は遡及する（設立時に遡って無効となる）。",ans:false,exp:"設立無効判決の効力は将来に向かってのみ生じます（将来効）。既に行われた法律関係は維持されます。"},
+{cat:"設立",q:"仮装払込（みせ金）を行った発起人は払込金額相当額を会社に支払う義務を負う。",ans:true,exp:"会社法52条の2のとおり。設立時取締役も同様の義務を負い、連帯して責任を負います。"},
+{cat:"設立",q:"発起人は1人でも株式会社を設立することができる。",ans:true,exp:"会社法に発起人の人数制限はなく、1人発起人による設立（1人会社の設立）が可能です。"},
+{cat:"設立",q:"株式会社の設立に際して、出資は必ず金銭でしなければならない。",ans:false,exp:"金銭以外の財産（現物出資）による出資も認められます（会社法28条1号）。ただし検査役の調査等の要件があります。"},
+{cat:"設立",q:"発起人の権限は会社成立後も継続し、成立後の業務執行も行うことができる。",ans:false,exp:"発起人の権限は会社成立前の設立事務に限られ、会社成立後は消滅します。業務執行は取締役が行います。"},
+{cat:"設立",q:"変態設立事項の検査役調査において不当と判断された場合、裁判所は価額を変更できる。",ans:true,exp:"会社法33条7項のとおり。裁判所が変態設立事項の定めを変更した場合、発起人は定款変更に同意しないことで引き受けを取り消せます。"},
+{cat:"設立",q:"財産引受けが定款に記載されていない場合、その財産引受け契約は無効である。",ans:true,exp:"財産引受けは変態設立事項であり、定款記載のない財産引受けは無効です（会社法28条2号）。事後設立規制も関連します。"},
+{cat:"設立",q:"合同会社の設立には公証人による定款認証は不要であり、社員が定款を作成して出資すれば設立登記ができる。",ans:true,exp:"持分会社の定款は公証人認証不要（会社法575条2項）。社員全員が定款を作成し、出資の履行後に設立登記を行います。"},
+{cat:"設立",q:"設立時発行株式1株の払込金額に下限はない。",ans:true,exp:"額面株式制度は廃止され、1株の払込金額に法定下限はありません。1円以上であれば自由に設定できます。"},
+{cat:"設立",q:"株式会社の設立は発起設立・募集設立の2種類のみが認められている。",ans:true,exp:"会社法25条1項のとおり。両者は設立時株式の引受人の範囲と手続面で異なります。"},
+{cat:"設立",q:"設立時に定款で発行可能株式総数を定めなかった場合、設立登記後も定めることができる。",ans:false,exp:"発行可能株式総数は設立登記前（成立時）に定めなければなりません（会社法37条）。登記申請の添付書類にも必要です。"},
+{cat:"設立",q:"発起人が設立費用を負担した場合、その費用は常に会社に請求できる。",ans:false,exp:"会社が負担する設立費用は定款に記載された額に限られます（会社法28条4号）。超過分は発起人が負担します。"},
+{cat:"設立",q:"設立時に複数の発起人がいる場合、各発起人は少なくとも1株は引き受けなければならない。",ans:true,exp:"会社法25条2項のとおり。各発起人は設立時発行株式を1株以上引き受けなければなりません。"},
 
-  // ===== 機関設計 (34-53) =====
-  { q:"公開会社に必置の機関として正しいものはどれか？", choices:["監査役会","取締役会","会計監査人","指名委員会"], ans:1, exp:"公開会社は必ず取締役会を置かなければなりません（会社法327条1項1号）。監査役会・会計監査人は大会社等に必置ですが、公開会社一般に必置ではありません。" },
-  { q:"取締役会設置会社において代表取締役の選定は誰が行うか？", choices:["株主総会","取締役会","監査役","会計監査人"], ans:1, exp:"取締役会設置会社では取締役会が代表取締役を選定します（会社法362条2項3号）。非取締役会設置会社では取締役の互選等で決めることができます。" },
-  { q:"監査役の任期について正しいものはどれか？", choices:["1年","2年","3年（短縮不可）","4年（非公開会社では定款で10年に延長可）"], ans:3, exp:"監査役の任期は4年です（会社法336条1項）。非公開会社（非取締役会設置会社）では定款で10年まで延長可能です（同条2項）。取締役（原則2年）より長い任期が特徴です。" },
-  { q:"取締役の善管注意義務（善良な管理者の注意義務）の法的根拠はどれか？", choices:["会社法330条・民法644条","商法11条","会社法423条","民法709条"], ans:0, exp:"会社法330条が株式会社と役員等の関係を委任に関する規定に従うと規定し、民法644条の善管注意義務が準用されます。これにより取締役は職務遂行において善良な管理者の注意が要求されます。" },
-  { q:"取締役の競業避止義務について正しいものはどれか？", choices:["取締役は会社と同種の営業を一切禁止される","承認なき競業取引の利益は会社に帰属するものとみなされる","承認は代表取締役が行う","退任後も5年間は競業が禁止される"], ans:1, exp:"取締役が取締役会の承認なしに自己の計算で競業取引を行った場合、その取引によって得た利益は会社に生じた損害の額と推定されます（会社法423条2項）。これを「介入権（帰属権）」と呼びます。" },
-  { q:"利益相反取引（間接取引）の承認機関として正しいものはどれか？", choices:["株主総会（特別決議）","取締役会","代表取締役","監査役"], ans:1, exp:"取締役会設置会社において、利益相反取引（直接取引・間接取引）を行うには取締役会の承認が必要です（会社法365条1項）。非設置会社では株主総会の承認が必要です（会社法356条1項）。" },
-  { q:"株主総会の決議の種類と要件の組み合わせで誤っているものはどれか？", choices:["普通決議：議決権の過半数を有する株主出席＋出席者の議決権の過半数","特別決議：議決権の過半数を有する株主出席＋出席者の議決権の2/3以上","特殊決議：議決権の半数以上＋出席者の議決権の4分の3以上","特別普通決議：出席者の議決権の3分の1以上"], ans:3, exp:"「特別普通決議」という決議種別は会社法に存在しません。会社法上の主な決議種別は①普通決議（309条1項）②特別決議（309条2項）③特殊決議（309条3・4項）です。" },
-  { q:"株主総会の招集について原則として正しいものはどれか？", choices:["いつでも招集できる","取締役が招集し公開会社では2週間前までに通知","株主全員が同意すれば招集手続を省略できる","監査役が招集する"], ans:1, exp:"取締役（取締役会設置会社では取締役会）が招集権を持ちます（会社法296条3項）。公開会社では株主総会の2週間前まで、非公開会社では1週間前までに招集通知を発しなければなりません（会社法299条1項）。" },
-  { q:"株主総会における書面決議（みなし決議）が成立するための要件として正しいものはどれか？", choices:["取締役の提案に全株主が書面で同意した場合","議決権の過半数の株主が同意した場合","公開会社では認められない","監査役の同意が必要"], ans:0, exp:"株主全員が書面又は電磁的方法で提案（会社法319条1項）に同意した場合、株主総会の決議があったものとみなされます（みなし決議）。全員の同意が必要です。" },
-  { q:"取締役会の定足数と決議要件について正しいものはどれか？", choices:["取締役の過半数出席・出席取締役の過半数の賛成","取締役全員の同意","取締役の3分の2以上出席・出席取締役の3分の2以上の賛成","取締役の過半数出席・出席取締役の3分の2以上の賛成"], ans:0, exp:"取締役会の決議は取締役の過半数が出席し、出席取締役の過半数の賛成が必要です（会社法369条1項）。ただし定款で要件を厳格化することはできます。" },
-  { q:"監査役の権限について誤っているものはどれか？", choices:["取締役の業務執行の適法性監査","会計監査","業務執行の妥当性監査（業務監査）","取締役会への出席と意見陳述"], ans:2, exp:"監査役は取締役の職務執行の適法性監査を行いますが、業務執行の妥当性（経営判断の良し悪し）を監査する権限は原則としてありません。例外として会計参与設置会社等の場合に異なる扱いがあります。" },
-  { q:"会計参与の設置について正しいものはどれか？", choices:["大会社に必置","任意設置機関（定款で任意に設置可）","公認会計士のみ就任できる","取締役と共同で決算書を作成する"], ans:3, exp:"会計参与は公認会計士（監査法人）または税理士（税理士法人）がなれる機関で（会社法333条1項）、取締役と共同して計算書類を作成します（会社法374条1項）。任意設置機関です。" },
-  { q:"指名委員会等設置会社の三委員会として正しい組み合わせはどれか？", choices:["監査委員会・報酬委員会・指名委員会","内部統制委員会・監査委員会・報酬委員会","指名委員会・報酬委員会・リスク委員会","取締役委員会・監督委員会・指名委員会"], ans:0, exp:"指名委員会等設置会社（会社法2条12号）は指名委員会・監査委員会・報酬委員会の三委員会を設置します。各委員会は3名以上の取締役で構成し、過半数が社外取締役でなければなりません。" },
-  { q:"社外取締役の要件として正しいものはどれか？", choices:["会社の従業員でないこと","その会社及び子会社の業務執行取締役・執行役・使用人でないこと","株主でないこと","他社の取締役でないこと"], ans:1, exp:"社外取締役（会社法2条15号）は、当該会社及びその子会社の業務執行取締役・執行役・支配人その他の使用人ではなく、かつ過去にもそうした地位になかったことが要件の核心です。" },
-  { q:"役員等（取締役・監査役等）の会社に対する責任の軽減について正しいものはどれか？", choices:["株主総会特別決議だけで責任を全額免除できる","定款で責任限定契約を結べるのは社外取締役・社外監査役のみ","責任の一部免除は株主全員の同意が必要","責任限定契約の上限は年額報酬の2倍"], ans:1, exp:"定款の定めに基づく責任限定契約（会社法427条）は、社外取締役・社外監査役・会計参与・会計監査人のみが対象です。業務執行取締役には責任限定契約制度は利用できません。" },
-  { q:"株主代表訴訟について正しいものはどれか？", choices:["誰でも提起できる","6ヵ月前から引き続き株式を有する株主が提起できる（非公開会社を除く）","訴訟で勝訴した場合の損害賠償は原告株主に帰属する","会社に対して提起する"], ans:1, exp:"株主代表訴訟（会社法847条）は原則として6ヵ月前から株式を保有する株主が提起できます（非公開会社は株式保有期間の制限なし）。会社の代わりに役員等を被告として提起し、勝訴した場合の賠償金は会社に帰属します。" },
-  { q:"多重代表訴訟（特定責任追及の訴え）について正しいものはどれか？", choices:["子会社の株主が直接提起できる","完全親会社の株主が子会社役員を被告として提起できる","連結子会社の役員のみ対象","提訴請求は子会社に対して行う"], ans:1, exp:"多重代表訴訟（会社法847条の3）は、完全親会社（親会社の発行済株式の全部を保有する会社）の最終完全親会社等の株主が、子会社の役員に対して損害賠償を請求できる制度です。" },
-  { q:"会計監査人の設置が義務付けられる会社はどれか？", choices:["公開会社","監査役会設置会社","大会社","取締役会設置会社"], ans:2, exp:"大会社（資本金5億円以上または負債200億円以上）は会計監査人を必置とします（会社法328条）。大会社は規模が大きく、計算書類の正確性を公認会計士・監査法人が監査する必要があります。" },
-  { q:"取締役の報酬等について正しいものはどれか？", choices:["代表取締役が自由に決定できる","取締役会が決定する","定款または株主総会決議で定める","監査役が決定する"], ans:2, exp:"取締役の報酬は定款又は株主総会の決議によって定めます（会社法361条1項）。お手盛り防止のため、取締役が自分の報酬を自由に決定することはできません。" },
-  { q:"取締役（代表取締役）の第三者に対する責任（会社法429条）の発生要件として正しいものはどれか？", choices:["取締役の故意または重大な過失による職務懈怠","取締役の軽過失による行為","会社の損失発生のみ","取締役の退任のみ"], ans:0, exp:"会社法429条1項は、役員等がその職務を行うについて悪意又は重大な過失があったときに第三者に対する損害賠償責任を認めます。軽過失では第三者への直接責任は生じません。" },
+// ===== 株式 =====
+{cat:"株式",q:"株式の譲渡は原則として自由である（株式譲渡自由の原則）。",ans:true,exp:"会社法127条のとおり。株主が投下資本を回収できるよう、株式は原則として自由に譲渡できます。"},
+{cat:"株式",q:"公開会社とは、証券取引所に上場している会社のことである。",ans:false,exp:"公開会社とは「発行する全部又は一部の株式の内容として譲渡制限の定めを設けていない株式会社」です（会社法2条5号）。上場の有無は関係ありません。"},
+{cat:"株式",q:"株主平等の原則とは、全株主に対して同一金額の配当を支払うことを意味する。",ans:false,exp:"株主平等の原則（会社法109条1項）は「株式の内容および数に応じて」平等に扱うものです。保有株式数に比例して平等に扱います。"},
+{cat:"株式",q:"自己株式には議決権がある。",ans:false,exp:"会社法308条2項のとおり、自己株式には議決権がありません。また配当請求権・残余財産分配請求権もありません。"},
+{cat:"株式",q:"自己株式の消却は取締役会の決議によって行うことができる。",ans:true,exp:"会社法178条1項のとおり。消却により発行済株式総数が減少します。消却に株主総会決議は不要です。"},
+{cat:"株式",q:"単元未満株主は議決権を行使することができない。",ans:true,exp:"単元未満株式（1単元に満たない株式）には議決権が認められません（会社法189条1項）。"},
+{cat:"株式",q:"単元株式数は取締役会の決議で自由に変更できる。",ans:false,exp:"単元株式数の設定・変更は定款変更（株主総会特別決議）が必要です。また1,000株以下かつ発行済株式の200分の1以下という上限があります。"},
+{cat:"株式",q:"単元未満株主は会社に対して自己の単元未満株式の買取りを請求することができる。",ans:true,exp:"会社法192条1項のとおり。単元未満株主の投資回収手段として認められています。"},
+{cat:"株式",q:"公開会社の発行可能株式総数は発行済株式総数の4倍を超えることができない。",ans:true,exp:"会社法113条3項のとおり。取締役会が大量株式発行で株主構成を恣意的に変更することを防ぐための制限です。"},
+{cat:"株式",q:"非公開会社には発行可能株式総数の4倍規制は適用されない。",ans:true,exp:"4倍規制（会社法113条3項）は公開会社のみに適用されます。非公開会社は定款で自由に設定できます。"},
+{cat:"株式",q:"株主名簿の基準日は定款または取締役会の決議で定め、公告が必要である。",ans:true,exp:"会社法124条3項のとおり。基準日から3ヶ月以内に権利を行使させる必要があります（同条2項）。"},
+{cat:"株式",q:"株式分割は株主総会の特別決議が必要である。",ans:false,exp:"株式分割は取締役会の決議（取締役会非設置会社では取締役の過半数の決定）で行うことができます（会社法183条2項）。"},
+{cat:"株式",q:"株式の併合には株主総会の特別決議が必要である。",ans:true,exp:"会社法180条2項・309条2項4号のとおり。株式数が減少し端数が生じて一部株主が株主でなくなる重大な影響があるためです。"},
+{cat:"株式",q:"株式の併合によって発行済株式総数は増加する。",ans:false,exp:"株式の併合（例：2株→1株）では発行済株式総数は減少します。株価が上昇する方向に動きます。"},
+{cat:"株式",q:"新株予約権は必ず有償で発行しなければならない。",ans:false,exp:"新株予約権は無償で発行することもできます（ストックオプション等）。会社法236条以下に規定があります。"},
+{cat:"株式",q:"新株予約権を行使することで株主になることができる。",ans:true,exp:"新株予約権者は権利行使価格を払い込むことで株式の交付を受け、株主となります（会社法282条・283条）。"},
+{cat:"株式",q:"議決権制限株式の発行は公開会社では発行済株式総数の2分の1を超えることができない。",ans:true,exp:"会社法115条のとおり。超過した場合は直ちに2分の1以下になるよう措置を講じなければなりません。"},
+{cat:"株式",q:"取得条項付株式とは、株主が会社に対して取得を請求できる株式である。",ans:false,exp:"取得条項付株式は「会社が一定の事由を条件として強制的に取得できる株式」です（会社法108条1項6号）。株主が請求できるのは「取得請求権付株式」です。"},
+{cat:"株式",q:"全部取得条項付種類株式はスクイーズアウト（少数株主の締め出し）に利用できる。",ans:true,exp:"株主総会の特別決議により全部取得条項付種類株式を強制取得し、端数株主を締め出す手法として利用されてきました（現在はより簡便な株式等売渡請求制度も存在します）。"},
+{cat:"株式",q:"反対株主の株式買取請求権は組織再編（合併等）に際して認められる権利である。",ans:true,exp:"会社法785条・797条・806条等のとおり。合併・分割・株式交換・株式移転・事業譲渡等に際して認められます。"},
+{cat:"株式",q:"株式買取請求権を行使した後、株主は自由にこれを撤回できる。",ans:false,exp:"株式買取請求は原則として撤回できません（会社法785条6項）。ただし会社の同意がある場合は撤回可能です。"},
+{cat:"株式",q:"新株の有利発行（特に有利な金額での発行）には株主総会の特別決議が必要である。",ans:true,exp:"会社法199条3項・309条2項5号のとおり。既存株主の持株価値希薄化を防ぐため、株主総会での承認が必要です。"},
+{cat:"株式",q:"株主は会社に対して株主名簿の閲覧・謄写を請求することができる。",ans:true,exp:"会社法125条2項のとおり。ただし請求の拒否事由も定められています（同条3項）。"},
+{cat:"株式",q:"株式の共有者は権利行使者1名を定めて会社に通知しなければ株主権を行使できない。",ans:true,exp:"会社法106条のとおり。株式が共有状態にある場合は1名に権利行使を集約させます。"},
+{cat:"株式",q:"拒否権付種類株式（黄金株）は特定事項について種類株主総会の決議も必要とする株式である。",ans:true,exp:"会社法108条1項8号のとおり。敵対的買収防衛策として活用されます。1株でも経営に強力な影響力を持ちます。"},
+{cat:"株式",q:"株式無償割当ては自己株式の保有者（会社自身）に対しても割当てを行う必要がある。",ans:false,exp:"会社法186条2項のとおり、自己株式には株式無償割当ては行われません。"},
+{cat:"株式",q:"端数株式（1株未満の株式）は株主がそのまま保有し続けることができる。",ans:false,exp:"端数株式は売却・競売などにより換価処理されます（会社法234条）。株式として保有し続けることはできません。"},
+{cat:"株式",q:"上場会社の株式譲渡は振替制度（社債株式等振替法）により電子的に行われる。",ans:true,exp:"上場会社の株式は社債株式等振替法による振替制度により管理され、株券は不発行（ペーパーレス化）が原則です。"},
+{cat:"株式",q:"譲渡制限株式を会社の承認なく譲渡した場合、その譲渡は当事者間では有効だが会社には対抗できない。",ans:true,exp:"判例（最判昭和48年）のとおり。当事者間の法律関係は有効ですが、会社は承認なき譲受人を株主として扱う義務はありません。"},
+{cat:"株式",q:"種類株主総会の決議が必要な場合に、その決議を経なかった行為は無効である。",ans:true,exp:"会社法322条所定の種類株主総会決議を要する行為について、その決議を欠く場合は原則として無効です。"},
+{cat:"株式",q:"株式の帳簿価額と時価は常に一致する。",ans:false,exp:"帳簿価額は取得原価等を基準とした会計上の価額であり、市場での時価とは異なります。"},
 
-  // ===== 計算・配当 (54-60) =====
-  { q:"剰余金の配当について正しいものはどれか？", choices:["取締役の単独決定で配当できる","原則として株主総会の決議が必要","監査役の承認で配当できる","債権者の同意が必要"], ans:1, exp:"剰余金の配当は原則として株主総会（普通決議）で決定します（会社法454条1項）。ただし一定の要件を満たす場合、取締役会設置会社では定款の定めにより取締役会決議で中間配当等が可能です。" },
-  { q:"純資産額が300万円を下回る場合の剰余金配当について正しいものはどれか？", choices:["配当は禁止される","配当総額を減らして配当できる","株主全員の同意があれば配当できる","取締役会決議のみで配当できる"], ans:0, exp:"会社法458条により、剰余金の配当時に純資産額が300万円を下回ることとなる場合は配当ができません。これは会社の最低資本規制的な機能を果たします。" },
-  { q:"資本金の額について正しいものはどれか？", choices:["最低資本金は1000万円","資本金の額に制限はなく1円から設立可能","資本金は変更できない","資本金は常に払込額と一致する"], ans:1, exp:"2006年の会社法施行により最低資本金制度は廃止され、現在は1円から株式会社を設立できます。ただし実際の会社運営には適切な資本が必要です。" },
-  { q:"資本準備金の積立が義務付けられる場合として正しいものはどれか？", choices:["毎年純利益の10%","剰余金配当のたびに配当額の10分の1","新株発行の払込額の2分の1以上","新株予約権の行使のたびに半額"], ans:1, exp:"剰余金の配当をする際は、配当額の10分の1以上を資本準備金または利益準備金として積み立てなければなりません（会社法445条4項）。これは会社財産の充実・維持のための制度です。" },
-  { q:"会社の計算書類として会社法で定められているものに含まれないものはどれか？", choices:["貸借対照表","損益計算書","株主資本等変動計算書","キャッシュフロー計算書"], ans:3, exp:"会社法435条2項で定める計算書類は①貸借対照表②損益計算書③株主資本等変動計算書④個別注記表の4つです。キャッシュフロー計算書は上場会社に適用される金融商品取引法で義務付けられますが、会社法上の計算書類ではありません。" },
-  { q:"分配可能額の算定において控除されるものはどれか？", choices:["貸借対照表上の純資産額","資本金・準備金等","その他有価証券評価差額金の全額","役員報酬の未払額"], ans:1, exp:"分配可能額（会社法461条2項）はその他資本剰余金＋その他利益剰余金を基礎とし、資本金・各種準備金・自己株式等を差し引いて算定します。配当の財源規制です。" },
-  { q:"違法配当（財源規制違反の配当）が行われた場合の効果として正しいものはどれか？", choices:["配当は当然無効で返還不要","株主は善意でも返還義務を負う","株主が悪意の場合のみ返還義務を負う","取締役が連帯して補填する義務を負う（善意株主への返還不要）"], ans:1, exp:"財源規制（会社法461条）に違反した配当を受けた株主は、善意・悪意を問わず配当額を会社に返還する義務を負います（会社法462条）。取締役等も連帯して補填義務を負います。" },
+// ===== 株主総会 =====
+{cat:"株主総会",q:"取締役会設置会社では、株主総会は会社法または定款で定めた事項のみを決議できる。",ans:true,exp:"会社法295条2項のとおり。取締役会に業務執行権が与えられているため、株主総会の権限は法律・定款所定の事項に限られます。"},
+{cat:"株主総会",q:"定時株主総会は毎事業年度終了後3ヶ月以内に招集しなければならない。",ans:true,exp:"会社法296条1項のとおり。実務では3月決算会社が6月に定時総会を開催するケースが多いです。"},
+{cat:"株主総会",q:"公開会社では株主総会の少なくとも2週間前に招集通知を発しなければならない。",ans:true,exp:"会社法299条1項のとおり。非公開会社では1週間前（定款でさらに短縮可）で足ります。"},
+{cat:"株主総会",q:"株主全員の同意がある場合は招集手続を省略して株主総会を開催できる。",ans:true,exp:"会社法300条のとおり。全員の同意がある場合はいつでも・どこでも（バーチャルを含む）開催できます。"},
+{cat:"株主総会",q:"書面決議（みなし決議）を行うには株主全員の書面による同意が必要である。",ans:true,exp:"会社法319条1項のとおり。過半数では足りず、全員の同意が必要です。"},
+{cat:"株主総会",q:"株主総会の普通決議は出席した議決権の過半数で成立する（定款に別段の定めがない場合）。",ans:true,exp:"会社法309条1項のとおり。ただし定足数として議決権の過半数を有する株主の出席が必要（定款で排除可）です。"},
+{cat:"株主総会",q:"定款変更には株主総会の特別決議が必要である。",ans:true,exp:"会社法466条・309条2項11号のとおり。特別決議は議決権の過半数の株主が出席し、出席者の議決権の3分の2以上の賛成が必要です。"},
+{cat:"株主総会",q:"株主総会の特別決議の定足数（出席要件）は定款で引き下げることができる。",ans:true,exp:"会社法309条2項は「議決権の過半数を有する株主が出席」を要件としますが、定款で「3分の1以上」まで引き下げることができます。"},
+{cat:"株主総会",q:"取締役の選任は株主総会の特別決議で行う。",ans:false,exp:"取締役の選任は普通決議で行います（会社法329条1項・341条）。解任も普通決議（不正行為等では特別決議も可）です。"},
+{cat:"株主総会",q:"株主総会決議取消しの訴えは決議の日から6ヶ月以内に提起しなければならない。",ans:false,exp:"会社法831条1項のとおり、提訴期限は決議の日から3ヶ月以内です。"},
+{cat:"株主総会",q:"株主総会の決議の不存在確認の訴えは出訴期間の制限がない。",ans:true,exp:"決議不存在確認の訴えは形式的には決議があるが実質的には不存在の場合に用い、出訴期間の制限はありません（会社法830条1項）。"},
+{cat:"株主総会",q:"株主は代理人によって議決権を行使することができる。",ans:true,exp:"会社法310条1項のとおり。ただし会社は定款で代理人を株主に限定することができます（同条5項）。"},
+{cat:"株主総会",q:"議決権を行使できる株主数が1,000人以上の会社では書面による議決権行使の機会を設けなければならない。",ans:true,exp:"会社法298条2項・1項3号のとおり。多数の株主の意思を反映させるための制度です。"},
+{cat:"株主総会",q:"株主は株主総会前に会社に対して議題・議案を提案することができる（株主提案権）。",ans:true,exp:"会社法303条・304条のとおり。持株要件（総議決権の1%または300個以上）と6ヶ月前からの継続保有（公開会社）が条件です。"},
+{cat:"株主総会",q:"累積投票制度は取締役選任において株主が持株数×選任人数の票を自由に配分できる制度である。",ans:true,exp:"会社法342条のとおり。少数株主が自社に友好的な取締役を1名選任しやすくする制度です。"},
+{cat:"株主総会",q:"累積投票は定款で排除することができる。",ans:true,exp:"会社法342条1項は「定款にその旨の定めがある場合を除き」累積投票を認めるため、定款で排除できます。多くの上場会社が定款で排除しています。"},
+{cat:"株主総会",q:"株主総会の議事録は本店に10年間備え置かなければならない。",ans:true,exp:"会社法318条2項のとおり。支店には写しを5年間備え置きます（同条3項）。"},
+{cat:"株主総会",q:"株主は議決権の行使について会社に対して質問をすることができる。",ans:true,exp:"会社法314条のとおり。取締役・会計参与等は必要な説明をしなければなりません（合理的な理由がある場合は拒否できます）。"},
+{cat:"株主総会",q:"バーチャル株主総会（オンライン総会）は日本の会社法上認められていない。",ans:false,exp:"2020年以降のガイドラインや2023年改正により、完全オンライン形式の株主総会（場所の定めのない株主総会）も認められています。"},
+{cat:"株主総会",q:"株主総会の特別決議の要件を定款で「出席者の4分の3以上」に加重することができる。",ans:true,exp:"会社法309条2項は「3分の2以上」を最低要件とし、定款で加重することができます。緩和（3分の2未満への変更）はできません。"},
+{cat:"株主総会",q:"少数株主（6ヶ月前から総議決権の3%以上を保有）は株主総会の招集を請求できる。",ans:true,exp:"会社法297条1項のとおり。請求後8週間以内に総会が招集されない場合は、自ら招集できます（同条4項）。"},
+{cat:"株主総会",q:"株主総会決議によって代表取締役を選定することもできる。",ans:true,exp:"会社法295条（取締役会非設置会社）または定款の定めがある場合に、株主総会で代表取締役を選定できます。"},
+{cat:"株主総会",q:"一人会社（株主が1名）では実際の株主総会の開催が不要で、その株主の意思決定で足りる。",ans:true,exp:"1人株主が唯一の株主である会社では、書面等による意思表示で株主総会の決議があったものとみなすことができます。"},
+{cat:"株主総会",q:"株主総会の招集通知には議題を記載しなければならない。",ans:true,exp:"会社法299条4項のとおり。招集通知には会議の目的事項（議題）を記載・記録しなければなりません。"},
+{cat:"株主総会",q:"取締役会設置会社の株主総会招集通知には参考書類の添付が必要な場合がある。",ans:true,exp:"取締役選任・報酬決定等の議案については株主総会参考書類の提供が必要です（会社法301条）。"},
 
-  // ===== 定款変更・組織変更 (61-65) =====
-  { q:"定款変更の決議要件として原則正しいものはどれか？", choices:["取締役会の普通決議","株主総会の普通決議","株主総会の特別決議","全株主の同意"], ans:2, exp:"定款変更は株主総会の特別決議（議決権の過半数が出席し、出席者の議決権の3分の2以上の賛成）が必要です（会社法466条、309条2項11号）。" },
-  { q:"公開会社が非公開会社に変更する定款変更に必要な決議はどれか？", choices:["株主総会特別決議","株主総会普通決議","全株主の同意（特殊決議）","取締役会決議"], ans:2, exp:"公開会社が全株式に譲渡制限を付す定款変更（非公開会社化）には、株主全員の同意または総株主の半数以上かつ議決権の4分の3以上の賛成による特殊決議が必要です（会社法309条3項1号）。" },
-  { q:"株式会社から持分会社への組織変更について正しいものはどれか？", choices:["取締役会決議のみで可能","株主全員の同意が必要","株主総会特別決議で可能","監査役の承認が必要"], ans:1, exp:"株式会社から持分会社への組織変更は、総株主の同意（株主全員の同意）が必要です（会社法781条1項）。組織変更後に株主は全員社員となるため、全員の合意が必要とされています。" },
-  { q:"種類株式の内容変更について、その種類の株主に不利益を与える可能性がある場合に必要な手続はどれか？", choices:["取締役会普通決議","当該種類の株主による種類株主総会の特別決議","全株主の同意","監査役の同意"], ans:1, exp:"種類株主に損害を及ぼすおそれのある行為をする場合は、当該種類の株主による種類株主総会の特別決議（議決権の過半数出席・3分の2以上賛成）が必要です（会社法322条・324条2項）。" },
-  { q:"株式会社の解散事由として会社法に定められていないものはどれか？", choices:["株主総会の特別決議","定款で定めた存続期間の満了","合併（吸収合併）","代表取締役の死亡"], ans:3, exp:"会社法471条が定める解散事由は①定款所定の事由②総株主の同意③株主総会特別決議④合併④裁判所の解散命令⑤休眠会社の解散です。代表取締役の死亡は解散事由ではありません。" },
+// ===== 取締役・取締役会 =====
+{cat:"取締役",q:"取締役会設置会社では取締役を3名以上選任しなければならない。",ans:true,exp:"会社法331条4項のとおり。取締役会は原則として3名以上の取締役から構成されます。"},
+{cat:"取締役",q:"取締役の任期は原則として2年である。",ans:true,exp:"会社法332条1項のとおり（選任後2年以内に終了する事業年度の定時株主総会終結まで）。公開会社は1年に短縮することが多いです。"},
+{cat:"取締役",q:"非公開会社では定款で取締役の任期を10年まで延長できる。",ans:true,exp:"会社法332条2項のとおり。株主と経営者が一体の中小企業等では長期安定的な経営が可能になります。"},
+{cat:"取締役",q:"取締役は必ず株主でなければならない。",ans:false,exp:"取締役に株主であることは要件とされていません（会社法331条）。ただし定款で株主であることを要件とすることは可能です。"},
+{cat:"取締役",q:"法人は取締役になることができない。",ans:true,exp:"会社法331条1項1号のとおり、取締役は自然人でなければなりません。法人が取締役に就任することはできません。"},
+{cat:"取締役",q:"取締役の善管注意義務は会社法330条・民法644条から導かれる。",ans:true,exp:"会社法330条が株式会社と役員等の関係を委任に関する規定によるとしており、民法644条の善管注意義務が適用されます。"},
+{cat:"取締役",q:"取締役の忠実義務（会社法355条）は善管注意義務とは全く別個の独立した義務である。",ans:false,exp:"判例（最大判昭和45年）は忠実義務を善管注意義務を「具体化・明確化」したものと解しており、別個独立の義務ではないとします。"},
+{cat:"取締役",q:"取締役が会社と競業する取引を行うには取締役会（非設置会社では株主総会）の承認が必要である。",ans:true,exp:"会社法356条1項1号・365条1項のとおり。競業避止義務に違反した場合、介入権（利益帰属）が認められます（会社法423条2項）。"},
+{cat:"取締役",q:"取締役が会社と直接取引（利益相反取引）を行うには承認が必要である。",ans:true,exp:"会社法356条1項2号・365条1項のとおり。取締役会設置会社では取締役会の承認が必要です。"},
+{cat:"取締役",q:"取締役会設置会社では代表取締役は取締役会が選定する。",ans:true,exp:"会社法362条2項3号のとおり。非設置会社では取締役の互選や株主総会で選定することもできます。"},
+{cat:"取締役",q:"取締役の報酬は定款または株主総会の決議で定める。",ans:true,exp:"会社法361条1項のとおり。お手盛り防止のため、取締役自身が自らの報酬を決定することはできません。"},
+{cat:"取締役",q:"取締役会の決議は取締役の過半数が出席し、出席取締役の過半数の賛成で成立する。",ans:true,exp:"会社法369条1項のとおり。定款でより厳格な要件を定めることはできますが、緩和はできません。"},
+{cat:"取締役",q:"取締役会決議に特別の利害関係を有する取締役は、その決議に参加して意見を述べることができるが議決には加われない。",ans:true,exp:"会社法369条2項のとおり。利害関係取締役の数は定足数の計算から除外されます。"},
+{cat:"取締役",q:"取締役会の議事録は本店に10年間備え置かなければならない。",ans:true,exp:"会社法371条1項のとおり。株主・債権者は閲覧・謄写を請求できます（同条2項・4項）。"},
+{cat:"取締役",q:"社外取締役は当該会社またはその子会社の業務執行取締役であってはならない。",ans:true,exp:"会社法2条15号のとおり。社外取締役の独立性を確保するための要件です。"},
+{cat:"取締役",q:"上場大会社である監査役会設置会社は社外取締役を少なくとも1名以上置かなければならない。",ans:true,exp:"会社法327条の2（令和元年改正）のとおり。コーポレートガバナンス強化のために2021年3月施行で義務化されました。"},
+{cat:"取締役",q:"取締役が死亡した場合、その取締役の地位は相続人に相続される。",ans:false,exp:"取締役の地位は一身専属的なものであり相続されません。死亡により当然に退任となります（会社法330条・民法653条）。"},
+{cat:"取締役",q:"取締役の会社に対する損害賠償責任は、株主全員の同意があれば免除できる。",ans:true,exp:"会社法424条のとおり。ただし総株主の同意が必要であり、1人でも反対すれば免除できません。"},
+{cat:"取締役",q:"社外取締役との間で責任限定契約を結ぶことができる（定款の定めがある場合）。",ans:true,exp:"会社法427条1項のとおり。業務執行取締役以外の取締役（社外取締役等）との間で、一定額を限度とする責任限定契約が可能です。"},
+{cat:"取締役",q:"取締役が第三者に損害を与えた場合、悪意または重大な過失がなければ会社法429条の責任を負わない。",ans:true,exp:"会社法429条1項のとおり。「悪意又は重大な過失」がある場合に、役員等は第三者への直接の損害賠償責任を負います。"},
+{cat:"取締役",q:"取締役会の決議（書面決議）は、取締役全員が書面または電磁的方法で同意した場合に行うことができる（定款の定めがある場合）。",ans:true,exp:"会社法370条のとおり。定款に定めがある場合に限り、実際の取締役会を開催せずに書面等で決議を行うことができます。"},
+{cat:"取締役",q:"株主代表訴訟を提起するには、まず会社に対して訴訟提起を請求しなければならない。",ans:true,exp:"会社法847条1項のとおり。会社が請求から60日以内に訴訟を提起しない場合に、株主自ら提起できます。"},
+{cat:"取締役",q:"株主代表訴訟の提起には公開会社の場合、6ヶ月前から継続して株式を保有していることが要件である。",ans:true,exp:"会社法847条1項のとおり。非公開会社では株式保有期間の要件はありません（同条2項）。"},
+{cat:"取締役",q:"株主代表訴訟で株主が勝訴した場合、損害賠償金は原告株主に帰属する。",ans:false,exp:"損害賠償金は会社に帰属します。代表訴訟は会社の権利を株主が代わって行使するものです。"},
+{cat:"取締役",q:"経営判断の原則（ビジネス・ジャッジメント・ルール）は会社法に明文規定がある。",ans:false,exp:"経営判断の原則は判例法理として認められており、明文規定はありません。合理的情報収集と合理的意思決定プロセスがあれば善管注意義務違反とはならないとされます。"},
+{cat:"取締役",q:"内部統制システムの構築・整備は大会社の取締役会に義務付けられている。",ans:true,exp:"会社法362条4項6号・5項のとおり。内部統制の基本方針の決定が義務付けられています。"},
+{cat:"取締役",q:"取締役の解任は株主総会の普通決議でできる。",ans:true,exp:"会社法339条1項・341条のとおり。正当な理由なく解任した場合は会社が損害賠償責任を負います（同条2項）。"},
+{cat:"取締役",q:"正当な理由なく任期途中で解任された取締役は会社に対して損害賠償を請求できる。",ans:true,exp:"会社法339条2項のとおり。残任期間中の報酬等の損害賠償が認められます。"},
+{cat:"取締役",q:"取締役が全員退任しても後任者が選任されるまで退任取締役が権利義務を継続する場合がある。",ans:true,exp:"会社法346条1項のとおり（権利義務取締役）。会社の機関の空白を防ぐための規定です。"},
+{cat:"取締役",q:"多重代表訴訟（特定責任追及の訴え）では完全親会社の株主が子会社の役員を被告とすることができる。",ans:true,exp:"会社法847条の3のとおり。完全親子会社関係があり、かつ子会社の総資産が親会社総資産の5分の1超の場合等が要件です。"},
 
-  // ===== 組織再編 (66-77) =====
-  { q:"吸収合併において消滅会社の権利義務を引き受ける会社を何というか？", choices:["設立会社","存続会社","受皿会社","分割会社"], ans:1, exp:"吸収合併では消滅会社と存続会社が合併し、消滅会社の権利義務は存続会社に包括承継されます（会社法749条）。新たな会社を設立する場合は「新設合併」といいます。" },
-  { q:"会社分割の種類として正しい組み合わせはどれか？", choices:["吸収分割と新設分割","物的分割と人的分割","部分分割と完全分割","横断分割と縦断分割"], ans:0, exp:"会社分割には吸収分割（既存の会社に事業を承継させる）と新設分割（新しい会社を設立して事業を承継させる）の2種類があります（会社法2条29・30号）。" },
-  { q:"株式交換と株式移転の違いについて正しいものはどれか？", choices:["株式交換は完全親会社を新設する","株式移転は既存の会社が完全親会社になる","株式交換は完全子会社株主に親会社株式を交付する","株式移転では対価として金銭のみ交付できる"], ans:2, exp:"株式交換（会社法767条）では完全子会社となる会社の株主に完全親会社（既存会社）の株式等を交付します。株式移転（会社法772条）では新たに設立する完全親会社の株式を交付します。" },
-  { q:"組織再編行為の効力発生日に関して正しいものはどれか？", choices:["登記申請日","合併契約等で定めた効力発生日","株主総会決議日","公告日から2週間後"], ans:1, exp:"吸収合併等の効力発生日は合併契約等で当事者が定めた日です（会社法749条1項6号等）。ただし各種手続（登記等）を完了させる必要があります。" },
-  { q:"簡易組織再編（簡易合併等）が認められる条件として正しいものはどれか？", choices:["対価総額が存続会社の純資産額の5分の1以下","対価総額が消滅会社の純資産額の5分の1以下","株主全員の同意がある場合","取締役の過半数の同意がある場合"], ans:0, exp:"簡易合併（会社法796条2項）は、合併対価の総額が存続会社の純資産額（総資産額の場合も）の5分の1以下のとき、存続会社では株主総会決議を省略できます。消滅会社側は省略できません。" },
-  { q:"略式組織再編（略式合併等）が認められる条件として正しいものはどれか？", choices:["合併対価が少額の場合","特別支配会社（議決権の90%以上を保有する会社）が相手方の場合","取締役全員が同意した場合","会社規模が小さい場合"], ans:1, exp:"略式合併（会社法784条1項）は、相手方会社の議決権の90%以上を保有する特別支配会社が吸収合併を行う場合、その特別支配会社である存続会社・分割会社等では株主総会決議を省略できます。" },
-  { q:"合併等の組織再編に対して反対する株主の権利として認められるものはどれか？", choices:["合併差止め請求権と株式買取請求権","合併契約の無効請求権","取締役への損害賠償請求権","合併の無効の訴えと株式買取請求権"], ans:3, exp:"反対株主は①合併等の差止め（会社法784条の2等）②株式買取請求権（会社法785条等）を行使できます。また合併等の無効の訴え（会社法828条1項7〜12号）を提起できる場合もあります。" },
-  { q:"事業譲渡について正しいものはどれか？", choices:["事業の全部譲渡には株主総会の普通決議が必要","事業の全部譲渡には株主総会の特別決議が必要","事業の重要な一部の譲渡には取締役会決議のみで足りる","事業の全部の譲受けには株主総会決議が不要"], ans:1, exp:"事業の全部の譲渡は株主総会の特別決議が必要です（会社法467条1項1号、309条2項11号）。事業の重要な一部の譲渡も特別決議が原則必要です（純資産額の20%超の場合）。" },
-  { q:"株式交付制度（2021年改正で新設）について正しいものはどれか？", choices:["完全子会社化にのみ利用できる","既存の子会社の株式を追加取得する場合にも利用できる","対価は金銭のみ","外国会社の株式取得には利用できない"], ans:1, exp:"株式交付（会社法774条の2以下）は、他の株式会社を子会社化または子会社株式の追加取得をする際に、自社株式を対価として相手方株主から株式を譲り受ける制度です。完全子会社化に限られません。" },
-  { q:"組織再編の無効の訴えについて正しいものはどれか？", choices:["誰でも提起できる","株主等に提訴権者が限定される","無効判決の効力は遡及する","提訴期間は5年以内"], ans:1, exp:"合併等の無効の訴えは株主・取締役・監査役・清算人・破産管財人・合併消滅会社の株主等が提起できます（会社法828条2項）。無効判決の効力は将来効（遡及しない）です。提訴期間は効力発生日から6ヵ月以内です。" },
-  { q:"会社分割と事業譲渡の違いとして最も適切なものはどれか？", choices:["会社分割は包括承継、事業譲渡は特定承継","会社分割は株主総会不要、事業譲渡は必要","事業譲渡は包括承継、会社分割は特定承継","どちらも労働契約は自動承継される"], ans:0, exp:"会社分割では権利義務が包括的に承継会社に移転します（包括承継）。事業譲渡では契約ごとに相手方の同意を得て移転する特定承継です。そのため債務の引受方法等が大きく異なります。" },
-  { q:"合併に際して債権者保護手続として必要なものはどれか？", choices:["全債権者の個別同意","官報公告＋知れている債権者への個別通知","取締役会決議のみ","裁判所の許可"], ans:1, exp:"合併（組織再編）に際しては官報への公告と知れている債権者への個別通知（催告）が必要です（会社法789条等）。債権者は一定期間内に異議を述べることができます。" },
+// ===== 監査役・会計監査人 =====
+{cat:"監査役",q:"監査役の任期は原則4年である。",ans:true,exp:"会社法336条1項のとおり（選任後4年以内に終了する事業年度の定時株主総会終結まで）。取締役（2年）より長い任期が特徴です。"},
+{cat:"監査役",q:"非公開会社では定款で監査役の任期を10年まで延長できる。",ans:true,exp:"会社法336条2項のとおり。株式に譲渡制限がある（非公開）会社では最長10年まで延長可能です。"},
+{cat:"監査役",q:"監査役は取締役会に出席し意見を述べる権限を持つ。",ans:true,exp:"会社法383条1項のとおり。ただし取締役会での議決権はありません。必要があれば議題を提案することも可能です。"},
+{cat:"監査役",q:"監査役は取締役の業務執行の妥当性（経営判断の適否）も監査する権限を持つ。",ans:false,exp:"監査役の権限は適法性監査が中心です。業務の妥当性（経営判断の良し悪し）まで監査する権限は原則としてありません（業務監査との混同注意）。"},
+{cat:"監査役",q:"監査役は会社の使用人（従業員）を兼務することができない。",ans:true,exp:"会社法335条2項のとおり。監査役の独立性確保のため、取締役・支配人・使用人との兼任が禁止されています。"},
+{cat:"監査役",q:"監査役会設置会社では監査役は3名以上必要で、その半数以上が社外監査役でなければならない。",ans:true,exp:"会社法335条3項のとおり。監査役会はその決議により監査の方針等を定め、各監査役の職務の執行を統括します。"},
+{cat:"監査役",q:"大会社は会計監査人を必ず置かなければならない。",ans:true,exp:"会社法328条のとおり。大会社（資本金5億円以上または負債200億円以上）は会計監査人設置が義務付けられています。"},
+{cat:"監査役",q:"会計監査人は公認会計士または監査法人でなければならない。",ans:true,exp:"会社法337条1項のとおり。税理士や税理士法人は会計監査人になれません（会計参与にはなれます）。"},
+{cat:"監査役",q:"会計監査人の任期は2年であり再任されない場合は自動的に退任する。",ans:false,exp:"会計監査人の任期は1年（選任後最初の事業年度の定時株主総会終結まで）で、再任する旨の決議がなければ退任します（会社法338条）。"},
+{cat:"監査役",q:"会計参与は取締役と共同して計算書類を作成する。",ans:true,exp:"会社法374条1項のとおり。会計参与は公認会計士・監査法人・税理士・税理士法人がなることができ、任意設置機関です。"},
+{cat:"監査役",q:"監査役は会社を代表して取締役に対する訴訟を提起することができる。",ans:true,exp:"会社法386条1項のとおり。会社と取締役間の訴訟では、監査役が会社を代表します（利益相反を避けるため）。"},
+{cat:"監査役",q:"社外監査役との間でも責任限定契約を締結することができる（定款の定めがある場合）。",ans:true,exp:"会社法427条1項のとおり。社外取締役と同様に社外監査役も責任限定契約の対象です。"},
+{cat:"監査役",q:"監査役設置会社に指名委員会等設置会社は含まれる。",ans:false,exp:"指名委員会等設置会社では監査委員会が設置されるため、監査役を置くことができません（会社法327条4項）。"},
+{cat:"監査役",q:"会計監査人が欠員になった場合、前任の会計監査人が権利義務会計監査人として職務を継続する。",ans:true,exp:"会社法346条4項のとおり。会計監査人が欠けた場合でも業務に支障が出ないよう暫定的に職務を継続させます。"},
+{cat:"監査役",q:"監査役の報酬は株主総会で監査役の報酬総額を定め、各自への配分は監査役の協議による。",ans:true,exp:"会社法387条のとおり。監査役の報酬は取締役から独立して定められます（取締役の報酬決定に監査役は関与しません）。"},
 
-  // ===== 持分会社・特殊法人 (78-85) =====
-  { q:"合名会社の社員の責任として正しいものはどれか？", choices:["有限責任","無限責任（直接・連帯責任）","間接有限責任","出資額を限度とした責任"], ans:1, exp:"合名会社の社員は全員が無限責任社員で、会社の債権者に対して直接かつ連帯して無限の責任を負います（会社法580条1項）。" },
-  { q:"合資会社について正しいものはどれか？", choices:["全員が有限責任社員","全員が無限責任社員","無限責任社員と有限責任社員の両方が存在する","社員が1人でも設立できる"], ans:2, exp:"合資会社は無限責任社員と有限責任社員の両方が存在する持分会社です（会社法576条3項）。最低1名ずつ必要なため、最低2名以上の社員が必要です。" },
-  { q:"持分会社における業務執行について正しいものはどれか？", choices:["定款で別段の定めがない限り、各社員が業務を執行する","取締役会が業務を執行する","代表取締役が単独で業務を執行する","監査役が業務を監督する"], ans:0, exp:"持分会社では、定款で別段の定めがない限り、各社員が業務を執行する権利・義務を持ちます（会社法590条1項）。株式会社の取締役会制度とは異なります。" },
-  { q:"合同会社の業務執行社員の責任について正しいものはどれか？", choices:["有限責任のみ","無限責任のみ","業務執行社員は無限責任、その他社員は有限責任","全員が有限責任"], ans:3, exp:"合同会社は全員が有限責任社員（会社法576条4項）であり、業務執行社員であっても有限責任です。これが合同会社（LLC）の最大の特徴です。" },
-  { q:"持分の譲渡について持分会社に関する原則的なルールはどれか？", choices:["自由に譲渡できる","他の社員全員の同意が必要","取締役会の承認が必要","裁判所の許可が必要"], ans:1, exp:"持分会社の社員が持分を他人に譲渡するには、他の社員全員の承諾が必要です（会社法585条1項）。持分会社は人的要素が強く、社員の個性が重視されるためです。" },
-  { q:"合同会社（LLC）が株式会社と比較して有利とされる点として誤っているものはどれか？", choices:["定款自治の範囲が広い","設立コストが低い（定款認証不要）","株式を発行して資金調達しやすい","決算公告が不要"], ans:2, exp:"合同会社は株式を発行できないため、株式市場を通じた資金調達はできません。定款自治の広さ・低い設立コスト（公証人認証不要）・決算公告不要は合同会社のメリットです。" },
-  { q:"一般社団法人と株式会社の違いとして正しいものはどれか？", choices:["一般社団法人は営利目的が禁止されている","一般社団法人には社員への利益配分が禁止されている","一般社団法人には株主総会がある","一般社団法人では設立に出資が必要"], ans:1, exp:"一般社団法人（一般法人法）は非営利法人であり、社員への剰余金・残余財産の分配が禁止されています。株式会社は利益を株主に配当することが目的の一つです。" },
-  { q:"特例有限会社（旧有限会社）について正しいものはどれか？", choices:["2006年以降も新設できる","既存の有限会社は会社法施行後も特例有限会社として存続できる","取締役会の設置が必須","株式上場ができる"], ans:1, exp:"2006年の会社法施行後、新たな有限会社の設立はできませんが、既存の有限会社は整備法により「特例有限会社」として存続できます。特例有限会社は株式会社の特例が適用されます。" },
+// ===== 計算・配当 =====
+{cat:"計算",q:"会社法上の計算書類には貸借対照表・損益計算書・株主資本等変動計算書・個別注記表が含まれる。",ans:true,exp:"会社法435条2項・会社計算規則59条のとおり。キャッシュフロー計算書は金融商品取引法上の財務諸表には含まれますが、会社法の計算書類には含まれません。"},
+{cat:"計算",q:"キャッシュフロー計算書は会社法上の計算書類に含まれる。",ans:false,exp:"会社法の計算書類には含まれません。金融商品取引法の適用を受ける上場会社では財務諸表として開示が必要です。"},
+{cat:"計算",q:"大会社は連結計算書類を作成しなければならない。",ans:true,exp:"会社法444条3項のとおり（会計監査人設置会社かつ取締役会設置会社である大会社）。グループ全体の財務状況の開示のためです。"},
+{cat:"計算",q:"剰余金の配当は原則として株主総会の普通決議で決定する。",ans:true,exp:"会社法454条1項のとおり。中間配当は定款の定めがある場合に取締役会決議で行えます（同条5項）。"},
+{cat:"計算",q:"純資産額が300万円を下回ることとなる場合は剰余金の配当ができない。",ans:true,exp:"会社法458条のとおり。最低限の純資産を維持し会社財産を保全するための財源規制です。"},
+{cat:"計算",q:"分配可能額を超えた違法配当を受けた株主は、善意であっても返還義務を負う。",ans:true,exp:"会社法462条1項のとおり。善意・悪意を問わず返還義務があります。取締役等も連帯して補填義務を負います（同条1項柱書）。"},
+{cat:"計算",q:"資本金の額を減少するには株主総会の特別決議と債権者保護手続が必要である。",ans:true,exp:"会社法447条1項・309条2項9号・449条のとおり。資本金は会社の信用の基盤であるため、債権者保護手続が必要です。"},
+{cat:"計算",q:"準備金の額の減少も資本金の減少と同様に株主総会特別決議が必要である。",ans:false,exp:"準備金の減少は株主総会の普通決議で行うことができます（会社法448条1項）。ただし債権者保護手続は必要です。"},
+{cat:"計算",q:"新株発行の払込金額の2分の1以上は資本金に計上しなければならない。",ans:true,exp:"会社法445条2項・3項のとおり。残り（2分の1以下）は資本準備金として計上できます。"},
+{cat:"計算",q:"剰余金配当の際は配当額の10分の1以上を準備金（資本準備金または利益準備金）として積み立てなければならない。",ans:true,exp:"会社法445条4項のとおり。準備金の合計額が資本金の4分の1に達するまで積み立て義務があります。"},
+{cat:"計算",q:"計算書類は全ての株式会社で株主総会の承認を受けなければ確定しない。",ans:false,exp:"会計監査人設置会社では、計算書類が監査基準に適合する旨の会計監査報告がある場合、取締役会の承認のみで確定し、株主総会への報告で足りる場合があります（会社法439条）。"},
+{cat:"計算",q:"社債の発行には株主総会の決議が必要である。",ans:false,exp:"取締役会設置会社では取締役会が社債の発行を決定します（会社法362条4項5号）。非設置会社では取締役が決定します。"},
+{cat:"計算",q:"剰余金の配当の基準日（権利確定日）は定款または取締役会の決議で定める。",ans:true,exp:"会社法124条1項のとおり。基準日は公告が必要で、基準日から3ヶ月以内に権利を行使させなければなりません。"},
+{cat:"計算",q:"中間配当は年1回しか実施できない。",ans:true,exp:"会社法454条5項のとおり。中間配当は事業年度中に1回限り行うことができます（「1回に限り」との文言があります）。"},
+{cat:"計算",q:"資本準備金は株主への配当の財源として利用できない。",ans:false,exp:"資本準備金はその他資本剰余金への振替手続（株主総会決議）を経ることで、分配可能額の計算に含め配当財源にすることができます。"},
 
-  // ===== 登記・公示 (86-90) =====
-  { q:"株式会社の登記事項として会社法・商業登記法上必要でないものはどれか？", choices:["商号","資本金の額","取締役の氏名","株主の氏名"], ans:3, exp:"商業登記（会社法911条）の登記事項には商号・本店・資本金・取締役氏名等が含まれますが、株主名簿は公開されず登記事項ではありません。株主情報の公示は行われません。" },
-  { q:"変更登記の申請期限について正しいものはどれか？", choices:["変更後10日以内","変更後2週間以内","変更後1ヵ月以内","変更後3ヵ月以内"], ans:1, exp:"株式会社の変更登記は、変更が生じた日から2週間以内に申請しなければなりません（会社法915条1項）。怠った場合は100万円以下の過料が課されることがあります。" },
-  { q:"休眠会社の整理（みなし解散）について正しいものはどれか？", choices:["5年以上登記がない会社が対象","12年以上登記がない株式会社が解散したものとみなされる","解散とみなされたら復活できない","法務大臣の判断で解散させる"], ans:1, exp:"12年以上登記がない株式会社（休眠会社）は法務大臣の公告後2ヵ月以内に事業廃止していない旨の届出等がなければ解散したものとみなされます（会社法472条）。その後3年以内であれば継続の決議で復活できます。" },
-  { q:"登記された事項の公示力（対抗力）について正しいものはどれか？", choices:["登記事項は登記前でも第三者に対抗できる","登記すべき事項は登記後でなければ善意の第三者に対抗できない","登記は会社にのみ効力を持つ","登記の対抗力に例外はない"], ans:1, exp:"会社法908条1項「この法律の規定により登記すべき事項は、登記の後でなければ、これをもって善意の第三者に対抗することができない」と定めています。登記が公示・対抗要件となります。" },
-  { q:"電子公告について正しいものはどれか？", choices:["すべての会社で義務的に採用しなければならない","定款で定めることで採用でき、官報公告の代替となる","電子公告は取締役会の決議で採用できる","電子公告には公証人の認証が必要"], ans:1, exp:"電子公告は定款で公告方法として定めることで利用でき（会社法939条1項2号）、官報に代わる公告手段となります。ただし会社が利用を義務付けられているわけではなく任意です。" },
+// ===== 組織再編 =====
+{cat:"組織再編",q:"吸収合併では消滅会社の権利義務は存続会社に包括承継される。",ans:true,exp:"会社法750条1項のとおり。個別の移転手続（債権者の同意等）なしに権利義務の全てが移転します。"},
+{cat:"組織再編",q:"新設合併では合併後に消滅する会社の権利義務が既存の存続会社に承継される。",ans:false,exp:"新設合併では全当事会社が消滅し、新たに設立された会社（設立会社）に権利義務が承継されます（会社法754条）。"},
+{cat:"組織再編",q:"合併には原則として株主総会の特別決議が必要である。",ans:true,exp:"会社法783条1項・795条1項・309条2項12号のとおり。消滅・存続双方の会社で特別決議が必要です。"},
+{cat:"組織再編",q:"簡易合併では存続会社側の株主総会決議を省略できる場合がある。",ans:true,exp:"会社法796条2項のとおり。合併対価総額が存続会社の純資産額の5分の1以下の場合、存続会社での株主総会を省略できます。"},
+{cat:"組織再編",q:"略式合併では特別支配会社（90%以上保有）が存続会社の場合、消滅会社での株主総会を省略できる。",ans:true,exp:"会社法784条1項のとおり。消滅会社の議決権の90%以上を存続会社が保有している場合、消滅会社側の株主総会を省略できます。"},
+{cat:"組織再編",q:"合併に反対した株主は株式の買取請求権を行使することができる。",ans:true,exp:"会社法785条・797条のとおり。反対株主（事前に反対の通知をした者等）は公正な価格での買取りを請求できます。"},
+{cat:"組織再編",q:"合併の際は官報への公告と知れている債権者への個別催告が必要である。",ans:true,exp:"会社法789条・799条のとおり。債権者保護手続として、異議申述の機会を与える必要があります。"},
+{cat:"組織再編",q:"会社分割には吸収分割と新設分割の2種類がある。",ans:true,exp:"吸収分割（会社法2条29号）は既存会社に承継させる方法、新設分割（同条30号）は新会社を設立して承継させる方法です。"},
+{cat:"組織再編",q:"会社分割では分割会社の一部の権利義務を承継会社に包括承継させることができる。",ans:true,exp:"会社分割は事業の一部を切り出して別会社に承継させる組織再編手法で、包括承継のため債権者の個別同意は不要です（ただし債権者保護手続は必要）。"},
+{cat:"組織再編",q:"事業譲渡では権利義務が包括的に移転する（包括承継）。",ans:false,exp:"事業譲渡は契約による特定承継であり、各権利義務を個別に移転させます。債権譲渡には債務者の同意・通知、債務引受には債権者の同意が必要です。"},
+{cat:"組織再編",q:"事業の全部の譲渡には株主総会の特別決議が必要である。",ans:true,exp:"会社法467条1項1号・309条2項11号のとおり。会社の基礎的変更に該当するため株主総会の関与が必要です。"},
+{cat:"組織再編",q:"事業の重要な一部の譲渡は常に株主総会の特別決議が必要である。",ans:false,exp:"純資産額の20%以下の事業の一部譲渡は株主総会決議が不要です（会社法467条1項2号の20%基準）。"},
+{cat:"組織再編",q:"株式交換は完全親子会社関係を創設するために利用される。",ans:true,exp:"会社法767条のとおり。株式交換では完全子会社となる会社の全株式を完全親会社が取得します。"},
+{cat:"組織再編",q:"株式移転では新たに完全親会社を設立する。",ans:true,exp:"会社法772条のとおり。完全子会社となる会社の株主は、新設される完全親会社の株式を受け取ります。"},
+{cat:"組織再編",q:"株式交付制度（2021年改正新設）により、他社を子会社化する際に自社株式を対価として利用できる。",ans:true,exp:"会社法774条の2以下のとおり。外国会社に対しては適用されません（外国会社の完全子会社化は株式交換に相当する制度は別途検討が必要）。"},
+{cat:"組織再編",q:"組織再編（合併等）の無効の訴えは効力発生日から6ヶ月以内に提起しなければならない。",ans:true,exp:"会社法828条1項7〜12号のとおり。出訴期間を経過すると無効の主張はできなくなります。"},
+{cat:"組織再編",q:"組織再編の無効判決は遡及効を持ち、過去の法律関係も全て覆る。",ans:false,exp:"組織再編の無効判決は将来効のみです（会社法839条）。過去に行われた取引等の安定を確保するためです。"},
+{cat:"組織再編",q:"三角合併とは存続会社の親会社の株式を消滅会社の株主に交付する合併手法である。",ans:true,exp:"会社法749条1項2号ハのとおり。外国親会社が日本企業を買収する手段として活用されます。"},
+{cat:"組織再編",q:"会社分割に際して承継会社に移転する労働契約は、労働者の個別同意なしに移転する。",ans:true,exp:"会社分割は包括承継であるため、労働契約も個別同意不要で移転します（会社法759条・764条）。ただし労働契約承継法による保護手続が必要です。"},
+{cat:"組織再編",q:"合併比率（交換比率）が不当であることは合併無効事由になる。",ans:false,exp:"合併比率の不当は原則として合併無効事由とはなりません（判例）。差止事由（会社法784条の2）や損害賠償の問題として処理されます。"},
+{cat:"組織再編",q:"詐害的会社分割の場合、残存債権者は承継会社に対して直接請求できる。",ans:true,exp:"会社法759条4項・764条4項のとおり。分割により残存させた債権者を害することを知って分割が行われた場合の保護規定です。"},
+{cat:"組織再編",q:"吸収分割の効力は分割の登記をすることで発生する。",ans:false,exp:"吸収分割の効力は吸収分割契約で定めた効力発生日に発生します（会社法758条7号・759条1項）。登記は第三者対抗要件です。"},
+{cat:"組織再編",q:"株式交付は外国会社の株式取得にも利用することができる。",ans:false,exp:"株式交付（会社法774条の2）は日本の株式会社の株式取得のみを対象とし、外国会社の株式取得には利用できません。"},
+{cat:"組織再編",q:"略式組織再編において、反対株主は差止請求や株式買取請求を行使できる場合がある。",ans:true,exp:"略式合併の消滅会社の株主（省略された側）は、差止請求（会社法784条の2）や株式買取請求（会社法785条）を行使できます。"},
 
-  // ===== 清算・倒産 (91-95) =====
-  { q:"株式会社が解散した場合に選任される者はどれか？", choices:["破産管財人","清算人","監督委員","受託者"], ans:1, exp:"解散した会社は清算手続を行い（会社法475条以下）、清算人が就任します。原則として解散時の取締役が清算人となります（法定清算人）。" },
-  { q:"会社の解散後に清算人が最初に行う義務的手続はどれか？", choices:["財産の処分","財産目録と貸借対照表の作成","従業員の解雇","全負債の即時弁済"], ans:1, exp:"清算人は就任後遅滞なく会社の財産の現況を調査し、財産目録及び貸借対照表を作成し、定時株主総会（または臨時株主総会）に提出・承認を得なければなりません（会社法492条）。" },
-  { q:"会社が債務超過に陥った場合に清算人に課される義務はどれか？", choices:["直ちに全財産を売却する","破産手続開始の申立てを行う義務がある","株主に出資を求める","事業を継続する"], ans:1, exp:"清算中の会社が債務超過にあることが判明したとき、清算人は直ちに破産手続開始の申立てをしなければなりません（会社法484条1項）。" },
-  { q:"特別清算について正しいものはどれか？", choices:["通常清算よりも手続が簡単","裁判所の関与のもとで行われる任意整理手続","株主総会の決議のみで申立てできる","債権者全員の同意が必要"], ans:1, exp:"特別清算（会社法510条以下）は、清算の遂行に著しい支障が生じるおそれがある場合等に裁判所の監督下で行う清算手続で、債権者との協定等が利用されます。" },
-  { q:"株式会社が破産した場合の効果として正しいものはどれか？", choices:["会社は即時消滅する","破産手続終結により会社は解散・消滅する","取締役が個人で弁済する義務が生じる","株主が債務を引き継ぐ"], ans:1, exp:"破産手続開始決定により清算手続を行い、破産手続終結決定により会社は解散・消滅します（会社法471条5号）。株主・取締役個人は有限責任の原則から弁済義務を直ちには負いません。" },
+// ===== 持分会社 =====
+{cat:"持分会社",q:"合名会社の社員は直接・連帯・無限の責任を負う。",ans:true,exp:"会社法580条1項のとおり。合名会社の社員は会社の全債務について直接連帯無限の責任を負います。"},
+{cat:"持分会社",q:"合資会社の有限責任社員は出資の履行が完了していれば会社の債務を負わない。",ans:true,exp:"会社法580条2項のとおり。有限責任社員の責任は出資の価額を限度とし、出資を履行していれば追加責任はありません。"},
+{cat:"持分会社",q:"持分会社では定款の定めがない限り各社員が業務を執行する権利・義務を有する。",ans:true,exp:"会社法590条1項のとおり。株式会社の取締役（会）による業務執行とは異なり、持分会社では社員自らが業務を執行します。"},
+{cat:"持分会社",q:"持分会社の社員が持分を他人に譲渡するには、他の社員全員の承諾が必要である。",ans:true,exp:"会社法585条1項のとおり。持分会社は人的信頼関係を基礎とするため、社員の同一性が重要視されます。"},
+{cat:"持分会社",q:"合同会社は株式市場に上場することができる。",ans:false,exp:"合同会社は株式を発行せず持分で構成されるため、株式市場への上場はできません。資金調達手段が株式会社と比べて限定的です。"},
+{cat:"持分会社",q:"合同会社（LLC）と有限責任事業組合（LLP）の違いは法人格の有無である。",ans:true,exp:"合同会社は法人格を持つ会社ですが、有限責任事業組合（LLP）は組合契約に基づく事業体で法人格を持ちません。"},
+{cat:"持分会社",q:"持分会社では決算公告義務がある。",ans:false,exp:"合同会社等の持分会社には決算公告義務がありません。株式会社には貸借対照表の公告義務があります（会社法440条）。"},
+{cat:"持分会社",q:"合同会社から株式会社への組織変更には社員全員の同意が必要である。",ans:true,exp:"会社法637条のとおり。組織変更は全社員の同意が必要です（持分会社→株式会社、株式会社→持分会社ともに）。"},
+{cat:"持分会社",q:"持分会社は剰余金の分配方法を定款で自由に定めることができる。",ans:true,exp:"持分会社は定款自治の範囲が広く、利益の分配割合等を定款で自由に定めることができます（出資比例でなくてもよい）。"},
+{cat:"持分会社",q:"合資会社で無限責任社員が全員退社した場合、合資会社は直ちに解散する。",ans:false,exp:"無限責任社員が全員退社した場合、合同会社に移行する定款変更をすることができます（会社法639条）。直ちに解散するわけではありません。"},
+{cat:"持分会社",q:"合同会社では業務執行社員の互選により代表社員を定めることができる。",ans:true,exp:"会社法599条3項のとおり。代表社員が定まらない場合は各業務執行社員が代表社員となります（同条1項）。"},
+{cat:"持分会社",q:"持分会社の設立には公証人による定款認証が必要である。",ans:false,exp:"持分会社（合名・合資・合同）の定款は公証人認証不要です（会社法575条2項）。株式会社との大きな違いです。"},
+{cat:"持分会社",q:"合同会社の社員が死亡した場合、相続人は当然に社員の地位を承継する。",ans:false,exp:"社員が死亡した場合、定款に定めがなければ相続人は社員の地位を承継しません（持分会社の人的結合の性格）。定款で相続を認める定めを置くことはできます（会社法608条1項）。"},
+{cat:"持分会社",q:"合名会社の社員は1名以上いれば存続できる。",ans:true,exp:"持分会社は社員が1名になっても解散しません。ただし合資会社は無限責任社員と有限責任社員の両方が必要なため、どちらかが0名になると解散事由となりえます。"},
+{cat:"持分会社",q:"持分会社の社員は業務執行権を有するとともに、会社を代表する権限も持つ（定款で別段の定めがない場合）。",ans:true,exp:"会社法599条1項・2項のとおり。業務執行社員は各自会社を代表します（各自代表の原則）。"},
 
-  // ===== 総合・応用 (96-100) =====
-  { q:"会社法における「公開会社」の定義として正しいものはどれか？", choices:["上場している会社","全ての株式に譲渡制限がない会社","資本金が5億円以上の会社","外国人が株主である会社"], ans:1, exp:"会社法2条5号「その発行する全部又は一部の株式の内容として譲渡による当該株式の取得について株式会社の承認を要する旨の定款の定めを設けていない株式会社」が公開会社です。上場の有無は関係ありません。" },
-  { q:"「大会社」の定義に合致するものはどれか？", choices:["資本金が1億円以上","資本金が5億円以上または負債の合計額が200億円以上","従業員が1000人以上","上場している会社"], ans:1, exp:"大会社（会社法2条6号）は最終事業年度の貸借対照表上の資本金が5億円以上、または負債の合計額が200億円以上の株式会社です。大会社には会計監査人設置が義務付けられます。" },
-  { q:"会社法が適用される状況で誤っているものはどれか？", choices:["株式会社の設立","合同会社の業務執行","NPO法人の役員選任","持分会社の解散"], ans:2, exp:"NPO法人（特定非営利活動法人）はNPO法（特定非営利活動促進法）の規律を受け、会社法は適用されません。株式会社・合同会社・合資会社・合名会社はいずれも会社法の適用を受けます。" },
-  { q:"いわゆる「黄金株」（拒否権付種類株式）について正しいものはどれか？", choices:["株主総会のすべての決議を覆せる","一定の株主総会決議について拒否権を持つ種類株式","時価の2倍の配当を受ける株式","1株で1000個の議決権を持つ株式"], ans:1, exp:"拒否権付種類株式（黄金株、会社法108条1項8号）は、ある種類の事項を株主総会で決議するためには当該種類株式を持つ株主による「種類株主総会の決議」も必要とする株式です。敵対的買収防衛策として活用されます。" },
-  { q:"コーポレートガバナンス・コードで推奨される取締役会の構成として最も適切なものはどれか？", choices:["業務執行取締役のみで構成","独立社外取締役を少なくとも1/3以上（プライム市場上場は過半数）選任することを推奨","監査役が取締役を兼務する","代表取締役が議長を務めることが必須"], ans:1, exp:"コーポレートガバナンス・コード（2021年改訂）では、プライム市場上場会社は取締役会の過半数を独立社外取締役とすることを求め、その他の上場会社でも1/3以上の独立社外取締役選任を推奨しています。" },
+// ===== 解散・清算 =====
+{cat:"解散清算",q:"株式会社は株主総会の特別決議によって解散することができる。",ans:true,exp:"会社法471条3号・309条2項11号のとおり。解散後は清算手続を経て法人格が消滅します。"},
+{cat:"解散清算",q:"解散した会社は清算手続を経ずに直ちに消滅する。",ans:false,exp:"解散後も法人格は存続し、清算の目的の範囲内で権利能力が認められます（会社法476条）。清算結了登記により消滅します。"},
+{cat:"解散清算",q:"清算人は原則として解散時の取締役が就任する。",ans:true,exp:"会社法478条1項1号のとおり（法定清算人）。株主総会で選任することも、定款で別の者を定めることも可能です。"},
+{cat:"解散清算",q:"清算中の会社が債務超過であることが判明した場合、清算人は速やかに破産手続開始の申立てをしなければならない。",ans:true,exp:"会社法484条1項のとおり。清算では資産で全債務を弁済できない場合は破産手続に移行する必要があります。"},
+{cat:"解散清算",q:"12年以上登記がない株式会社（休眠会社）は法務大臣の公告後に解散したとみなされる場合がある。",ans:true,exp:"会社法472条のとおり。公告後2ヶ月以内に「まだ事業を廃止していない」旨の届出等をしなければ解散したとみなされます。"},
+{cat:"解散清算",q:"みなし解散された会社は永久に復活することができない。",ans:false,exp:"みなし解散後3年以内であれば、株主総会の特別決議による継続の決議で会社を復活させることができます（会社法473条）。"},
+{cat:"解散清算",q:"特別清算は通常清算に著しい支障がある場合等に裁判所の監督のもとで行う手続である。",ans:true,exp:"会社法510条以下のとおり。裁判所の関与のもと、協定による債権者との処理を行います。"},
+{cat:"解散清算",q:"清算結了の登記をすることによって会社は消滅する。",ans:true,exp:"清算結了登記が完了することで会社の法人格が消滅します（会社法507条3項・929条1号）。"},
+{cat:"解散清算",q:"会社が破産した場合、株主は会社の残余債務について個人的に弁済する義務を負う。",ans:false,exp:"株式会社の株主は有限責任（出資額が上限）であり、会社が破産しても株主が個人的に会社の債務を弁済する義務はありません。"},
+{cat:"解散清算",q:"解散後も株主総会を開催することができる。",ans:true,exp:"解散後も清算中は株主総会が存続し、清算人の選任・解任、清算事務の承認等を行うことができます。"},
+
+// ===== 機関設計・その他 =====
+{cat:"機関",q:"大会社とは資本金5億円以上または負債の合計額200億円以上の株式会社をいう。",ans:true,exp:"会社法2条6号のとおり。大会社には会計監査人の設置義務・連結計算書類作成義務等が課されます。"},
+{cat:"機関",q:"指名委員会等設置会社では監査役を置くことができない。",ans:true,exp:"会社法327条4項のとおり。指名委員会等設置会社では監査委員会が監査機能を担うため、監査役は置けません。"},
+{cat:"機関",q:"監査等委員会設置会社の監査等委員は取締役である。",ans:true,exp:"会社法2条11号の2のとおり。監査等委員会は取締役で構成され、その過半数は社外取締役でなければなりません（会社法331条6項）。"},
+{cat:"機関",q:"指名委員会等設置会社の各委員会は過半数が社外取締役でなければならない。",ans:true,exp:"会社法400条3項のとおり。指名・監査・報酬の各委員会は3名以上の取締役で構成し、その過半数が社外取締役でなければなりません。"},
+{cat:"機関",q:"指名委員会等設置会社では業務執行は執行役が行う。",ans:true,exp:"会社法418条のとおり。指名委員会等設置会社では取締役会が監督機能に特化し、業務執行は執行役が行います。"},
+{cat:"機関",q:"電子公告を利用するためには定款でその旨を定めなければならない。",ans:true,exp:"会社法939条1項2号のとおり。定款で電子公告を公告方法として定めることで、官報に代えて利用できます。"},
+{cat:"機関",q:"登記された事項は登記後でなければ善意の第三者に対抗できない。",ans:true,exp:"会社法908条1項のとおり。登記が公示機能・対抗要件として機能します。"},
+{cat:"機関",q:"不実の登記を信頼した善意の第三者はその登記の内容を主張できる（外観主義）。",ans:true,exp:"会社法908条2項のとおり（禁反言の原則）。不実登記について故意・過失がある者は善意の第三者に対して不実を主張できません。"},
+{cat:"機関",q:"コーポレートガバナンス・コードは会社法と同様の法的拘束力を持つ。",ans:false,exp:"コーポレートガバナンス・コードは東証の規則に基づくソフトローであり、「遵守か説明」（コンプライ・オア・エクスプレイン）の原則が適用されます。法的強制力はありません。"},
+{cat:"機関",q:"株主代表訴訟で株主が悪意（会社を困らせることを目的）で訴訟提起した場合、株主は会社に損害賠償義務を負う。",ans:true,exp:"会社法852条1項のとおり。株主の悪意による不当訴訟に対する会社保護の規定です。"},
+{cat:"機関",q:"会社法はすべての外国会社に全面的に適用される。",ans:false,exp:"外国会社の日本内での活動（日本での継続取引・支店登記等）については会社法の一部（第6章「外国会社」）が適用されますが、全面的な適用ではありません。"},
+{cat:"機関",q:"株式会社は取締役会の決議で株主総会の専決事項を変更することができる。",ans:false,exp:"株主総会の専決事項（取締役の選任・解任・定款変更・合併等）は取締役会の決議では変更・決定できません。権限分配は会社法の強行規定によります。"},
+
+// ===== 株式（追加） =====
+{cat:"株式",q:"株主は保有株式数にかかわらず1人1票の議決権を持つ。",ans:false,exp:"議決権は1株につき1個が原則です（会社法308条1項）。1人1票ではなく1株1議決権の原則です。"},
+{cat:"株式",q:"種類株式発行会社では、株主総会の決議に加えて種類株主総会の決議が必要になる場合がある。",ans:true,exp:"会社法322条のとおり。ある種類の株主に損害を及ぼすおそれのある行為をする場合に種類株主総会の決議が必要です。"},
+{cat:"株式",q:"株式の相続が発生した場合、株式は当然に相続人に移転する。",ans:true,exp:"株式は相続財産となり、当然に相続人に移転します。ただし相続人に対する売渡請求（会社法174条）の定款規定がある場合は会社が買い取ることができます。"},
+{cat:"株式",q:"非公開会社は相続人に対する株式の売渡請求を定款で定めることができる。",ans:true,exp:"会社法174条のとおり。相続等によって譲渡制限違反の者が株主になることを防ぐための制度です。"},
+{cat:"株式",q:"株主は会社に対して帳簿（会計帳簿）の閲覧を請求することができる。",ans:true,exp:"会社法433条1項のとおり（帳簿閲覧権）。ただし総株主の議決権の3%以上の保有等の要件があります。"},
+{cat:"株式",q:"株式の無償割当てでは、株主に対して当該会社の株式だけでなく別の会社の株式を割り当てることもできる。",ans:false,exp:"株式無償割当て（会社法185条）では当該会社の株式のみ割り当てることができます。他社の株式は対象外です。"},
+{cat:"株式",q:"新株予約権の行使期間は新株予約権の内容として定める必要がある。",ans:true,exp:"会社法236条1項4号のとおり。行使期間は新株予約権の内容として必ず定めなければなりません。"},
+{cat:"株式",q:"ストック・オプションとは取締役・従業員等に付与される新株予約権のことである。",ans:true,exp:"ストック・オプションは、会社が役員・従業員等に付与する、将来一定価格で株式を取得できる権利（新株予約権）です。"},
+{cat:"株式",q:"株主は会社に対して株式の買取りを任意に請求することができる。",ans:false,exp:"株主が会社に株式買取りを請求できるのは、反対株主の株式買取請求権（組織再編時等）や単元未満株主の買取請求（会社法192条）など限定的な場面のみです。"},
+{cat:"株式",q:"株式交換によって完全親会社となる会社は子会社の発行済株式全部を取得する。",ans:true,exp:"株式交換（会社法767条以下）では、完全子会社となる会社の株式全部が完全親会社に移転します。"},
+
+// ===== 取締役（追加） =====
+{cat:"取締役",q:"取締役は株主総会の招集に際して議題を提案する権限を持つ。",ans:true,exp:"取締役会設置会社では取締役会が、非設置会社では各取締役が株主総会の招集事項を決定します（会社法298条等）。"},
+{cat:"取締役",q:"取締役会設置会社では、重要な財産の処分は取締役会が決議しなければならない。",ans:true,exp:"会社法362条4項1号のとおり。「重要な財産の処分及び譲受け」は取締役会の専決事項です。"},
+{cat:"取締役",q:"代表取締役が複数いる場合でも、各自が独立して会社を代表する（各自代表の原則）。",ans:true,exp:"会社法349条のとおり。共同代表とすることは認められず、各代表取締役が単独で会社を代表します。"},
+{cat:"取締役",q:"取締役の欠格事由として、破産手続開始決定を受け復権していない者は取締役になれない。",ans:true,exp:"会社法331条1項3号のとおり。破産者で復権を得ていない者は取締役の欠格事由に当たります。"},
+{cat:"取締役",q:"取締役会の決議事項を全て代表取締役に委任することができる。",ans:false,exp:"取締役会の専決事項（重要財産の処分・多額の借財・内部統制等）は代表取締役等に委任することができません（会社法362条4項）。"},
+{cat:"取締役",q:"監査役は取締役会の招集を請求することができる。",ans:true,exp:"会社法383条2項のとおり。取締役の違法行為等を発見した場合、監査役は取締役会の招集を請求できます。"},
+{cat:"取締役",q:"取締役が会社の事業の部類に属する取引を行う場合は必ず禁止される。",ans:false,exp:"競業取引は禁止されているのではなく、取締役会（非設置会社では株主総会）の承認があれば行うことができます（会社法356条1項1号）。"},
+{cat:"取締役",q:"利益相反取引後、取締役は遅滞なく重要な事実を取締役会に報告しなければならない。",ans:true,exp:"会社法365条2項のとおり。利益相反取引を行った取締役は、取引後に遅滞なく取締役会に重要事実を報告する義務があります。"},
+{cat:"取締役",q:"取締役の報酬の個人別の額が定款または株主総会決議で定められていない場合は、取締役会が個別配分を決定できる。",ans:true,exp:"会社法361条のとおり。株主総会では総枠を定め、個別の配分は取締役会（または代表取締役への委任）で決定することが多いです。"},
+{cat:"取締役",q:"指名委員会等設置会社では取締役会が業務執行の決定を行い、執行役はその決定を執行する。",ans:true,exp:"会社法416条・418条のとおり。取締役会が監督機能に専念し、業務執行は執行役が担います。"},
+
+// ===== 株主総会（追加） =====
+{cat:"株主総会",q:"株主総会の決議の方法に瑕疵（手続違反等）がある場合は、決議取消しの訴えで争うことができる。",ans:true,exp:"会社法831条1項のとおり。召集手続の法令・定款違反、決議方法の法令・定款違反、決議内容の定款違反等が取消事由です。"},
+{cat:"株主総会",q:"株主総会の決議内容が法令に違反する場合は決議の無効確認の訴えを提起することができる。",ans:true,exp:"会社法830条2項のとおり。決議の内容が法令違反の場合は（取消しではなく）無効確認の訴えを提起します。出訴期間の制限はありません。"},
+{cat:"株主総会",q:"株主総会の決議取消しの訴えは株主、取締役、監査役等が提起できる。",ans:true,exp:"会社法831条1項のとおり。提訴権者は株主・取締役・監査役・清算人等です。"},
+{cat:"株主総会",q:"株主総会決議の取消判決は第三者にも効力が及ぶ（対世効）。",ans:true,exp:"会社法838条のとおり。組織法上の法律関係の画一的確定のため、認容判決には対世効が認められます。"},
+{cat:"株主総会",q:"株主提案権において、1人の株主が提案できる議案の数は最大10個に制限されている。",ans:true,exp:"会社法305条4項のとおり（令和元年改正）。株主提案権の濫用防止のため、1回の株主総会で提案できる議案数は10個が上限です。"},
+{cat:"株主総会",q:"書面投票・電子投票の行使期限は株主総会の前日である必要がある。",ans:false,exp:"書面・電子投票の行使期限は招集通知に記載して定めますが、必ずしも前日である必要はありません（会社法施行規則63条）。"},
+{cat:"株主総会",q:"取締役会設置会社では株主が株主総会で取締役の個別報酬を直接決議することはできない。",ans:false,exp:"株主総会は取締役の報酬を決議できます（会社法361条1項）。取締役会設置会社でも株主総会で個別報酬の決議は可能です。"},
+{cat:"株主総会",q:"株主総会で可決された議案が後に裁判で取り消された場合、その決議に基づいて行われた行為も全て無効となる。",ans:false,exp:"判決確定前に行われた行為の効力については、第三者保護の観点から一律に無効とはなりません。会社法の規定に従って処理されます。"},
+
+// ===== 計算・配当（追加） =====
+{cat:"計算",q:"株式会社の計算書類は定時株主総会の4週間前までに監査役に提供しなければならない。",ans:true,exp:"会社法436条1項・会社計算規則132条のとおり。監査役監査のための期間を確保するために事前提供が義務付けられています。"},
+{cat:"計算",q:"会計監査人設置会社では計算書類の監査は公認会計士または監査法人が行う。",ans:true,exp:"会社法396条のとおり。会計監査人（公認会計士・監査法人）が計算書類について監査を行います。"},
+{cat:"計算",q:"事業報告には会社の状況に関する重要な事項を記載しなければならない。",ans:true,exp:"会社法435条2項・会社計算規則116条以下のとおり。事業報告は計算書類等とともに株主総会に報告・提出します。"},
+{cat:"計算",q:"株主への配当は金銭以外の財産（現物配当）でも行うことができる。",ans:true,exp:"会社法454条4項のとおり（現物配当）。ただし株主が金銭の支払いを選択できる旨を定める場合等の条件があります。"},
+{cat:"計算",q:"剰余金の配当を受ける権利は株主の固有権であり、定款や株主総会決議で剥奪することができない。",ans:true,exp:"剰余金配当請求権は株主の固有権の一つです。ただし特定事業年度に配当を行わないことは株主総会の決議事項として適法です（株主全員の同意は不要）。"},
+{cat:"計算",q:"資本金を増加させるには必ず新株を発行しなければならない。",ans:false,exp:"準備金や剰余金を資本金に振り替えることによって、新株発行なく資本金を増加させることができます（会社法450条・451条）。"},
+{cat:"計算",q:"特別利益・特別損失は損益計算書に計上されるが、通常の営業活動に含まれる。",ans:false,exp:"特別利益・特別損失は臨時・非反復的な損益であり、通常の営業活動（営業利益）には含まれません。"},
+
+// ===== 組織再編（追加） =====
+{cat:"組織再編",q:"吸収合併の効力は吸収合併登記によって発生する。",ans:false,exp:"吸収合併の効力は合併契約で定めた効力発生日に発生します（会社法750条1項）。登記は対抗要件です。"},
+{cat:"組織再編",q:"合併無効の訴えを提起できる者は株主等に限定されており、債権者は提起できない。",ans:false,exp:"会社法828条2項7・8号のとおり、合併無効の訴えを提起できる者には破産管財人も含まれます。"},
+{cat:"組織再編",q:"株式交換において完全子会社となる会社の株主は株式買取請求権を行使できる。",ans:true,exp:"会社法785条のとおり。株式交換に反対した株主（反対株主）は買取請求を行使できます。"},
+{cat:"組織再編",q:"新設合併の場合、消滅会社の権利義務は設立される新会社に包括承継される。",ans:true,exp:"会社法754条1項のとおり。消滅会社の一切の権利義務（契約・従業員・債務等）が新会社に包括的に承継されます。"},
+{cat:"組織再編",q:"物的分割（分社型分割）とは、分割対価を分割会社の株主に交付する分割方式である。",ans:false,exp:"物的分割（分社型分割）は分割対価を分割会社自身（法人）に交付する方式です。分割対価を株主に交付するのは人的分割（分割型分割）です。"},
+{cat:"組織再編",q:"吸収分割において分割会社の債権者は分割計画の効力発生前に異議を述べることができる。",ans:true,exp:"会社法789条のとおり（吸収分割の債権者保護手続）。知れている債権者への個別催告と官報公告が必要です。"},
+
+// ===== 持分会社（追加） =====
+{cat:"持分会社",q:"合同会社は株式会社と同様に毎年決算公告を行う義務がある。",ans:false,exp:"決算公告義務（会社法440条）は株式会社のみに課されます。合同会社等の持分会社には決算公告義務はありません。"},
+{cat:"持分会社",q:"持分会社では社員が退社した場合、退社した社員は持分の払戻しを受けることができる。",ans:true,exp:"会社法611条のとおり。退社した社員は持分の払戻請求権を有します。ただし会社財産の状況によって払戻額が算定されます。"},
+{cat:"持分会社",q:"合名会社と合資会社では、社員は原則として業務執行権と代表権の両方を持つ。",ans:true,exp:"会社法590条・599条のとおり。持分会社では業務執行社員が代表社員を兼ねるのが原則で、定款で別段の定めをすることができます。"},
+{cat:"持分会社",q:"合同会社の業務執行社員は、業務を執行するに際して善管注意義務を負う。",ans:true,exp:"会社法593条1項のとおり。業務執行社員は株式会社の取締役と同様に善管注意義務を負います。"},
+{cat:"持分会社",q:"持分会社の社員が死亡した場合、その相続人は定款の定めがなければ当然に社員となる。",ans:false,exp:"持分会社では社員の個性が重視されるため、定款に特段の定めがなければ相続人は当然には社員となりません（会社法608条）。"},
+
+// ===== 解散清算（追加） =====
+{cat:"解散清算",q:"清算中の会社において清算人は新たな事業を開始することができる。",ans:false,exp:"清算人は清算の目的の範囲内でのみ権限を持ちます（会社法481条・476条）。新規事業の開始は許されません。"},
+{cat:"解散清算",q:"清算人は財産目録・貸借対照表を作成し株主総会の承認を得なければならない。",ans:true,exp:"会社法492条のとおり。清算人は就任後遅滞なく財産目録等を作成し、株主総会（または創立総会等）の承認を得ます。"},
+{cat:"解散清算",q:"会社の解散事由として「社員が全員退社したこと」が挙げられる（持分会社の場合）。",ans:true,exp:"会社法641条1号のとおり。持分会社の解散事由として社員が欠けたことが挙げられています。"},
+{cat:"解散清算",q:"解散後3年以内に継続の決議をしなければ、みなし解散された会社は継続できない。",ans:true,exp:"会社法473条のとおり。みなし解散後3年以内に株主総会の特別決議で継続を決議することで復活できます。"},
+
+// ===== 総合応用（追加） =====
+{cat:"総合",q:"会社法上、取締役会設置会社は必ず監査役も設置しなければならない。",ans:false,exp:"指名委員会等設置会社・監査等委員会設置会社では取締役会を置きますが、監査役は置けません（会社法327条4項）。"},
+{cat:"総合",q:"公開会社かつ大会社の株式会社は、取締役会・会計監査人・監査役会（または監査委員会・監査等委員会）の設置が義務付けられる。",ans:true,exp:"公開会社（会社法327条1項）・大会社（会社法328条）に対する機関設置義務の規定のとおりです。"},
+{cat:"総合",q:"株式会社から合同会社への組織変更は、総株主の同意（株主全員の同意）が必要である。",ans:true,exp:"会社法781条1項のとおり。組織変更後に株主が持分会社の社員となるため全員の同意が必要です。"},
+{cat:"総合",q:"会社法は2006年（平成18年）5月に施行された。",ans:true,exp:"会社法は2005年（平成17年）7月26日に公布され、2006年（平成18年）5月1日に施行されました。商法の商事会社法部分が独立して制定されました。"},
+{cat:"総合",q:"取締役・監査役・会計参与・執行役を「役員等」と総称する規定が会社法にある。",ans:true,exp:"会社法423条1項・329条1項等のとおり。役員等の範囲は条文によって異なる場合があります。"},
+{cat:"総合",q:"会社法の規定は全て強行規定であり、定款による変更は一切認められない。",ans:false,exp:"会社法には任意規定も多く、定款自治によって変更できる規定が数多くあります（例：取締役任期の短縮・延長、監査役の権限の限定等）。"},
+{cat:"総合",q:"株主有限責任の原則により、株主は会社の債権者に対して直接責任を負うことは一切ない。",ans:false,exp:"株主有限責任の原則（会社法104条）は基本ですが、法人格否認の法理（判例）により例外的に株主が直接責任を負う場合があります。"},
+{cat:"総合",q:"法人格否認の法理とは、法人格が形骸化している場合や濫用されている場合に法人格を否定して株主に責任を追及する判例法理である。",ans:true,exp:"最判昭和44年2月27日のとおり。①法人格の形骸化（ペーパーカンパニー）②法人格の濫用（債権者詐害目的等）の場合に認められます。"},
+{cat:"総合",q:"株式会社の設立にあたっては、発起人が少なくとも1名いなければならない。",ans:true,exp:"会社法26条1項のとおり。発起人は定款に氏名と住所を記載し、少なくとも1名以上が必要です。"},
+{cat:"総合",q:"会社法上の「社員」とは株式会社では「取締役」のことを指す。",ans:false,exp:"会社法上の「社員」は持分会社の出資者を指します。株式会社では株主に相当します。「社員」は従業員（会社の従業者）とも意味が異なります。"},
+{cat:"総合",q:"株式会社は定款の目的外の行為を行っても、その行為は取引の相手方には原則として有効である。",ans:true,exp:"判例（最大判昭和45年）は目的の範囲を広く解釈し、目的外行為であっても内部的制限として外部取引には対抗できないとする立場をとっています。"},
+{cat:"総合",q:"取締役の競業取引の承認をせずに取締役会の決議が行われた場合、その取引は当然無効となる。",ans:false,exp:"競業取引の承認を要する規定（会社法356条・365条）は訓示的規定と解されており、承認なき競業取引も第三者との関係では直ちに無効とはなりません（介入権の問題として処理されます）。"},
+{cat:"総合",q:"会社法上の「公正な価格」による株式買取請求における「公正な価格」は組織再編がなかった場合の価格を意味する。",ans:false,exp:"反対株主の株式買取請求における「公正な価格」は、組織再編によってシナジー（相乗効果）が見込まれる場合にはその効果を織り込んだ価格とされます（最高裁決定を踏まえた解釈）。"},
+{cat:"総合",q:"株主代表訴訟において、会社が取締役側に補助参加することは常に許される。",ans:false,exp:"会社が被告取締役側に補助参加することは、原則として認められません（会社法849条3項）。会社の利益を守る立場から、原告株主側への補助参加の方が認められやすいです。"},
+{cat:"取締役",q:"取締役会設置会社において、支配人の選任・解任は取締役会の決議事項である。",ans:true,exp:"会社法362条4項3号のとおり。支配人その他の重要な使用人の選任・解任は取締役会の専決事項です。"},
+{cat:"設立",q:"株式会社の設立に際して、発起人が引き受けた株式の払込みを仮装した場合（みせ金）でも、登記後に会社が追認すれば有効となる。",ans:false,exp:"仮装払込みは無効であり、追認によって有効となるものではありません（会社法52条の2）。設立時取締役も連帯責任を負います。"},
+{cat:"株主総会",q:"株主総会の招集地は、定款に別段の定めがない限り本店所在地又はその隣接する地でなければならない。",ans:false,exp:"会社法298条のとおり、招集地に制限はありません。どこで開催してもよく、バーチャル開催も認められます。"},
+{cat:"計算",q:"会社が剰余金の配当を行う場合、配当の効力発生日は株主総会の決議日である。",ans:false,exp:"配当の効力発生日（支払日）は、株主総会決議によって定められた日です（会社法454条1項3号）。決議日と支払日は通常異なります。"},
+{cat:"監査役",q:"監査役は会社の費用で弁護士等の専門家を利用することができる。",ans:true,exp:"会社法388条のとおり。監査役はその職務を執行するために必要な費用の前払いを会社に請求することができます。"},
+{cat:"持分会社",q:"合同会社では、定款で利益の分配を出資比率に関係なく定めることができる。",ans:true,exp:"持分会社は定款自治の幅が広く（会社法621条等）、利益分配の割合を出資比率に拘束されず定款で自由に定めることができます。"},
+{cat:"組織再編",q:"株式移転では創立総会の開催は不要である。",ans:true,exp:"会社法806条のとおり。株式移転では創立総会の開催に関する規定が適用されません。移転計画の承認は株主総会特別決議で行います。"},
+{cat:"解散清算",q:"清算人は就任後、遅滞なく会社の財産の現況を調査しなければならない。",ans:true,exp:"会社法492条1項のとおり。清算人は財産目録・貸借対照表を作成し株主総会の承認を得ます。財産状況の把握が清算手続の出発点です。"},
+{cat:"総合",q:"会社法は令和元年（2019年）に大幅改正され、株式交付制度の創設・社外取締役の義務化等が行われた。",ans:true,exp:"令和元年改正会社法（2021年3月施行）では①株式交付制度の新設②社外取締役の設置義務化③取締役の報酬規制強化④社債管理補助者制度の創設等の重要改正が行われました。"},
 ];
 
-let current = 0;
-let score = 0;
-let answered = false;
+// shuffle
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
 
-const chatArea = document.getElementById('chatArea');
+const questions = shuffle([...ALL]);
+let current = 0, score = 0, answered = false;
+
+const chat = document.getElementById('chat');
 const scoreBadge = document.getElementById('scoreBadge');
-const progressFill = document.getElementById('progressFill');
-const progressText = document.getElementById('progressText');
-const progressPct  = document.getElementById('progressPct');
+const progFill = document.getElementById('progFill');
+const progText = document.getElementById('progText');
+const progPct  = document.getElementById('progPct');
 
-function updateProgress() {
-  const pct = Math.round((current / quizData.length) * 100);
-  progressFill.style.width = pct + '%';
-  progressText.textContent = `問題 ${current} / ${quizData.length}`;
-  progressPct.textContent  = pct + '%';
-  scoreBadge.textContent   = `${score} / ${current}`;
+function updateProg(){
+  const pct = Math.round(current/questions.length*100);
+  progFill.style.width = pct+'%';
+  progText.textContent = current+' / '+questions.length+'問';
+  progPct.textContent  = pct+'%';
+  scoreBadge.textContent = score+' / '+current;
 }
 
-function scrollBottom() {
-  setTimeout(() => chatArea.scrollTop = chatArea.scrollHeight, 50);
+function scrollBot(){setTimeout(()=>chat.scrollTop=chat.scrollHeight,60)}
+
+function addTyping(cb){
+  const el=document.createElement('div');
+  el.className='msg bot';
+  el.innerHTML='<div class="mavatar">⚖️</div><div class="typing"><span></span><span></span><span></span></div>';
+  chat.appendChild(el);
+  scrollBot();
+  setTimeout(()=>{chat.removeChild(el);cb();},600);
 }
 
-function addTypingThenQuestion() {
-  const typing = document.createElement('div');
-  typing.className = 'msg bot';
-  typing.innerHTML = `<div class="msg-avatar">🧠</div>
-    <div class="typing-indicator"><span></span><span></span><span></span></div>`;
-  chatArea.appendChild(typing);
-  scrollBottom();
-  setTimeout(() => {
-    chatArea.removeChild(typing);
-    showQuestion(current);
-  }, 700);
-}
+function showQ(idx){
+  if(idx>=questions.length){showFinish();return;}
+  const q=questions[idx];
+  answered=false;
 
-function showQuestion(idx) {
-  if (idx >= quizData.length) { showFinish(); return; }
-  const q = quizData[idx];
-  answered = false;
-
-  const msgEl = document.createElement('div');
-  msgEl.className = 'msg bot';
-  msgEl.innerHTML = `
-    <div class="msg-avatar">🧠</div>
-    <div class="msg-content">
+  // question bubble
+  const msgEl=document.createElement('div');
+  msgEl.className='msg bot';
+  msgEl.innerHTML=`
+    <div class="mavatar">⚖️</div>
+    <div class="mcontent">
       <div class="bubble">
-        <div class="q-number">Q${idx + 1} / ${quizData.length}</div>
-        <div class="q-text">${q.q}</div>
+        <div class="qnum">Q${idx+1} / ${questions.length}</div>
+        <div class="qtag">${q.cat}</div>
+        <div class="qtext">${q.q}</div>
       </div>
     </div>`;
-  chatArea.appendChild(msgEl);
+  chat.appendChild(msgEl);
 
-  const labels = ['A','B','C','D'];
-  const choicesEl = document.createElement('div');
-  choicesEl.className = 'choices';
-  q.choices.forEach((c, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'choice-btn';
-    btn.innerHTML = `<span class="label">${labels[i]}</span>${c}`;
-    btn.dataset.idx = i;
-    btn.addEventListener('click', () => onAnswer(btn, i, idx, choicesEl));
-    choicesEl.appendChild(btn);
+  // ○× buttons
+  const oxWrap=document.createElement('div');
+  oxWrap.className='ox-wrap';
+  oxWrap.innerHTML=`
+    <button class="ox-btn maru" data-val="true">○</button>
+    <button class="ox-btn batu" data-val="false">×</button>`;
+  chat.appendChild(oxWrap);
+  scrollBot();
+
+  oxWrap.querySelectorAll('.ox-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      if(answered)return;
+      answered=true;
+      const chosen=btn.dataset.val==='true';
+      const correct=q.ans;
+
+      oxWrap.querySelectorAll('.ox-btn').forEach(b=>b.disabled=true);
+
+      if(chosen===correct){
+        score++;
+        btn.classList.add('selected-correct');
+      } else {
+        btn.classList.add('selected-wrong');
+        const correctBtn=oxWrap.querySelector(`[data-val="${correct}"]`);
+        correctBtn.classList.add('reveal');
+      }
+
+      // user answer
+      const userMsg=document.createElement('div');
+      userMsg.className='msg user';
+      userMsg.innerHTML=`
+        <div class="mavatar">🙋</div>
+        <div class="mcontent">
+          <div class="bubble">${chosen?'○':'×'}</div>
+        </div>`;
+      chat.appendChild(userMsg);
+
+      // result
+      const resultRow=document.createElement('div');
+      resultRow.className='result-row';
+      const ok=chosen===correct;
+      resultRow.innerHTML=`
+        <div class="result-chip ${ok?'ok':'ng'}">${ok?'✅ 正解':'❌ 不正解'}</div>
+        <span class="ans-label">正解：${correct?'○':'×'}</span>`;
+      chat.appendChild(resultRow);
+
+      // explanation
+      const expEl=document.createElement('div');
+      expEl.className='exp-box';
+      expEl.innerHTML=`<strong>💡 解説：</strong>${q.exp}`;
+      chat.appendChild(expEl);
+
+      current++;
+      updateProg();
+
+      // next button
+      const nextBtn=document.createElement('button');
+      nextBtn.className='next-btn';
+      nextBtn.textContent=current<questions.length?'次の問題へ →':'結果を見る 🎉';
+      nextBtn.addEventListener('click',()=>{
+        nextBtn.remove();
+        if(current<questions.length) addTyping(()=>showQ(current));
+        else showFinish();
+      });
+      chat.appendChild(nextBtn);
+      scrollBot();
+    });
   });
-  chatArea.appendChild(choicesEl);
-  scrollBottom();
 }
 
-function onAnswer(clickedBtn, chosen, qIdx, choicesEl) {
-  if (answered) return;
-  answered = true;
-  const q = quizData[qIdx];
-  const correct = q.ans;
-
-  Array.from(choicesEl.children).forEach((btn, i) => {
-    btn.disabled = true;
-    if (i === correct) btn.classList.add('reveal-correct');
-  });
-
-  const isCorrect = chosen === correct;
-  if (isCorrect) score++;
-  clickedBtn.classList.remove('reveal-correct');
-  clickedBtn.classList.add(isCorrect ? 'correct' : 'wrong');
-
-  // User answer bubble
-  const userMsg = document.createElement('div');
-  userMsg.className = 'msg user';
-  const labels = ['A','B','C','D'];
-  userMsg.innerHTML = `
-    <div class="msg-avatar">🙋</div>
-    <div class="msg-content">
-      <div class="bubble">${labels[chosen]}：${q.choices[chosen]}</div>
-      <div class="result-bubble ${isCorrect ? 'ok' : 'ng'}">${isCorrect ? '✅ 正解！' : '❌ 不正解'}</div>
-    </div>`;
-  chatArea.appendChild(userMsg);
-
-  // Explanation
-  const expEl = document.createElement('div');
-  expEl.className = 'explanation';
-  expEl.innerHTML = `<strong>💡 解説：</strong>${q.exp}`;
-  chatArea.appendChild(expEl);
-
-  // Next button
-  current++;
-  updateProgress();
-
-  const nextBtn = document.createElement('button');
-  nextBtn.className = 'next-btn';
-  nextBtn.textContent = current < quizData.length ? `次の問題へ →` : `結果を見る 🎉`;
-  nextBtn.addEventListener('click', () => {
-    nextBtn.remove();
-    if (current < quizData.length) addTypingThenQuestion();
-    else showFinish();
-  });
-  chatArea.appendChild(nextBtn);
-  scrollBottom();
-}
-
-function showFinish() {
-  const pct = Math.round((score / quizData.length) * 100);
-  let emoji = '😢';
-  let msg = 'もう一度チャレンジしてみよう！';
-  if (pct >= 90) { emoji = '🏆'; msg = '素晴らしい！天才的な知識力です！'; }
-  else if (pct >= 70) { emoji = '🎉'; msg = 'よくできました！かなりの知識力です！'; }
-  else if (pct >= 50) { emoji = '👏'; msg = '半分以上正解！もう一歩です！'; }
-  else if (pct >= 30) { emoji = '📚'; msg = '復習して再挑戦しましょう！'; }
-
-  const card = document.createElement('div');
-  card.className = 'finish-card';
-  card.innerHTML = `
+function showFinish(){
+  const pct=Math.round(score/questions.length*100);
+  let emoji='😢',msg='もう一度チャレンジ！';
+  if(pct>=90){emoji='🏆';msg='完璧！会社法マスターです！';}
+  else if(pct>=70){emoji='🎉';msg='素晴らしい実力です！';}
+  else if(pct>=50){emoji='👏';msg='半分以上正解！あと一歩！';}
+  else if(pct>=30){emoji='📚';msg='復習してリベンジしましょう！';}
+  const card=document.createElement('div');
+  card.className='finish-card';
+  card.innerHTML=`
     <div class="emoji">${emoji}</div>
-    <h2>クイズ完了！</h2>
-    <div class="final-score">${score} / ${quizData.length}</div>
+    <h2>全問終了！</h2>
+    <div class="fscore">${score} / ${questions.length}</div>
     <p>正解率 ${pct}%<br>${msg}</p>
-    <button class="restart-btn" onclick="location.reload()">もう一度挑戦する</button>`;
-  chatArea.appendChild(card);
-  scrollBottom();
+    <button class="rbtn" onclick="location.reload()">もう一度挑戦する</button>`;
+  chat.appendChild(card);
+  scrollBot();
 }
 
-// Start
-const welcomeEl = document.createElement('div');
-welcomeEl.className = 'msg bot';
-welcomeEl.innerHTML = `
-  <div class="msg-avatar">🧠</div>
-  <div class="msg-content">
+// welcome
+const welcome=document.createElement('div');
+welcome.className='msg bot';
+welcome.innerHTML=`
+  <div class="mavatar">⚖️</div>
+  <div class="mcontent">
     <div class="bubble">
-      こんにちは！<br>
-      <strong>会社法クイズ 100問</strong>へようこそ⚖️<br><br>
-      会社の種類・設立・株式・機関設計・組織再編・清算など<br>
-      会社法の重要テーマ全100問を出題します。<br><br>
-      選択肢をタップして答えてください！
+      <strong>会社法 300問 ○×クイズ</strong>へようこそ！<br><br>
+      総則・定款・設立・株式・株主総会・取締役・<br>
+      監査役・計算・組織再編・持分会社・清算など<br>
+      全ジャンルを網羅した300問をランダム出題します。<br><br>
+      ○か×のボタンを押して答えてください！
     </div>
   </div>`;
-chatArea.appendChild(welcomeEl);
+chat.appendChild(welcome);
 
-const startBtn = document.createElement('button');
-startBtn.className = 'next-btn';
-startBtn.textContent = 'スタート！ 🚀';
-startBtn.addEventListener('click', () => {
+const startBtn=document.createElement('button');
+startBtn.className='next-btn';
+startBtn.style.marginLeft='41px';
+startBtn.textContent='スタート！ 🚀';
+startBtn.addEventListener('click',()=>{
   startBtn.remove();
-  updateProgress();
-  addTypingThenQuestion();
+  updateProg();
+  addTyping(()=>showQ(0));
 });
-chatArea.appendChild(startBtn);
-updateProgress();
+chat.appendChild(startBtn);
+updateProg();
 </script>
 </body>
 </html>
