@@ -596,6 +596,7 @@ function showQ(idx){
   catName.textContent=q.cat;
   qNumHdr.textContent=(idx+1)+' / '+qOrder.length;
   qNumBadge.textContent='Q '+(idx+1);
+  qExamBadge.textContent='試験'+(Math.floor(qOrder[idx]/100)+1);
   qText.textContent=q.q;
   
   // Scroll to top of question area
