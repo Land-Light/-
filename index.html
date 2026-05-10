@@ -469,11 +469,18 @@ const ALL = [
 
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 
-const SAVE_KEY = 'kaisha_quiz_v1';
+const SAVE_KEY = 'kaisha_quiz_v2';
+
+// qOrder: indices into ALL, in play order
+let qOrder = [];
+const userAnswers = new Array(ALL.length).fill(null);
+let current = 0;
+let score = 0;
+
+function getQ(idx){ return ALL[qOrder[idx]]; }
 
 function saveState(){
-  const order = questions.map(q => ALL.indexOf(q));
-  localStorage.setItem(SAVE_KEY, JSON.stringify({order, answers: userAnswers, current, score}));
+  localStorage.setItem(SAVE_KEY, JSON.stringify({order:qOrder, answers:userAnswers, current, score}));
 }
 
 function loadState(){
@@ -481,25 +488,27 @@ function loadState(){
     const raw = localStorage.getItem(SAVE_KEY);
     if(!raw) return false;
     const s = JSON.parse(raw);
-    if(!s.order || s.order.length !== ALL.length) return false;
-    questions.length = 0;
-    s.order.forEach(i => questions.push(ALL[i]));
-    s.answers.forEach((v,i) => userAnswers[i] = v);
+    if(!Array.isArray(s.order) || s.order.length !== ALL.length) return false;
+    if(!Array.isArray(s.answers) || s.answers.length !== ALL.length) return false;
+    qOrder = s.order;
+    s.answers.forEach((v,i) => { userAnswers[i] = v; });
     current = s.current || 0;
     score = s.score || 0;
     return true;
   } catch(e){ return false; }
 }
 
-const questions = [];
-const userAnswers = new Array(ALL.length).fill(null);
-let current = 0;
-let score = 0;
-
-if(!loadState()){
-  const shuffled = shuffle([...ALL]);
-  shuffled.forEach(q => questions.push(q));
+function makeOrder(){
+  // Interleave all 3 exams (100 each) so they're evenly distributed
+  const e1 = shuffle([...Array(100).keys()]);
+  const e2 = shuffle([...Array(100).keys()].map(i => i + 100));
+  const e3 = shuffle([...Array(100).keys()].map(i => i + 200));
+  const result = [];
+  for(let i = 0; i < 100; i++) result.push(e1[i], e2[i], e3[i]);
+  return result;
 }
+
+if(!loadState()) qOrder = makeOrder();
 
 const qarea    = document.getElementById('qarea');
 const catName  = document.getElementById('catName');
@@ -580,12 +589,12 @@ function applyAnsweredState(q, userAns){
 }
 
 function showQ(idx){
-  if(idx>=questions.length){showFinish();return;}
-  const q=questions[idx];
+  if(idx>=qOrder.length){showFinish();return;}
+  const q=getQ(idx);
   const ua=userAnswers[idx];
   
   catName.textContent=q.cat;
-  qNumHdr.textContent=(idx+1)+' / '+questions.length;
+  qNumHdr.textContent=(idx+1)+' / '+qOrder.length;
   qNumBadge.textContent='Q '+(idx+1);
   qText.textContent=q.q;
   
@@ -612,7 +621,7 @@ function showQ(idx){
 }
 
 function doAnswer(choice){
-  const q=questions[current];
+  const q=getQ(current);
   if(userAnswers[current]!==null)return;
   
   userAnswers[current]=choice;
@@ -633,7 +642,7 @@ function doAnswer(choice){
 }
 
 function nextQ(){
-  if(current+1>=questions.length){showFinish();return;}
+  if(current+1>=qOrder.length){showFinish();return;}
   current++;
   saveState();
   showQ(current);
@@ -655,13 +664,13 @@ function updateStats(){
   const answered=userAnswers.filter(x=>x!==null).length;
   const pct=answered>0?Math.round(score/answered*100):0;
   statsText.textContent='正解率 '+pct+'%';
-  progFill.style.width=Math.round(answered/questions.length*100)+'%';
-  ftrInfo.textContent=answered+' / '+questions.length+' 回答済み';
+  progFill.style.width=Math.round(answered/qOrder.length*100)+'%';
+  ftrInfo.textContent=answered+' / '+qOrder.length+' 回答済み';
   ftrScore.textContent=score+' 正解';
 }
 
 function showFinish(){
-  const pct=Math.round(score/questions.length*100);
+  const pct=Math.round(score/qOrder.length*100);
   let emoji='😢',msg='もう一度チャレンジ！';
   if(pct>=90){emoji='🏆';msg='会社法マスター！';}
   else if(pct>=70){emoji='🎉';msg='素晴らしい実力！';}
@@ -671,7 +680,7 @@ function showFinish(){
   qarea.innerHTML=`<div class="fin-card">
     <div class="emoji">${emoji}</div>
     <h2>全問終了！</h2>
-    <div class="fscore">${score} / ${questions.length}</div>
+    <div class="fscore">${score} / ${qOrder.length}</div>
     <p>正解率 ${pct}%<br>${msg}</p>
     <button class="rbtn" onclick="location.reload()">もう一度挑戦する</button>
   </div>`;
