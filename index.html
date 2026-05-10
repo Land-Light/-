@@ -127,7 +127,6 @@ html,body{height:100%;font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans
 <div id="qarea">
   <div class="q-badge">
     <span class="q-num" id="qNumBadge">Q 1</span>
-    <span class="q-exam" id="qExamBadge">試験1</span>
   </div>
   <div class="q-text" id="qText"></div>
   <div class="q-result" id="qResult" style="display:none">
@@ -515,7 +514,6 @@ const catName  = document.getElementById('catName');
 const qNumHdr  = document.getElementById('qNumHdr');
 const statsText= document.getElementById('statsText');
 const qNumBadge= document.getElementById('qNumBadge');
-const qExamBadge=document.getElementById('qExamBadge');
 const qText    = document.getElementById('qText');
 const qResult  = document.getElementById('qResult');
 const resultCard =document.getElementById('resultCard');
@@ -596,8 +594,7 @@ function showQ(idx){
   catName.textContent=q.cat;
   qNumHdr.textContent=(idx+1)+' / '+qOrder.length;
   qNumBadge.textContent='Q '+(idx+1);
-  qExamBadge.textContent='試験'+(Math.floor(qOrder[idx]/100)+1);
-  qText.textContent=q.q;
+qText.textContent=q.q;
   
   // Scroll to top of question area
   qarea.scrollTop=0;
