@@ -103,6 +103,17 @@ html,body{height:100%;font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans
 .fin-card .fscore{font-size:48px;font-weight:900;background:linear-gradient(135deg,#7c3aed,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:10px 0}
 .fin-card p{color:#6b7280;font-size:14px;margin-bottom:20px}
 .fin-card .rbtn{background:linear-gradient(135deg,#7c3aed,#5b21b6);border:none;border-radius:12px;padding:12px 28px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit}
+
+/* ── MENU SCREEN ── */
+#menu{flex:1;overflow-y:auto;background:#1a1035;padding:28px 16px;display:flex;flex-direction:column;gap:18px}
+.menu-title{color:rgba(255,255,255,.85);font-size:15px;font-weight:700;text-align:center;letter-spacing:.5px}
+.subj-card{background:linear-gradient(135deg,rgba(124,58,237,.25),rgba(91,33,182,.25));border:1.5px solid rgba(124,58,237,.45);border-radius:20px;padding:20px 18px;cursor:pointer;transition:transform .15s,box-shadow .15s;display:flex;flex-direction:column;gap:8px}
+.subj-card:active{transform:scale(.97);box-shadow:0 4px 20px rgba(124,58,237,.4)}
+.subj-name{color:#fff;font-size:17px;font-weight:800}
+.subj-count{color:rgba(255,255,255,.55);font-size:13px}
+.subj-progress{color:#a78bfa;font-size:13px;font-weight:600;margin-top:2px}
+.subj-prog-bar{background:rgba(255,255,255,.1);height:5px;border-radius:3px;margin-top:2px}
+.subj-prog-fill{height:100%;background:linear-gradient(90deg,#a78bfa,#818cf8);border-radius:3px;transition:width .4s ease}
 </style>
 </head>
 <body>
@@ -111,20 +122,37 @@ html,body{height:100%;font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans
 <div id="hdr">
   <div class="hdr-top">
     <div class="hdr-title">会社法 ○×クイズ</div>
-    <div style="display:flex;align-items:center;gap:8px">
+    <div id="hdrControls" style="display:none;align-items:center;gap:6px">
       <div class="hdr-stats" id="statsText">正解率 -%</div>
-      <button onclick="if(confirm('最初からやり直しますか？'))resetQuiz()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:8px;color:rgba(255,255,255,.8);font-size:11px;padding:4px 8px;cursor:pointer;font-family:inherit">リセット</button>
+      <button onclick="showMenu()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:8px;color:rgba(255,255,255,.8);font-size:11px;padding:4px 8px;cursor:pointer;font-family:inherit">メニュー</button>
+      <button onclick="if(confirm('この科目をリセットしますか？'))resetQuiz()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:8px;color:rgba(255,255,255,.8);font-size:11px;padding:4px 8px;cursor:pointer;font-family:inherit">リセット</button>
     </div>
   </div>
-  <div class="hdr-cat">
+  <div class="hdr-cat" id="hdrCat" style="display:none">
     <div class="hdr-dot"></div>
     <div class="hdr-catname" id="catName">-</div>
-    <div class="hdr-qnum" id="qNumHdr">- / 300</div>
+    <div class="hdr-qnum" id="qNumHdr">-</div>
   </div>
-  <div class="prog-wrap"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+  <div class="prog-wrap" id="progWrap" style="display:none"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
 </div>
 
-<div id="qarea">
+<div id="menu">
+  <div class="menu-title">科目を選択してください</div>
+  <div class="subj-card" onclick="startSubject(1)">
+    <div class="subj-name">会社法総合Ⅰ</div>
+    <div class="subj-count">100問</div>
+    <div class="subj-progress" id="subjProg1">未開始</div>
+    <div class="subj-prog-bar"><div class="subj-prog-fill" id="subjProgFill1" style="width:0%"></div></div>
+  </div>
+  <div class="subj-card" onclick="startSubject(2)">
+    <div class="subj-name">会社法総合Ⅱ</div>
+    <div class="subj-count">300問</div>
+    <div class="subj-progress" id="subjProg2">未開始</div>
+    <div class="subj-prog-bar"><div class="subj-prog-fill" id="subjProgFill2" style="width:0%"></div></div>
+  </div>
+</div>
+
+<div id="qarea" style="display:none">
   <div class="q-badge">
     <span class="q-num" id="qNumBadge">Q 1</span>
   </div>
@@ -142,7 +170,7 @@ html,body{height:100%;font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans
   </div>
 </div>
 
-<div id="ctrl">
+<div id="ctrl" style="display:none">
   <button class="nav-btn" id="prevBtn" onclick="prevQ()" disabled>◁<br>前へ</button>
   <button class="ans-btn maru-btn" id="maruBtn" onclick="doAnswer(true)">
     <div class="circle-g" id="circleG"></div>
@@ -155,8 +183,8 @@ html,body{height:100%;font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans
   <button class="nav-btn" id="nextBtn" onclick="nextQ()" disabled>次へ<br>▷</button>
 </div>
 
-<div id="ftr">
-  <div class="ftr-info" id="ftrInfo">0 / 300 回答済み</div>
+<div id="ftr" style="display:none">
+  <div class="ftr-info" id="ftrInfo">0 / 0 回答済み</div>
   <div class="ftr-score" id="ftrScore">0 正解</div>
 </div>
 
@@ -569,76 +597,124 @@ const ALL = [
 
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 
-const SAVE_KEY = 'kaisha_quiz_v3';
-
-// qOrder: indices into ALL, in play order
+const SAVE_KEY_I  = 'kaisha_quiz_I';
+const SAVE_KEY_II = 'kaisha_quiz_II';
+let currentSubject = 0;
 let qOrder = [];
-const userAnswers = new Array(ALL.length).fill(null);
+let userAnswers = [];
 let current = 0;
 let score = 0;
 
-function getQ(idx){ return ALL[qOrder[idx]]; }
+const qarea      = document.getElementById('qarea');
+const catName    = document.getElementById('catName');
+const qNumHdr    = document.getElementById('qNumHdr');
+const statsText  = document.getElementById('statsText');
+const qNumBadge  = document.getElementById('qNumBadge');
+const qText      = document.getElementById('qText');
+const qResult    = document.getElementById('qResult');
+const resultCard = document.getElementById('resultCard');
+const resultIcon = document.getElementById('resultIcon');
+const resultWord = document.getElementById('resultWord');
+const resultAns  = document.getElementById('resultAns');
+const qExp       = document.getElementById('qExp');
+const maruBtn    = document.getElementById('maruBtn');
+const batuBtn    = document.getElementById('batuBtn');
+const maruVerdict= document.getElementById('maruVerdict');
+const batuVerdict= document.getElementById('batuVerdict');
+const circleG    = document.getElementById('circleG');
+const prevBtn    = document.getElementById('prevBtn');
+const nextBtn    = document.getElementById('nextBtn');
+const progFill   = document.getElementById('progFill');
+const ftrInfo    = document.getElementById('ftrInfo');
+const ftrScore   = document.getElementById('ftrScore');
 
-function saveState(){
-  localStorage.setItem(SAVE_KEY, JSON.stringify({order:qOrder, answers:userAnswers, current, score}));
+function getQ(idx){ return ALL[qOrder[idx]]; }
+function subjectSize(s){ return s===1 ? 100 : 300; }
+function getSaveKey(s){ return s===1 ? SAVE_KEY_I : SAVE_KEY_II; }
+
+function makeOrder(s){
+  if(s===1) return shuffle([...Array(100).keys()]);
+  const e1=shuffle([...Array(100).keys()].map(i=>i+100));
+  const e2=shuffle([...Array(100).keys()].map(i=>i+200));
+  const e3=shuffle([...Array(100).keys()].map(i=>i+300));
+  const r=[];
+  for(let i=0;i<100;i++) r.push(e1[i],e2[i],e3[i]);
+  return r;
 }
 
-function loadState(){
+function saveState(){
+  if(!currentSubject) return;
+  localStorage.setItem(getSaveKey(currentSubject), JSON.stringify({order:qOrder, answers:userAnswers, current, score}));
+}
+
+function loadState(s){
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(getSaveKey(s));
     if(!raw) return false;
-    const s = JSON.parse(raw);
-    if(!Array.isArray(s.order) || s.order.length !== ALL.length) return false;
-    if(!Array.isArray(s.answers) || s.answers.length !== ALL.length) return false;
-    qOrder = s.order;
-    s.answers.forEach((v,i) => { userAnswers[i] = v; });
-    current = s.current || 0;
-    score = s.score || 0;
+    const sv = JSON.parse(raw);
+    const sz = subjectSize(s);
+    if(!Array.isArray(sv.order)||sv.order.length!==sz) return false;
+    if(!Array.isArray(sv.answers)||sv.answers.length!==sz) return false;
+    qOrder = sv.order;
+    userAnswers = sv.answers.slice();
+    current = sv.current||0;
+    score = sv.score||0;
     return true;
   } catch(e){ return false; }
 }
 
-function makeOrder(){
-  const e1 = shuffle([...Array(100).keys()]);
-  const e2 = shuffle([...Array(100).keys()].map(i => i + 100));
-  const e3 = shuffle([...Array(100).keys()].map(i => i + 200));
-  const e4 = shuffle([...Array(100).keys()].map(i => i + 300));
-  const result = [];
-  for(let i = 0; i < 100; i++) result.push(e1[i], e2[i], e3[i], e4[i]);
-  return result;
+function getSubjectStats(s){
+  try {
+    const raw = localStorage.getItem(getSaveKey(s));
+    if(!raw) return null;
+    const sv = JSON.parse(raw);
+    const sz = subjectSize(s);
+    if(!Array.isArray(sv.answers)||sv.answers.length!==sz) return null;
+    const answered = sv.answers.filter(x=>x!==null).length;
+    return {answered, score:sv.score||0, total:sz};
+  } catch(e){ return null; }
 }
 
-if(!loadState()) qOrder = makeOrder();
+function startSubject(s){
+  currentSubject = s;
+  if(!loadState(s)){
+    qOrder = makeOrder(s);
+    userAnswers = new Array(subjectSize(s)).fill(null);
+    current = 0;
+    score = 0;
+  }
+  document.getElementById('menu').style.display='none';
+  qarea.style.display='';
+  document.getElementById('ctrl').style.display='';
+  document.getElementById('ftr').style.display='';
+  document.getElementById('hdrControls').style.display='flex';
+  document.getElementById('hdrCat').style.display='';
+  document.getElementById('progWrap').style.display='';
+  showQ(current);
+}
 
-const qarea    = document.getElementById('qarea');
-const catName  = document.getElementById('catName');
-const qNumHdr  = document.getElementById('qNumHdr');
-const statsText= document.getElementById('statsText');
-const qNumBadge= document.getElementById('qNumBadge');
-const qText    = document.getElementById('qText');
-const qResult  = document.getElementById('qResult');
-const resultCard =document.getElementById('resultCard');
-const resultIcon =document.getElementById('resultIcon');
-const resultWord =document.getElementById('resultWord');
-const resultAns  =document.getElementById('resultAns');
-const qExp     = document.getElementById('qExp');
-const maruBtn  = document.getElementById('maruBtn');
-const batuBtn  = document.getElementById('batuBtn');
-const maruVerdict=document.getElementById('maruVerdict');
-const batuVerdict=document.getElementById('batuVerdict');
-const circleG  = document.getElementById('circleG');
-const prevBtn  = document.getElementById('prevBtn');
-const nextBtn  = document.getElementById('nextBtn');
-const progFill = document.getElementById('progFill');
-const ftrInfo  = document.getElementById('ftrInfo');
-const ftrScore = document.getElementById('ftrScore');
-
-function examLabel(idx){
-  // ALL is in order: 0-99=試験1, 100-199=試験2, 200-299=試験3
-  // But questions is shuffled, so we track original index via q object index in ALL
-  // We don't store original index, but we can detect from question properties
-  // For now, just show category
-  return '';
+function showMenu(){
+  currentSubject = 0;
+  for(let s=1;s<=2;s++){
+    const st = getSubjectStats(s);
+    const prog = document.getElementById('subjProg'+s);
+    const fill = document.getElementById('subjProgFill'+s);
+    if(st && st.answered>0){
+      const pct = Math.round(st.score/st.answered*100);
+      prog.textContent = st.answered+' / '+st.total+' 回答済み　正解率 '+pct+'%';
+      fill.style.width = Math.round(st.answered/st.total*100)+'%';
+    } else {
+      prog.textContent = '未開始';
+      fill.style.width = '0%';
+    }
+  }
+  document.getElementById('menu').style.display='flex';
+  qarea.style.display='none';
+  document.getElementById('ctrl').style.display='none';
+  document.getElementById('ftr').style.display='none';
+  document.getElementById('hdrControls').style.display='none';
+  document.getElementById('hdrCat').style.display='none';
+  document.getElementById('progWrap').style.display='none';
 }
 
 function showResult(q, ok){
@@ -661,24 +737,19 @@ function applyAnsweredState(q, userAns){
   const correct = q.ans;
   maruBtn.disabled=true;
   batuBtn.disabled=true;
-  
   if(correct===true){
-    // ○ is correct
     maruBtn.className='ans-btn maru-btn correct';
     maruVerdict.textContent='正解';
     if(userAns===false){
-      // user picked ×
       batuBtn.className='ans-btn batu-btn user-wrong';
       batuVerdict.textContent='不正解';
     } else {
       batuBtn.className='ans-btn batu-btn dimmed';
     }
   } else {
-    // × is correct
     batuBtn.className='ans-btn batu-btn correct';
     batuVerdict.textContent='正解';
     if(userAns===true){
-      // user picked ○
       maruBtn.className='ans-btn maru-btn user-wrong';
       maruVerdict.textContent='不正解';
     } else {
@@ -691,22 +762,16 @@ function showQ(idx){
   if(idx>=qOrder.length){showFinish();return;}
   const q=getQ(idx);
   const ua=userAnswers[idx];
-  
   catName.textContent=q.cat;
   qNumHdr.textContent=(idx+1)+' / '+qOrder.length;
   qNumBadge.textContent='Q '+(idx+1);
-qText.textContent=q.q;
-  
-  // Scroll to top of question area
+  qText.textContent=q.q;
   qarea.scrollTop=0;
-  
   if(ua===null){
-    // Not yet answered
     resetBtns();
     qResult.style.display='none';
     nextBtn.disabled=true;
   } else {
-    // Already answered — show result
     const ok=(ua===q.ans);
     qResult.style.display='block';
     showResult(q, ok);
@@ -714,7 +779,6 @@ qText.textContent=q.q;
     applyAnsweredState(q, ua);
     nextBtn.disabled=false;
   }
-  
   prevBtn.disabled=(idx===0);
   updateStats();
 }
@@ -722,11 +786,8 @@ qText.textContent=q.q;
 function doAnswer(choice){
   const q=getQ(current);
   if(userAnswers[current]!==null)return;
-  
   userAnswers[current]=choice;
   if(choice===q.ans)score++;
-
-  // Show result
   const ok=(choice===q.ans);
   qResult.style.display='block';
   showResult(q, ok);
@@ -735,8 +796,6 @@ function doAnswer(choice){
   nextBtn.disabled=false;
   updateStats();
   saveState();
-  
-  // Scroll to show result
   setTimeout(()=>{qarea.scrollTop=qarea.scrollHeight},80);
 }
 
@@ -755,7 +814,7 @@ function prevQ(){
 }
 
 function resetQuiz(){
-  localStorage.removeItem(SAVE_KEY);
+  localStorage.removeItem(getSaveKey(currentSubject));
   location.reload();
 }
 
@@ -775,20 +834,25 @@ function showFinish(){
   else if(pct>=70){emoji='🎉';msg='素晴らしい実力！';}
   else if(pct>=50){emoji='👏';msg='もう少し！';}
   else if(pct>=30){emoji='📚';msg='復習してリベンジ！';}
-  localStorage.removeItem(SAVE_KEY);
+  localStorage.removeItem(getSaveKey(currentSubject));
+  const cs = currentSubject;
   qarea.innerHTML=`<div class="fin-card">
     <div class="emoji">${emoji}</div>
     <h2>全問終了！</h2>
     <div class="fscore">${score} / ${qOrder.length}</div>
     <p>正解率 ${pct}%<br>${msg}</p>
-    <button class="rbtn" onclick="location.reload()">もう一度挑戦する</button>
+    <button class="rbtn" onclick="sessionStorage.setItem('qs_restart','${cs}');location.reload()" style="margin-bottom:8px">もう一度挑戦する</button><br>
+    <button class="rbtn" onclick="location.reload()" style="background:rgba(124,58,237,.4);margin-top:8px">メニューへ戻る</button>
   </div>`;
   document.getElementById('ctrl').style.display='none';
-  catName.textContent='結果';
-  updateStats();
+  document.getElementById('hdrControls').style.display='none';
+  document.getElementById('hdrCat').style.display='none';
+  document.getElementById('progWrap').style.display='none';
 }
 
-showQ(0);
+const _rs = parseInt(sessionStorage.getItem('qs_restart')||'0');
+sessionStorage.removeItem('qs_restart');
+if(_rs===1||_rs===2){ startSubject(_rs); } else { showMenu(); }
 </script>
 </body>
 </html>
