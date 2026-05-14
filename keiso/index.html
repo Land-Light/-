@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#163f49">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="刑訴法○×">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>刑事訴訟法総合I ○×演習</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main id="app">
+    <header class="topbar">
+      <div class="topline">
+        <div>
+          <p class="eyebrow">早稲田LS 中間試験</p>
+          <h1>刑事訴訟法総合I ○×演習</h1>
+        </div>
+        <div class="score-pill" id="scorePill">正解率 -%</div>
+      </div>
+      <div class="toolbar" aria-label="出題設定">
+        <label class="select-wrap">
+          <span>年度</span>
+          <select id="yearSelect">
+            <option value="all">全年度</option>
+            <option value="2025">2025</option>
+            <option value="2024">2024</option>
+            <option value="2023">2023</option>
+          </select>
+        </label>
+        <label class="select-wrap">
+          <span>範囲</span>
+          <select id="modeSelect">
+            <option value="all">全問</option>
+            <option value="wrong">誤答のみ</option>
+            <option value="unanswered">未回答のみ</option>
+          </select>
+        </label>
+        <button class="tool-btn" id="shuffleBtn" type="button" title="並び替え">↻</button>
+        <button class="tool-btn" id="resetBtn" type="button" title="記録をリセット">⌫</button>
+      </div>
+      <div class="statusline">
+        <strong id="sectionName">-</strong>
+        <span id="positionText">- / -</span>
+      </div>
+      <div class="progress"><div id="progressFill"></div></div>
+    </header>
+
+    <section class="question-pane" id="questionPane">
+      <div class="badges">
+        <span class="badge primary" id="qBadge">Q 1</span>
+        <span class="badge" id="yearBadge">2025</span>
+        <span class="badge" id="answerBadge">未回答</span>
+      </div>
+      <p class="question" id="questionText"></p>
+      <div class="result" id="resultBox" hidden>
+        <div class="result-card" id="resultCard">
+          <div class="result-mark" id="resultMark"></div>
+          <div>
+            <div class="result-word" id="resultWord"></div>
+            <div class="result-answer" id="resultAnswer"></div>
+          </div>
+        </div>
+        <div class="explain-title">解説</div>
+        <div class="explanation" id="explanationText"></div>
+      </div>
+    </section>
+
+    <nav class="answerbar" aria-label="回答と移動">
+      <button class="nav-btn" id="prevBtn" type="button">◁<span>前へ</span></button>
+      <button class="answer-btn yes" id="yesBtn" type="button" aria-label="正しい">
+        <span class="circle-icon"></span>
+        <span id="yesLabel"></span>
+      </button>
+      <button class="answer-btn no" id="noBtn" type="button" aria-label="誤り">
+        <span class="cross-icon"></span>
+        <span id="noLabel"></span>
+      </button>
+      <button class="nav-btn" id="nextBtn" type="button"><span>次へ</span>▷</button>
+    </nav>
+
+    <footer class="foot">
+      <span id="answeredText">0 / 150 回答済み</span>
+      <span id="correctText">0 正解</span>
+    </footer>
+  </main>
+
+  <script src="./data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
