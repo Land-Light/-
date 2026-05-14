@@ -1,0 +1,17 @@
+{
+  "name": "刑事訴訟法総合I ○×演習",
+  "short_name": "刑訴法○×",
+  "description": "刑事訴訟法総合Iの過去問を年度別に解ける○×演習アプリ",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#eef4f1",
+  "theme_color": "#163f49",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
