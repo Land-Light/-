@@ -894,6 +894,23 @@ function showFinish(){
   document.getElementById('progWrap').style.display='none';
 }
 
+function migrateWrongList(s){
+  try {
+    const raw = localStorage.getItem(getSaveKey(s));
+    if(!raw) return;
+    const sv = JSON.parse(raw);
+    if(!Array.isArray(sv.order)||!Array.isArray(sv.answers)) return;
+    sv.answers.forEach((ans, i) => {
+      if(ans !== null && i < sv.order.length){
+        const allIdx = sv.order[i];
+        if(allIdx < ALL.length && ans !== ALL[allIdx].ans) addToWrongList(s, allIdx);
+      }
+    });
+  } catch(e){}
+}
+migrateWrongList(1);
+migrateWrongList(2);
+
 const _rs = parseInt(sessionStorage.getItem('qs_restart')||'0');
 const _rm = sessionStorage.getItem('qs_mode')||'normal';
 sessionStorage.removeItem('qs_restart');
