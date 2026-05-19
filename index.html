@@ -646,8 +646,15 @@ try {
 } catch(e){ console.warn('Firebase:', e); }
 
 function signIn(){
-  if(!fbAuth) return;
-  fbAuth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+  if(!fbAuth){ alert('Firebase未接続'); return; }
+  const provider = new firebase.auth.GoogleAuthProvider();
+  fbAuth.signInWithPopup(provider).catch(err => {
+    if(err.code==='auth/popup-blocked'||err.code==='auth/popup-cancelled-by-user'){
+      fbAuth.signInWithRedirect(provider);
+    } else {
+      alert('ログインエラー: '+err.message);
+    }
+  });
 }
 function signOut(){
   if(!fbAuth) return;
