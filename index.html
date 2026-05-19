@@ -645,26 +645,17 @@ try {
   fbDb   = firebase.firestore();
 } catch(e){ console.warn('Firebase:', e); }
 
-function isIPad(){
-  return /iPad/.test(navigator.userAgent) ||
-    (/Mac/.test(navigator.platform) && navigator.maxTouchPoints > 1);
-}
 function signIn(){
   if(!fbAuth){ alert('Firebase未接続'); return; }
   const provider = new firebase.auth.GoogleAuthProvider();
-  if(isIPad()){
-    const lb = document.getElementById('loginBtn');
-    if(lb) lb.innerHTML = '<span style="color:#555">ログイン中…</span>';
-    fbAuth.signInWithRedirect(provider);
-  } else {
-    fbAuth.signInWithPopup(provider).catch(err => {
-      if(err.code==='auth/popup-blocked'||err.code==='auth/popup-cancelled-by-user'){
-        fbAuth.signInWithRedirect(provider);
-      } else {
-        alert('ログインエラー: '+err.message);
-      }
-    });
-  }
+  fbAuth.signInWithPopup(provider).catch(err => {
+    if(err.code==='auth/popup-cancelled-by-user') return;
+    if(err.code==='auth/popup-blocked'){
+      alert('ポップアップがブロックされました。\nSafari設定 → このWebサイトの設定 → ポップアップを「許可」にしてください。');
+    } else {
+      alert('ログインエラー:\n'+err.code+'\n'+err.message);
+    }
+  });
 }
 function signOut(){
   if(!fbAuth) return;
