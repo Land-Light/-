@@ -704,15 +704,17 @@ async function cloudPull(uid){
         const localRaw = localStorage.getItem('kaisha_quiz_'+k);
         const localN = localRaw ? (JSON.parse(localRaw).answers||[]).filter(x=>x!==null).length : 0;
         const cloudN = (cloud.answers||[]).filter(x=>x!==null).length;
-        if(cloudN >= localN) localStorage.setItem('kaisha_quiz_'+k, JSON.stringify(cloud));
+        if(cloudN > localN) localStorage.setItem('kaisha_quiz_'+k, JSON.stringify(cloud));
+        // localN >= cloudN の場合はローカルを保持し、下の cloudPush で上書き
       }
+      // 間違いリスト：常にユニオン
       const cw = d['w'+k]||[];
       const lw = JSON.parse(localStorage.getItem('kaisha_quiz_'+k+'_w')||'[]');
       const merged = [...new Set([...lw,...cw])];
       if(merged.length) localStorage.setItem('kaisha_quiz_'+k+'_w', JSON.stringify(merged));
     });
-    const el = document.getElementById('syncStatus');
-    if(el) el.textContent = '同期済み ✓';
+    // 勝者データ（ローカルorクラウド）をクラウドに反映
+    await cloudPush();
   } catch(e){ console.warn('pull:', e); }
 }
 if(fbAuth){
