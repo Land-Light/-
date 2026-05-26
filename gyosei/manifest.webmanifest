@@ -1,0 +1,17 @@
+{
+  "name": "行政法 ○×演習",
+  "short_name": "行政法○×",
+  "description": "行政法の過去問を年度別に解ける○×演習アプリ",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#eef2f8",
+  "theme_color": "#1a3558",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
