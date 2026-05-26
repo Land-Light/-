@@ -1,4 +1,4 @@
-const CACHE_NAME = "gyosei-quiz-v1";
+const CACHE_NAME = "gyosei-quiz-v2";
 const ASSETS = [
   "./",
   "./index.html",

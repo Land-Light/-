@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#1a3558">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="行政法○×">
+  <meta name="apple-mobile-web-app-title" content="行政法○×演習">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>行政法 ○×演習</title>
   <link rel="manifest" href="./manifest.webmanifest">
@@ -17,32 +17,30 @@
     <header class="topbar">
       <div class="topline">
         <div>
-          <p class="eyebrow">早稲田LS 中間試験</p>
+          <p class="eyebrow">行政法 短答トレーニング</p>
           <h1>行政法 ○×演習</h1>
         </div>
-        <div class="score-pill" id="scorePill">正解率 -%</div>
+        <div class="score-pill" id="scorePill">正答率 -%</div>
       </div>
       <div class="toolbar" aria-label="出題設定">
         <label class="select-wrap">
           <span>年度</span>
           <select id="yearSelect">
             <option value="all">全年度</option>
-            <option value="2025">2025</option>
-            <option value="2024">2024</option>
-            <option value="2023">2023</option>
+            <option value="2026">2026</option>
           </select>
         </label>
         <label class="select-wrap">
           <span>範囲</span>
           <select id="modeSelect">
             <option value="all">全問</option>
-            <option value="wrong">誤答のみ</option>
+            <option value="wrong">今回の誤答のみ</option>
             <option value="review">復習コース</option>
             <option value="unanswered">未回答のみ</option>
           </select>
         </label>
-        <button class="tool-btn" id="shuffleBtn" type="button" title="並び替え">↻</button>
-        <button class="tool-btn" id="resetBtn" type="button" title="記録をリセット">⌫</button>
+        <button class="tool-btn" id="shuffleBtn" type="button" title="並び替え" aria-label="並び替え">↻</button>
+        <button class="tool-btn" id="resetBtn" type="button" title="記録をリセット" aria-label="記録をリセット">消</button>
       </div>
       <div class="statusline">
         <strong id="sectionName">-</strong>
@@ -54,7 +52,7 @@
     <section class="question-pane" id="questionPane">
       <div class="badges">
         <span class="badge primary" id="qBadge">Q 1</span>
-        <span class="badge" id="yearBadge">2025</span>
+        <span class="badge" id="yearBadge">2025年度</span>
         <span class="badge" id="answerBadge">未回答</span>
       </div>
       <p class="question" id="questionText"></p>
@@ -72,7 +70,7 @@
     </section>
 
     <nav class="answerbar" aria-label="回答と移動">
-      <button class="nav-btn" id="prevBtn" type="button">◁<span>前へ</span></button>
+      <button class="nav-btn" id="prevBtn" type="button">◀<span>前へ</span></button>
       <button class="answer-btn yes" id="yesBtn" type="button" aria-label="正しい">
         <span class="circle-icon"></span>
         <span id="yesLabel"></span>
@@ -81,7 +79,7 @@
         <span class="cross-icon"></span>
         <span id="noLabel"></span>
       </button>
-      <button class="nav-btn" id="nextBtn" type="button"><span>次へ</span>▷</button>
+      <button class="nav-btn" id="nextBtn" type="button"><span>次へ</span>▶</button>
     </nav>
 
     <footer class="foot">

@@ -1,5 +1,7 @@
 (function(){
-  const SAVE_KEY = "gyosei_quiz_progress_v1";
+  const SAVE_KEY = "gyosei_quiz_progress_v2";
+  const QUESTIONS = window.QUESTIONS || [];
+
   const els = {
     year: document.getElementById("yearSelect"),
     mode: document.getElementById("modeSelect"),
@@ -50,8 +52,9 @@
     try{
       const parsed = JSON.parse(localStorage.getItem(SAVE_KEY));
       const loaded = Object.assign(defaultState(), parsed || {});
+      loaded.answers = Object.assign({}, loaded.answers || {});
       loaded.wrongEver = Object.assign({}, loaded.wrongEver || {});
-      Object.keys(loaded.answers || {}).forEach(id => {
+      Object.keys(loaded.answers).forEach(id => {
         const q = QUESTIONS.find(item => item.id === id);
         if(q && loaded.answers[id] && loaded.answers[id].choice !== q.answer){
           loaded.wrongEver[id] = true;
@@ -93,6 +96,7 @@
   function normalize(){
     els.year.value = state.filterYear;
     els.mode.value = state.filterMode;
+    els.shuffle.classList.toggle("active", state.shuffled);
   }
 
   function answer(choice){
@@ -116,8 +120,8 @@
     els.no.className = "answer-btn no";
     els.yes.disabled = false;
     els.no.disabled = false;
-    els.yesLabel.textContent = "";
-    els.noLabel.textContent = "";
+    els.yesLabel.textContent = "○";
+    els.noLabel.textContent = "×";
   }
 
   function applyAnswered(q, user){
@@ -128,36 +132,29 @@
     els.resultCard.className = "result-card " + (ok ? "ok" : "ng");
     els.resultMark.textContent = ok ? "○" : "×";
     els.resultWord.textContent = ok ? "正解" : "不正解";
-    els.resultAnswer.textContent = "正解は " + (q.answer === 1 ? "1（正しい）" : "2（誤り）");
+    els.resultAnswer.textContent = "正答は " + (q.answer === 1 ? "○" : "×");
     els.exp.textContent = q.explanation;
+
     if(state.filterMode === "review"){
-      els.answerBadge.textContent = "復習登録済み";
+      els.answerBadge.textContent = "復習回答済み";
       els.answerBadge.style.background = "#fff4cc";
       els.answerBadge.style.color = "#6b4b00";
     }else{
-      els.answerBadge.textContent = user.choice === q.answer ? "正解済み" : "誤答";
-      els.answerBadge.style.background = user.choice === q.answer ? "#d6f1df" : "#ffe1de";
-      els.answerBadge.style.color = user.choice === q.answer ? "#12633d" : "#9f2f27";
+      els.answerBadge.textContent = ok ? "正解済み" : "誤答";
+      els.answerBadge.style.background = ok ? "#d6f1df" : "#ffe1de";
+      els.answerBadge.style.color = ok ? "#12633d" : "#9f2f27";
     }
 
     if(q.answer === 1){
       els.yes.className = "answer-btn yes correct";
       els.yesLabel.textContent = "正解";
-      if(user.choice === 2){
-        els.no.className = "answer-btn no wrong";
-        els.noLabel.textContent = "不正解";
-      }else{
-        els.no.className = "answer-btn no dim";
-      }
+      els.no.className = user.choice === 2 ? "answer-btn no wrong" : "answer-btn no dim";
+      els.noLabel.textContent = user.choice === 2 ? "選択" : "×";
     }else{
       els.no.className = "answer-btn no correct";
       els.noLabel.textContent = "正解";
-      if(user.choice === 1){
-        els.yes.className = "answer-btn yes wrong";
-        els.yesLabel.textContent = "不正解";
-      }else{
-        els.yes.className = "answer-btn yes dim";
-      }
+      els.yes.className = user.choice === 1 ? "answer-btn yes wrong" : "answer-btn yes dim";
+      els.yesLabel.textContent = user.choice === 1 ? "選択" : "○";
     }
   }
 
@@ -167,39 +164,47 @@
     const correct = answered.filter(q => state.answers[q.id].choice === q.answer);
     const reviewCount = scope.filter(q => state.wrongEver[q.id]).length;
     const pct = answered.length ? Math.round(correct.length / answered.length * 100) : "-";
-    els.score.textContent = "正解率 " + pct + (pct === "-" ? "%" : "%");
+    els.score.textContent = "正答率 " + pct + "%";
     els.answered.textContent = state.filterMode === "review"
-      ? reviewCount + " 問を復習中"
+      ? reviewCount + "問を復習中"
       : answered.length + " / " + scope.length + " 回答済み";
     els.correct.textContent = correct.length + " 正解";
     els.fill.style.width = scope.length ? Math.round(answered.length / scope.length * 100) + "%" : "0%";
+  }
+
+  function renderEmpty(){
+    els.section.textContent = "該当する問題がありません";
+    els.pos.textContent = "0 / 0";
+    els.qText.textContent = state.filterMode === "review"
+      ? "まだ復習コースに登録された問題はありません。通常演習で一度でも間違えた問題が、ここに自動で入ります。"
+      : "この条件に合う問題はありません。年度または範囲を切り替えてください。";
+    els.qBadge.textContent = "Q -";
+    els.yearBadge.textContent = state.filterYear === "all" ? "全年度" : state.filterYear + "年度";
+    els.answerBadge.textContent = "空";
+    els.answerBadge.style.background = "";
+    els.answerBadge.style.color = "";
+    els.result.hidden = true;
+    els.yes.disabled = true;
+    els.no.disabled = true;
+    els.prev.disabled = true;
+    els.next.disabled = true;
+    els.yesLabel.textContent = "○";
+    els.noLabel.textContent = "×";
   }
 
   function render(){
     normalize();
     renderStats();
     if(!list.length){
-      els.section.textContent = "該当する問題がありません";
-      els.pos.textContent = "0 / 0";
-      els.qText.textContent = state.filterMode === "review"
-        ? "まだ復習コースに登録された問題はありません。通常演習で一度でも間違えた問題が、ここに自動で入ります。"
-        : "この条件に合う問題はありません。年度や範囲を切り替えてください。";
-      els.qBadge.textContent = "Q -";
-      els.yearBadge.textContent = state.filterYear === "all" ? "全年度" : state.filterYear + "年度";
-      els.answerBadge.textContent = "空";
-      els.result.hidden = true;
-      els.yes.disabled = true;
-      els.no.disabled = true;
-      els.prev.disabled = true;
-      els.next.disabled = true;
+      renderEmpty();
       return;
     }
 
     const q = list[current];
     const user = state.filterMode === "review" ? reviewRunAnswers[q.id] : state.answers[q.id];
-    els.section.textContent = state.filterMode === "review" ? "復習コース：" + q.topic : q.topic;
+    els.section.textContent = q.topic;
     els.pos.textContent = (current + 1) + " / " + list.length;
-    els.qBadge.textContent = "Q " + q.no;
+    els.qBadge.textContent = "Q " + String(q.no).padStart(3, "0");
     els.yearBadge.textContent = q.year + "年度";
     els.answerBadge.textContent = state.wrongEver[q.id] ? "復習登録済み" : (user ? "回答済み" : "未回答");
     els.answerBadge.style.background = "";
@@ -218,13 +223,28 @@
   els.next.addEventListener("click", () => { if(current < list.length - 1){ current++; render(); els.pane.scrollTop = 0; } });
   els.year.addEventListener("change", () => { state.filterYear = els.year.value; current = 0; saveState(); buildList(); });
   els.mode.addEventListener("change", () => { state.filterMode = els.mode.value; current = 0; reviewRunAnswers = {}; saveState(); buildList(); });
-  els.shuffle.addEventListener("click", () => { state.shuffled = !state.shuffled; state.orderSeed = Date.now(); current = 0; reviewRunAnswers = {}; saveState(); buildList(); });
+  els.shuffle.addEventListener("click", () => {
+    state.shuffled = !state.shuffled;
+    state.orderSeed = Date.now();
+    current = 0;
+    reviewRunAnswers = {};
+    saveState();
+    buildList();
+  });
   els.reset.addEventListener("click", () => {
     if(confirm("回答記録をリセットしますか？")){
       state = defaultState();
+      reviewRunAnswers = {};
       saveState();
       buildList();
     }
+  });
+
+  document.addEventListener("keydown", event => {
+    if(event.key === "ArrowLeft") els.prev.click();
+    if(event.key === "ArrowRight") els.next.click();
+    if(event.key === "o" || event.key === "O" || event.key === "1") els.yes.click();
+    if(event.key === "x" || event.key === "X" || event.key === "2") els.no.click();
   });
 
   if("serviceWorker" in navigator && location.protocol !== "file:"){
