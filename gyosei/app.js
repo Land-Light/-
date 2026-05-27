@@ -495,10 +495,10 @@
     if(event.key === "x" || event.key === "X" || event.key === "2") els.no.click();
   });
 
-  if("serviceWorker" in navigator && location.protocol !== "file:"){
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
-    });
+  if("serviceWorker" in navigator){
+    navigator.serviceWorker.getRegistrations()
+      .then(registrations => registrations.forEach(registration => registration.unregister()))
+      .catch(() => {});
   }
 
   initFirebase();
