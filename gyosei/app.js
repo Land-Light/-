@@ -294,7 +294,7 @@
     els.exp.textContent = q.explanation;
 
     if(state.filterMode === "review"){
-      els.answerBadge.textContent = "復習回答済み";
+      els.answerBadge.textContent = "まとめ解き回答済み";
       els.answerBadge.style.background = "#fff4cc";
       els.answerBadge.style.color = "#6b4b00";
     }else{
@@ -324,7 +324,7 @@
     const pct = answered.length ? Math.round(correct.length / answered.length * 100) : "-";
     els.score.textContent = "正答率 " + pct + "%";
     els.answered.textContent = state.filterMode === "review"
-      ? reviewCount + "問を復習中"
+      ? "一度間違えた " + reviewCount + "問をまとめ解き"
       : answered.length + " / " + scope.length + " 回答済み";
     els.correct.textContent = correct.length + " 正解";
     els.fill.style.width = scope.length ? Math.round(answered.length / scope.length * 100) + "%" : "0%";
@@ -334,7 +334,7 @@
     els.section.textContent = "該当する問題がありません";
     els.pos.textContent = "0 / 0";
     els.qText.textContent = state.filterMode === "review"
-      ? "まだ復習コースに登録された問題はありません。通常演習で一度でも間違えた問題が、ここに自動で入ります。"
+      ? "まだまとめ解きに入る問題はありません。通常演習で一度でも間違えた問題が、ここに自動で集まります。"
       : "この条件に合う問題はありません。年度または範囲を切り替えてください。";
     els.qBadge.textContent = "Q -";
     els.yearBadge.textContent = state.filterYear === "all" ? "全年度" : state.filterYear + "年度";
@@ -360,11 +360,13 @@
 
     const q = list[current];
     const user = state.filterMode === "review" ? reviewRunAnswers[q.id] : state.answers[q.id];
-    els.section.textContent = q.topic;
+    els.section.textContent = state.filterMode === "review" ? "間違えた問題まとめ解き： " + q.topic : q.topic;
     els.pos.textContent = (current + 1) + " / " + list.length;
     els.qBadge.textContent = "Q " + String(q.no).padStart(3, "0");
     els.yearBadge.textContent = q.year + "年度";
-    els.answerBadge.textContent = state.wrongEver[q.id] ? "復習登録済み" : (user ? "回答済み" : "未回答");
+    els.answerBadge.textContent = state.filterMode === "review"
+      ? (user ? "まとめ解き回答済み" : "まとめ解き中")
+      : (state.wrongEver[q.id] ? "まとめ解き登録済み" : (user ? "回答済み" : "未回答"));
     els.answerBadge.style.background = "";
     els.answerBadge.style.color = "";
     els.qText.textContent = q.text;
