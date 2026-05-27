@@ -327,7 +327,11 @@
     if(state.shuffled){
       list = list.slice().sort((a,b) => seededRandom(state.orderSeed + a.idNum) - seededRandom(state.orderSeed + b.idNum));
     }
-    const preferredId = state.currentQuestionId || state.lastAnsweredQuestionId;
+
+    const furthestAnswered = list
+      .filter(q => state.answers[q.id])
+      .sort((a,b) => b.idNum - a.idNum)[0];
+    const preferredId = (furthestAnswered && furthestAnswered.id) || state.currentQuestionId || state.lastAnsweredQuestionId;
     const preferredIndex = preferredId ? list.findIndex(q => q.id === preferredId) : -1;
     current = preferredIndex >= 0 ? preferredIndex : Math.min(current, Math.max(list.length - 1, 0));
     render();
