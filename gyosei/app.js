@@ -254,6 +254,11 @@
       fbDb = firebase.firestore();
       els.login.disabled = false;
       els.login.textContent = "Googleで同期";
+      fbAuth.getRedirectResult().catch(err => {
+        if(err.code && err.code !== "auth/no-auth-event"){
+          alert("ログインに失敗しました。\n" + (err.message || err.code || err));
+        }
+      });
       fbAuth.onAuthStateChanged(user => {
         currentUser = user;
         renderAuth(user);
@@ -280,8 +285,7 @@
   function signIn(){
     if(!fbAuth) return;
     const provider = new firebase.auth.GoogleAuthProvider();
-    fbAuth.signInWithPopup(provider).catch(err => {
-      if(err.code === "auth/popup-cancelled-by-user") return;
+    fbAuth.signInWithRedirect(provider).catch(err => {
       alert("ログインに失敗しました。\n" + (err.message || err.code || err));
     });
   }
