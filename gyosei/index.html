@@ -42,6 +42,15 @@
         <button class="tool-btn" id="shuffleBtn" type="button" title="並び替え" aria-label="並び替え">↻</button>
         <button class="tool-btn" id="resetBtn" type="button" title="記録をリセット" aria-label="記録をリセット">消</button>
       </div>
+      <div class="authbar" aria-label="ログインと同期">
+        <button class="auth-btn" id="loginBtn" type="button">Googleで同期</button>
+        <div class="user-row" id="userRow" hidden>
+          <img class="user-avatar" id="userAvatar" alt="">
+          <span class="user-name" id="userName"></span>
+          <span class="sync-status" id="syncStatus">同期待機中</span>
+          <button class="signout-btn" id="signOutBtn" type="button">ログアウト</button>
+        </div>
+      </div>
       <div class="statusline">
         <strong id="sectionName">-</strong>
         <span id="positionText">- / -</span>
@@ -88,6 +97,9 @@
     </footer>
   </main>
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="./data.js"></script>
   <script src="./app.js"></script>
 </body>

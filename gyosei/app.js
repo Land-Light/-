@@ -1,5 +1,6 @@
 (function(){
   const SAVE_KEY = "gyosei_quiz_progress_v2";
+  const CLOUD_FIELD = "gyoseiAdminLaw";
   const QUESTIONS = window.QUESTIONS || [];
 
   const els = {
@@ -29,13 +30,24 @@
     prev: document.getElementById("prevBtn"),
     next: document.getElementById("nextBtn"),
     answered: document.getElementById("answeredText"),
-    correct: document.getElementById("correctText")
+    correct: document.getElementById("correctText"),
+    login: document.getElementById("loginBtn"),
+    userRow: document.getElementById("userRow"),
+    userAvatar: document.getElementById("userAvatar"),
+    userName: document.getElementById("userName"),
+    syncStatus: document.getElementById("syncStatus"),
+    signOut: document.getElementById("signOutBtn")
   };
 
   let state = loadState();
   let list = [];
   let current = 0;
   let reviewRunAnswers = {};
+  let fbAuth = null;
+  let fbDb = null;
+  let currentUser = null;
+  let syncTimer = null;
+  let isPullingCloud = false;
 
   function defaultState(){
     return {
@@ -44,7 +56,8 @@
       filterYear: "all",
       filterMode: "all",
       shuffled: false,
-      orderSeed: Date.now()
+      orderSeed: Date.now(),
+      updatedAt: new Date().toISOString()
     };
   }
 
@@ -54,6 +67,7 @@
       const loaded = Object.assign(defaultState(), parsed || {});
       loaded.answers = Object.assign({}, loaded.answers || {});
       loaded.wrongEver = Object.assign({}, loaded.wrongEver || {});
+      loaded.updatedAt = loaded.updatedAt || new Date().toISOString();
       Object.keys(loaded.answers).forEach(id => {
         const q = QUESTIONS.find(item => item.id === id);
         if(q && loaded.answers[id] && loaded.answers[id].choice !== q.answer){
@@ -66,8 +80,152 @@
     }
   }
 
-  function saveState(){
+  function saveState(options){
+    const opts = options || {};
+    if(!opts.keepUpdatedAt) state.updatedAt = new Date().toISOString();
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    if(!opts.skipCloud) scheduleCloudPush();
+  }
+
+  function setSyncStatus(text){
+    if(els.syncStatus) els.syncStatus.textContent = text;
+  }
+
+  function serializeCloudState(){
+    return {
+      answers: state.answers || {},
+      wrongEver: state.wrongEver || {},
+      updatedAt: state.updatedAt || new Date().toISOString()
+    };
+  }
+
+  function countAnswers(answers){
+    return Object.keys(answers || {}).length;
+  }
+
+  function mergeStates(localState, cloudState){
+    const local = Object.assign(defaultState(), localState || {});
+    const cloud = cloudState || {};
+    const localAnswers = Object.assign({}, local.answers || {});
+    const cloudAnswers = Object.assign({}, cloud.answers || {});
+    const mergedAnswers = Object.assign({}, cloudAnswers, localAnswers);
+    Object.keys(cloudAnswers).forEach(id => {
+      if(localAnswers[id] && cloudAnswers[id] && cloudAnswers[id].at > localAnswers[id].at){
+        mergedAnswers[id] = cloudAnswers[id];
+      }
+    });
+
+    const wrongEver = Object.assign({}, cloud.wrongEver || {}, local.wrongEver || {});
+    Object.keys(mergedAnswers).forEach(id => {
+      const q = QUESTIONS.find(item => item.id === id);
+      if(q && mergedAnswers[id] && mergedAnswers[id].choice !== q.answer) wrongEver[id] = true;
+    });
+
+    return Object.assign({}, local, {
+      answers: mergedAnswers,
+      wrongEver,
+      updatedAt: [local.updatedAt, cloud.updatedAt].filter(Boolean).sort().pop() || new Date().toISOString()
+    });
+  }
+
+  function scheduleCloudPush(){
+    if(!currentUser || !fbDb || isPullingCloud) return;
+    clearTimeout(syncTimer);
+    setSyncStatus("同期待ち");
+    syncTimer = window.setTimeout(pushCloud, 900);
+  }
+
+  async function pushCloud(){
+    if(!currentUser || !fbDb) return;
+    try{
+      setSyncStatus("同期中...");
+      const payload = {};
+      payload[CLOUD_FIELD] = serializeCloudState();
+      payload[CLOUD_FIELD + "UpdatedAt"] = firebase.firestore.FieldValue.serverTimestamp();
+      await fbDb.collection("users").doc(currentUser.uid).set(payload, { merge: true });
+      setSyncStatus("同期済み");
+    }catch(e){
+      console.warn("cloud push failed", e);
+      setSyncStatus("同期失敗");
+    }
+  }
+
+  async function pullCloud(user){
+    if(!fbDb || !user) return;
+    try{
+      isPullingCloud = true;
+      setSyncStatus("同期中...");
+      const doc = await fbDb.collection("users").doc(user.uid).get();
+      if(doc.exists && doc.data() && doc.data()[CLOUD_FIELD]){
+        const before = countAnswers(state.answers);
+        state = mergeStates(state, doc.data()[CLOUD_FIELD]);
+        saveState({ skipCloud: true, keepUpdatedAt: true });
+        buildList();
+        const after = countAnswers(state.answers);
+        setSyncStatus(after > before ? "同期完了" : "同期済み");
+      }else{
+        setSyncStatus("同期中...");
+      }
+    }catch(e){
+      console.warn("cloud pull failed", e);
+      setSyncStatus("同期失敗");
+    }finally{
+      isPullingCloud = false;
+    }
+    await pushCloud();
+  }
+
+  function initFirebase(){
+    if(!window.firebase || !els.login) {
+      if(els.login) els.login.disabled = true;
+      return;
+    }
+    const firebaseConfig = {
+      apiKey: "AIzaSyDN5ECeFBJszQhu3Su7Fb9n963AgrgCOUY",
+      authDomain: "test-a7757.firebaseapp.com",
+      projectId: "test-a7757",
+      storageBucket: "test-a7757.firebasestorage.app",
+      messagingSenderId: "997078342375",
+      appId: "1:997078342375:web:dde122958af05b3d36e042"
+    };
+    try{
+      if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+      fbAuth = firebase.auth();
+      fbDb = firebase.firestore();
+      fbAuth.onAuthStateChanged(user => {
+        currentUser = user;
+        renderAuth(user);
+        if(user) pullCloud(user);
+      });
+    }catch(e){
+      console.warn("Firebase init failed", e);
+      els.login.disabled = true;
+      els.login.textContent = "同期準備中";
+    }
+  }
+
+  function renderAuth(user){
+    if(!els.login || !els.userRow) return;
+    els.login.hidden = !!user;
+    els.userRow.hidden = !user;
+    if(user){
+      els.userAvatar.src = user.photoURL || "";
+      els.userName.textContent = user.displayName || user.email || "Googleアカウント";
+      setSyncStatus("同期中...");
+    }
+  }
+
+  function signIn(){
+    if(!fbAuth) return;
+    const provider = new firebase.auth.GoogleAuthProvider();
+    fbAuth.signInWithPopup(provider).catch(err => {
+      if(err.code === "auth/popup-cancelled-by-user") return;
+      alert("ログインに失敗しました。\n" + (err.message || err.code || err));
+    });
+  }
+
+  function signOut(){
+    if(fbAuth) fbAuth.signOut();
   }
 
   function seededRandom(seed){
@@ -239,6 +397,8 @@
       buildList();
     }
   });
+  if(els.login) els.login.addEventListener("click", signIn);
+  if(els.signOut) els.signOut.addEventListener("click", signOut);
 
   document.addEventListener("keydown", event => {
     if(event.key === "ArrowLeft") els.prev.click();
@@ -253,5 +413,6 @@
     });
   }
 
+  initFirebase();
   buildList();
 })();
