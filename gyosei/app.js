@@ -59,7 +59,7 @@
       orderSeed: Date.now(),
       currentQuestionId: null,
       lastAnsweredQuestionId: null,
-      updatedAt: new Date().toISOString()
+      updatedAt: null
     };
   }
 
@@ -71,7 +71,7 @@
       loaded.wrongEver = Object.assign({}, loaded.wrongEver || {});
       loaded.currentQuestionId = loaded.currentQuestionId || null;
       loaded.lastAnsweredQuestionId = loaded.lastAnsweredQuestionId || null;
-      loaded.updatedAt = loaded.updatedAt || new Date().toISOString();
+      loaded.updatedAt = parsed && parsed.updatedAt ? parsed.updatedAt : null;
       Object.keys(loaded.answers).forEach(id => {
         const q = QUESTIONS.find(item => item.id === id);
         if(q && loaded.answers[id] && loaded.answers[id].choice !== q.answer){
@@ -111,6 +111,14 @@
     return Object.keys(answers || {}).length;
   }
 
+  function hasProgress(savedState){
+    if(!savedState) return false;
+    return countAnswers(savedState.answers) > 0
+      || Object.keys(savedState.wrongEver || {}).length > 0
+      || !!savedState.currentQuestionId
+      || !!savedState.lastAnsweredQuestionId;
+  }
+
   function mergeStates(localState, cloudState){
     const local = Object.assign(defaultState(), localState || {});
     const cloud = cloudState || {};
@@ -128,15 +136,19 @@
       const q = QUESTIONS.find(item => item.id === id);
       if(q && mergedAnswers[id] && mergedAnswers[id].choice !== q.answer) wrongEver[id] = true;
     });
+    const localHasProgress = hasProgress(local);
+    const cloudHasProgress = hasProgress(cloud);
+    const cloudHasMoreAnswers = countAnswers(cloudAnswers) > countAnswers(localAnswers);
     const cloudIsNewer = (cloud.updatedAt || "") > (local.updatedAt || "");
+    const preferCloudPosition = cloudHasProgress && (!localHasProgress || cloudHasMoreAnswers || cloudIsNewer);
 
     return Object.assign({}, local, {
       answers: mergedAnswers,
       wrongEver,
-      filterYear: cloudIsNewer && cloud.filterYear ? cloud.filterYear : local.filterYear,
-      filterMode: cloudIsNewer && cloud.filterMode ? cloud.filterMode : local.filterMode,
-      currentQuestionId: cloudIsNewer ? (cloud.currentQuestionId || cloud.lastAnsweredQuestionId || local.currentQuestionId) : local.currentQuestionId,
-      lastAnsweredQuestionId: cloudIsNewer ? (cloud.lastAnsweredQuestionId || local.lastAnsweredQuestionId) : local.lastAnsweredQuestionId,
+      filterYear: preferCloudPosition && cloud.filterYear ? cloud.filterYear : local.filterYear,
+      filterMode: preferCloudPosition && cloud.filterMode ? cloud.filterMode : local.filterMode,
+      currentQuestionId: preferCloudPosition ? (cloud.currentQuestionId || cloud.lastAnsweredQuestionId || local.currentQuestionId) : local.currentQuestionId,
+      lastAnsweredQuestionId: preferCloudPosition ? (cloud.lastAnsweredQuestionId || local.lastAnsweredQuestionId) : local.lastAnsweredQuestionId,
       updatedAt: [local.updatedAt, cloud.updatedAt].filter(Boolean).sort().pop() || new Date().toISOString()
     });
   }
