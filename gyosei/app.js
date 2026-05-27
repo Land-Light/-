@@ -254,8 +254,11 @@
       fbDb = firebase.firestore();
       els.login.disabled = false;
       els.login.textContent = "Googleで同期";
-      fbAuth.getRedirectResult().catch(err => {
+      fbAuth.getRedirectResult().then(result => {
+        if(!result || !result.user) setSyncStatus("同期待機中");
+      }).catch(err => {
         if(err.code && err.code !== "auth/no-auth-event"){
+          setSyncStatus("ログイン失敗: " + (err.code || "error"));
           alert("ログインに失敗しました。\n" + (err.message || err.code || err));
         }
       });
@@ -284,8 +287,19 @@
 
   function signIn(){
     if(!fbAuth) return;
+    setSyncStatus("ログイン画面を開いています...");
     const provider = new firebase.auth.GoogleAuthProvider();
-    fbAuth.signInWithRedirect(provider).catch(err => {
+    provider.addScope("email");
+    fbAuth.signInWithPopup(provider).catch(err => {
+      if(err.code === "auth/popup-cancelled-by-user"){
+        setSyncStatus("ログイン未完了");
+        return;
+      }
+      if(err.code === "auth/popup-blocked" || err.code === "auth/operation-not-supported-in-this-environment"){
+        setSyncStatus("同じタブでログインします...");
+        return fbAuth.signInWithRedirect(provider);
+      }
+      setSyncStatus("ログイン失敗: " + (err.code || "error"));
       alert("ログインに失敗しました。\n" + (err.message || err.code || err));
     });
   }
