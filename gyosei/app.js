@@ -57,6 +57,8 @@
       filterMode: "all",
       shuffled: false,
       orderSeed: Date.now(),
+      currentQuestionId: null,
+      lastAnsweredQuestionId: null,
       updatedAt: new Date().toISOString()
     };
   }
@@ -67,6 +69,8 @@
       const loaded = Object.assign(defaultState(), parsed || {});
       loaded.answers = Object.assign({}, loaded.answers || {});
       loaded.wrongEver = Object.assign({}, loaded.wrongEver || {});
+      loaded.currentQuestionId = loaded.currentQuestionId || null;
+      loaded.lastAnsweredQuestionId = loaded.lastAnsweredQuestionId || null;
       loaded.updatedAt = loaded.updatedAt || new Date().toISOString();
       Object.keys(loaded.answers).forEach(id => {
         const q = QUESTIONS.find(item => item.id === id);
@@ -95,6 +99,10 @@
     return {
       answers: state.answers || {},
       wrongEver: state.wrongEver || {},
+      filterYear: state.filterYear,
+      filterMode: state.filterMode,
+      currentQuestionId: state.currentQuestionId || null,
+      lastAnsweredQuestionId: state.lastAnsweredQuestionId || null,
       updatedAt: state.updatedAt || new Date().toISOString()
     };
   }
@@ -120,10 +128,15 @@
       const q = QUESTIONS.find(item => item.id === id);
       if(q && mergedAnswers[id] && mergedAnswers[id].choice !== q.answer) wrongEver[id] = true;
     });
+    const cloudIsNewer = (cloud.updatedAt || "") > (local.updatedAt || "");
 
     return Object.assign({}, local, {
       answers: mergedAnswers,
       wrongEver,
+      filterYear: cloudIsNewer && cloud.filterYear ? cloud.filterYear : local.filterYear,
+      filterMode: cloudIsNewer && cloud.filterMode ? cloud.filterMode : local.filterMode,
+      currentQuestionId: cloudIsNewer ? (cloud.currentQuestionId || cloud.lastAnsweredQuestionId || local.currentQuestionId) : local.currentQuestionId,
+      lastAnsweredQuestionId: cloudIsNewer ? (cloud.lastAnsweredQuestionId || local.lastAnsweredQuestionId) : local.lastAnsweredQuestionId,
       updatedAt: [local.updatedAt, cloud.updatedAt].filter(Boolean).sort().pop() || new Date().toISOString()
     });
   }
@@ -247,8 +260,15 @@
     if(state.shuffled){
       list = list.slice().sort((a,b) => seededRandom(state.orderSeed + a.idNum) - seededRandom(state.orderSeed + b.idNum));
     }
-    current = Math.min(current, Math.max(list.length - 1, 0));
+    const preferredId = state.currentQuestionId || state.lastAnsweredQuestionId;
+    const preferredIndex = preferredId ? list.findIndex(q => q.id === preferredId) : -1;
+    current = preferredIndex >= 0 ? preferredIndex : Math.min(current, Math.max(list.length - 1, 0));
     render();
+  }
+
+  function setCurrentQuestion(id, options){
+    state.currentQuestionId = id || null;
+    saveState(options);
   }
 
   function normalize(){
@@ -260,6 +280,8 @@
   function answer(choice){
     const q = list[current];
     if(!q) return;
+    state.currentQuestionId = q.id;
+    state.lastAnsweredQuestionId = q.id;
     if(state.filterMode === "review"){
       if(reviewRunAnswers[q.id]) return;
       reviewRunAnswers[q.id] = { choice, at: new Date().toISOString() };
@@ -379,13 +401,28 @@
 
   els.yes.addEventListener("click", () => answer(1));
   els.no.addEventListener("click", () => answer(2));
-  els.prev.addEventListener("click", () => { if(current > 0){ current--; render(); els.pane.scrollTop = 0; } });
-  els.next.addEventListener("click", () => { if(current < list.length - 1){ current++; render(); els.pane.scrollTop = 0; } });
-  els.year.addEventListener("change", () => { state.filterYear = els.year.value; current = 0; saveState(); buildList(); });
-  els.mode.addEventListener("change", () => { state.filterMode = els.mode.value; current = 0; reviewRunAnswers = {}; saveState(); buildList(); });
+  els.prev.addEventListener("click", () => {
+    if(current > 0){
+      current--;
+      if(list[current]) setCurrentQuestion(list[current].id);
+      render();
+      els.pane.scrollTop = 0;
+    }
+  });
+  els.next.addEventListener("click", () => {
+    if(current < list.length - 1){
+      current++;
+      if(list[current]) setCurrentQuestion(list[current].id);
+      render();
+      els.pane.scrollTop = 0;
+    }
+  });
+  els.year.addEventListener("change", () => { state.filterYear = els.year.value; state.currentQuestionId = null; current = 0; saveState(); buildList(); });
+  els.mode.addEventListener("change", () => { state.filterMode = els.mode.value; state.currentQuestionId = null; current = 0; reviewRunAnswers = {}; saveState(); buildList(); });
   els.shuffle.addEventListener("click", () => {
     state.shuffled = !state.shuffled;
     state.orderSeed = Date.now();
+    state.currentQuestionId = null;
     current = 0;
     reviewRunAnswers = {};
     saveState();
