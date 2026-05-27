@@ -200,9 +200,44 @@
     await pushCloud();
   }
 
-  function initFirebase(){
-    if(!window.firebase || !els.login) {
-      if(els.login) els.login.disabled = true;
+  function loadScript(src){
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[src="' + src + '"]');
+      if(existing){
+        existing.addEventListener("load", resolve, { once: true });
+        existing.addEventListener("error", reject, { once: true });
+        if(existing.dataset.loaded === "true") resolve();
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = src;
+      script.async = false;
+      script.onload = () => {
+        script.dataset.loaded = "true";
+        resolve();
+      };
+      script.onerror = () => reject(new Error("Failed to load " + src));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function ensureFirebase(){
+    if(window.firebase && firebase.auth && firebase.firestore) return;
+    const base = "https://www.gstatic.com/firebasejs/10.12.2/";
+    await loadScript(base + "firebase-app-compat.js");
+    await loadScript(base + "firebase-auth-compat.js");
+    await loadScript(base + "firebase-firestore-compat.js");
+  }
+
+  async function initFirebase(){
+    if(!els.login) return;
+    els.login.disabled = true;
+    els.login.textContent = "同期準備中";
+    try{
+      await ensureFirebase();
+    }catch(e){
+      console.warn("Firebase SDK load failed", e);
+      els.login.textContent = "同期準備失敗";
       return;
     }
     const firebaseConfig = {
@@ -217,6 +252,8 @@
       if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
       fbAuth = firebase.auth();
       fbDb = firebase.firestore();
+      els.login.disabled = false;
+      els.login.textContent = "Googleで同期";
       fbAuth.onAuthStateChanged(user => {
         currentUser = user;
         renderAuth(user);
@@ -225,7 +262,7 @@
     }catch(e){
       console.warn("Firebase init failed", e);
       els.login.disabled = true;
-      els.login.textContent = "同期準備中";
+      els.login.textContent = "同期準備失敗";
     }
   }
 
