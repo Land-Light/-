@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>会社法 400問 v4</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -120,14 +119,20 @@ html,body{height:100%;font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans
 .review-card{background:rgba(239,68,68,.12);border:1.5px solid rgba(239,68,68,.4);border-radius:14px;padding:13px 18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;color:#fca5a5;font-weight:700;font-size:14px;transition:transform .15s;margin-top:-6px}
 .review-card:active{transform:scale(.97)}
 
-/* ── AUTH ── */
-.auth-btn{width:100%;background:#fff;border:none;border-radius:14px;padding:14px 18px;color:#3c4043;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 2px 16px rgba(0,0,0,.3)}
-.auth-btn:active{transform:scale(.97)}
-.user-row{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px}
-.user-avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.2)}
-.user-name{color:rgba(255,255,255,.9);font-size:13px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sync-st{color:#a78bfa;font-size:11px}
-.signout-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:8px;color:rgba(255,255,255,.6);font-size:11px;padding:4px 8px;cursor:pointer;font-family:inherit;flex-shrink:0}
+/* ── SYNC CODE ── */
+.sync-box{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.sync-box-title{color:rgba(255,255,255,.55);font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.sync-row{display:flex;gap:8px;align-items:center}
+.sync-input{flex:1;background:rgba(255,255,255,.1);border:1.5px solid rgba(167,139,250,.4);border-radius:10px;padding:9px 12px;color:#fff;font-size:15px;font-weight:700;font-family:inherit;letter-spacing:2px;text-transform:uppercase;outline:none;min-width:0}
+.sync-input::placeholder{color:rgba(255,255,255,.3);letter-spacing:normal;font-weight:400;font-size:13px}
+.sync-input:focus{border-color:#a78bfa}
+.sync-btn{background:linear-gradient(135deg,#7c3aed,#5b21b6);border:none;border-radius:10px;padding:9px 16px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
+.sync-btn:active{transform:scale(.96)}
+.sync-btn.ghost{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.55)}
+.sync-active{display:flex;align-items:center;gap:10px}
+.sync-code-chip{background:rgba(124,58,237,.3);border:1.5px solid rgba(167,139,250,.5);border-radius:10px;padding:6px 14px;color:#c4b5fd;font-size:16px;font-weight:800;letter-spacing:3px;flex:1;text-align:center}
+.sync-st{color:#a78bfa;font-size:11px;text-align:center}
+.sync-dis-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:rgba(255,255,255,.4);font-size:11px;padding:4px 8px;cursor:pointer;font-family:inherit;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -151,17 +156,23 @@ html,body{height:100%;font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans
 </div>
 
 <div id="menu">
-  <button id="loginBtn" class="auth-btn" onclick="signIn()">
-    <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-    Google でログインして同期
-  </button>
-  <div id="userRow" class="user-row" style="display:none">
-    <img id="userAvatar" class="user-avatar" src="" alt="">
-    <div style="flex:1;min-width:0">
-      <div class="user-name" id="userName"></div>
+  <div class="sync-box" id="syncBox">
+    <div class="sync-box-title">端末間でデータを同期</div>
+    <div id="syncSetupArea">
+      <div class="sync-row">
+        <input id="codeInput" class="sync-input" type="text" maxlength="8" placeholder="コードを入力して接続" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+        <button class="sync-btn" onclick="connectCode()">接続</button>
+      </div>
+      <div style="text-align:center;color:rgba(255,255,255,.3);font-size:12px;margin:2px 0">または</div>
+      <button class="sync-btn ghost" style="width:100%" onclick="generateCode()">新しいコードを作成</button>
+    </div>
+    <div id="syncActiveArea" style="display:none;flex-direction:column;gap:8px">
+      <div class="sync-active">
+        <div class="sync-code-chip" id="syncCodeDisp">--------</div>
+        <button class="sync-dis-btn" onclick="disconnectSync()">解除</button>
+      </div>
       <div class="sync-st" id="syncStatus">未同期</div>
     </div>
-    <button class="signout-btn" onclick="signOut()">ログアウト</button>
   </div>
   <div class="menu-title">科目を選択してください</div>
   <div class="subj-card" onclick="startSubject(1,'normal')">
@@ -551,7 +562,7 @@ const ALL = [
 {cat:"株主の権利・単元株",q:"Ａ種株式を１０万株、Ｂ種株式を１０万株発行している種類株式発行会社は、Ａ種株式については単元株式数を１００株、Ｂ種株式については単元株式数を１０００株とする旨を定款で定めることができる。",ans:true,exp:"会社法188条2項は、単元株式数は株式の種類ごとに定めることができると規定する。A種・B種それぞれ異なる単元株式数を定めることは可能。"},
 {cat:"株主の権利・単元株",q:"株式が２以上の者の共有に属する場合において、共有者が、株式会社に対し、当該株式会社が株主に対してする通知又は催告を受領する者１人の氏名又は名称を通知していないときは、当該株式会社が株主に対してする通知又は催告は、当該共有者の全員に対してしなければならない。",ans:false,exp:"会社法126条3項は、通知等を受領する者の通知がない場合、共有者の一人に対してすれば足りると規定する（選択的通知）。全員に対してする必要はない。"},
 {cat:"株主の権利・単元株",q:"株式会社は、単元未満株主が当該株式会社に対して単元未満株式の買取りの請求をすることができない旨を定款で定めることができない。",ans:true,exp:"会社法192条の単元未満株主の買取請求権は強行規定であり、定款で排除することはできない。"},
-{cat:"株主の権利・単元株",q:"株式会社が株主に対してする通知又は催告が５年以上継続して到達しない場合において、当該株主に対する通知又は催告をすることを要しないときは、当該株主に対する当該株式会社の義務の履行を行う場所は、当該株式会社の住所地である。",ans:false,exp:"会社法196条1項は、5年以上継続して通知・催告が到達しない場合の義務履行地について規定するが、「株式会社の住所地」とする本記述は条文の趣旨と異なる場合がある。"},
+{cat:"株主の権利・単元株",q:"株式会社が株主に対してする通知又は催告が５年以上継続して到達しない場合において、当該株主に対する通知又は催告をすることを要しないときは、当該株主に対する当該株式会社の義務の履行を行う場所は、当該株式会社の住所地である。",ans:true,exp:"会社法196条2項"},
 {cat:"株主名簿",q:"株式会社は、株主名簿に株主が株式を取得した日を記載又は記録することを要しない。",ans:false,exp:"会社法121条2号は株主名簿の記載事項として株式の取得日（取得年月日）を規定している。よって記載を要しないとする本記述は誤り。"},
 {cat:"株主名簿",q:"株式会社は、株主名簿管理人を置く旨を定款で定め、株主名簿の作成及び備置きその他の株主名簿に関する事務を行うことを委託することができる。",ans:true,exp:"会社法123条は、定款の定めにより株主名簿管理人を設置し株主名簿に関する事務を委託できると規定する。"},
 {cat:"株主名簿",q:"株式会社は、株主から株主名簿の閲覧の請求があった場合において、当該請求を行う株主が当該株式会社の業務と実質的に競争関係にある事業を営み、又はこれに従事する者であるときは、当該請求を拒むことができる。",ans:true,exp:"会社法125条3項2号は、請求者が会社の業務と実質的に競争関係にある事業を営む者等である場合、閲覧・謄写請求を拒否できると規定する。"},
@@ -629,47 +640,76 @@ const ALL = [
 {cat:"吸収分割と事業譲渡",q:"甲社及び乙社が、効力発生日後遅滞なく、共同して当該承継に関する会社法所定の書面又は電磁的記録を作成しなければならないのは、吸収分割の方法による場合のみである。",ans:true,exp:"会社法791条・801条は吸収分割後に甲社・乙社が共同して事後開示書面を作成・備置する義務を規定する。事業譲渡についてはこのような共同書面作成の規定はない。"}
 ];
 
-// ── Firebase config (fill in after creating project) ──────────
+// ── Firebase (Firestore only, no Auth) ────────────────────────
 const _FB = {
   apiKey:            "AIzaSyDN5ECeFBJszQhu3Su7Fb9n963AgrgCOUY",
-  authDomain:        "test-a7757.firebaseapp.com",
   projectId:         "test-a7757",
   storageBucket:     "test-a7757.firebasestorage.app",
   messagingSenderId: "997078342375",
   appId:             "1:997078342375:web:dde122958af05b3d36e042"
 };
-let fbAuth = null, fbDb = null, currentUser = null;
+let fbDb = null;
 try {
   firebase.initializeApp(_FB);
-  fbAuth = firebase.auth();
-  fbDb   = firebase.firestore();
+  fbDb = firebase.firestore();
 } catch(e){ console.warn('Firebase:', e); }
 
-function signIn(){
-  if(!fbAuth){ alert('Firebase未接続'); return; }
-  const provider = new firebase.auth.GoogleAuthProvider();
-  fbAuth.signInWithPopup(provider).catch(err => {
-    if(err.code==='auth/popup-cancelled-by-user') return;
-    if(err.code==='auth/popup-blocked'){
-      alert('ポップアップがブロックされました。\nSafari設定 → このWebサイトの設定 → ポップアップを「許可」にしてください。');
-    } else {
-      alert('ログインエラー:\n'+err.code+'\n'+err.message);
-    }
-  });
+let syncCode = localStorage.getItem('kaisha_sync_code') || '';
+
+function _syncUI(){
+  const setup  = document.getElementById('syncSetupArea');
+  const active = document.getElementById('syncActiveArea');
+  const disp   = document.getElementById('syncCodeDisp');
+  const st     = document.getElementById('syncStatus');
+  if(syncCode){
+    if(setup)  setup.style.display  = 'none';
+    if(active){ active.style.display = 'flex'; }
+    if(disp)   disp.textContent = syncCode;
+    if(st)     st.textContent   = '未同期';
+  } else {
+    if(setup)  setup.style.display  = '';
+    if(active) active.style.display = 'none';
+  }
 }
-function signOut(){
-  if(!fbAuth) return;
-  fbAuth.signOut().then(showMenu);
+
+function generateCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for(let i=0;i<8;i++) code += chars[Math.floor(Math.random()*chars.length)];
+  syncCode = code;
+  localStorage.setItem('kaisha_sync_code', code);
+  _syncUI();
+  cloudPush();
+}
+
+async function connectCode(){
+  const inp = document.getElementById('codeInput');
+  const code = (inp ? inp.value : '').trim().toUpperCase();
+  if(code.length !== 8){ alert('コードは8文字で入力してください'); return; }
+  syncCode = code;
+  localStorage.setItem('kaisha_sync_code', code);
+  _syncUI();
+  const st = document.getElementById('syncStatus');
+  if(st) st.textContent = '同期中...';
+  await cloudPull();
+  if(currentSubject === 0) showMenu();
+}
+
+function disconnectSync(){
+  if(!confirm('同期を解除しますか？\nデータはこの端末に残ります。')) return;
+  syncCode = '';
+  localStorage.removeItem('kaisha_sync_code');
+  _syncUI();
 }
 
 let _pushTimer = null;
 function schedulePush(){
-  if(!currentUser) return;
+  if(!syncCode) return;
   clearTimeout(_pushTimer);
   _pushTimer = setTimeout(cloudPush, 1500);
 }
 async function cloudPush(){
-  if(!currentUser || !fbDb) return;
+  if(!syncCode || !fbDb) return;
   const d = {ts: firebase.firestore.FieldValue.serverTimestamp()};
   ['I','II'].forEach(k => {
     const p = localStorage.getItem('kaisha_quiz_'+k);
@@ -678,15 +718,17 @@ async function cloudPush(){
     if(w) try{ d['w'+k]=JSON.parse(w); }catch(e){}
   });
   try {
-    await fbDb.collection('users').doc(currentUser.uid).set(d, {merge:true});
+    await fbDb.collection('sync').doc(syncCode).set(d, {merge:true});
     const el = document.getElementById('syncStatus');
     if(el) el.textContent = '同期済み ✓';
   } catch(e){ console.warn('push:', e); }
 }
-async function cloudPull(uid){
-  if(!fbDb) return;
+async function cloudPull(){
+  if(!syncCode || !fbDb) return;
+  const st = document.getElementById('syncStatus');
+  if(st) st.textContent = '同期中...';
   try {
-    const doc = await fbDb.collection('users').doc(uid).get();
+    const doc = await fbDb.collection('sync').doc(syncCode).get();
     if(!doc.exists){ await cloudPush(); return; }
     const d = doc.data();
     ['I','II'].forEach(k => {
@@ -696,43 +738,20 @@ async function cloudPull(uid){
         const localN = localRaw ? (JSON.parse(localRaw).answers||[]).filter(x=>x!==null).length : 0;
         const cloudN = (cloud.answers||[]).filter(x=>x!==null).length;
         if(cloudN > localN) localStorage.setItem('kaisha_quiz_'+k, JSON.stringify(cloud));
-        // localN >= cloudN の場合はローカルを保持し、下の cloudPush で上書き
       }
-      // 間違いリスト：常にユニオン
       const cw = d['w'+k]||[];
       const lw = JSON.parse(localStorage.getItem('kaisha_quiz_'+k+'_w')||'[]');
       const merged = [...new Set([...lw,...cw])];
       if(merged.length) localStorage.setItem('kaisha_quiz_'+k+'_w', JSON.stringify(merged));
     });
-    // 勝者データ（ローカルorクラウド）をクラウドに反映
     await cloudPush();
-  } catch(e){ console.warn('pull:', e); }
+  } catch(e){ console.warn('pull:', e); if(st) st.textContent = 'エラー'; }
 }
-if(fbAuth){
-  fbAuth.getRedirectResult().catch(err => {
-    if(err.code && err.code !== 'auth/no-auth-event')
-      alert('ログインエラー: '+err.message);
-  });
-  fbAuth.onAuthStateChanged(async user => {
-    currentUser = user;
-    const lb = document.getElementById('loginBtn');
-    const ur = document.getElementById('userRow');
-    if(user){
-      if(lb) lb.style.display = 'none';
-      if(ur) ur.style.display = 'flex';
-      const av = document.getElementById('userAvatar');
-      const un = document.getElementById('userName');
-      const ss = document.getElementById('syncStatus');
-      if(av) av.src = user.photoURL||'';
-      if(un) un.textContent = user.displayName||user.email||'';
-      if(ss) ss.textContent = '同期中...';
-      await cloudPull(user.uid);
-      if(currentSubject === 0) showMenu();
-    } else {
-      if(lb) lb.style.display = '';
-      if(ur) ur.style.display = 'none';
-    }
-  });
+
+// Auto-connect on startup if code already stored
+if(syncCode && fbDb){
+  _syncUI();
+  cloudPull().then(() => { if(currentSubject === 0) showMenu(); });
 }
 // ─────────────────────────────────────────────────────────────
 
