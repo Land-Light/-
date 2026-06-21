@@ -24,12 +24,33 @@ export const config = {
 };
 
 /** 略称(A/B等)→実シフト名の対応表を読み込む */
-function loadAliases() {
+export function loadAliases() {
   const p = path.join(ROOT, 'data', 'aliases.json');
   if (!fs.existsSync(p)) return {};
   const obj = JSON.parse(fs.readFileSync(p, 'utf8'));
   delete obj._comment;
   return obj;
+}
+
+/**
+ * 1行分の生データ({date,pattern,working_day_type,note})を申請アイテムに変換する。
+ * pattern は略称(A/B)でも実シフト名でも可。
+ */
+export function makeScheduleItem(row, aliases = loadAliases()) {
+  const date = (row.date || '').trim();
+  const pattern = (row.pattern || '').trim();
+  if (!date || !pattern) throw new Error('date と pattern は必須です。');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error(`date は YYYY-MM-DD 形式にしてください: "${date}"`);
+  }
+  return {
+    date,
+    ymd: date.replace(/-/g, ''),
+    pattern: aliases[pattern] ?? pattern,
+    patternRaw: pattern,
+    workingDayType: (row.working_day_type || '').trim(),
+    note: (row.note || '').trim(),
+  };
 }
 
 /**
@@ -53,21 +74,10 @@ export function loadSchedules(csvPath) {
   });
 
   return records.map((r, i) => {
-    const date = r.date;
-    const pattern = r.pattern;
-    if (!date || !pattern) {
-      throw new Error(`CSV ${i + 1}行目: date と pattern は必須です。`);
+    try {
+      return makeScheduleItem(r, aliases);
+    } catch (e) {
+      throw new Error(`CSV ${i + 1}行目: ${e.message}`);
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      throw new Error(`CSV ${i + 1}行目: date は YYYY-MM-DD 形式にしてください: "${date}"`);
-    }
-    return {
-      date,
-      ymd: date.replace(/-/g, ''), // 20260710 形式（画面のid用）
-      pattern: aliases[pattern] ?? pattern, // 略称なら実シフト名へ
-      patternRaw: pattern,
-      workingDayType: r.working_day_type || '',
-      note: r.note || '',
-    };
   });
 }

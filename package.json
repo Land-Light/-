@@ -4,6 +4,7 @@
   "description": "オフィスステーション勤怠のスケジュール申請（日々の出勤/退勤時刻）を自動化するツール",
   "type": "module",
   "scripts": {
+    "ui": "node src/server.js",
     "apply": "node src/index.js",
     "apply:dry": "node src/index.js --dry-run",
     "dump": "node src/dumpPage.js",

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>スケジュール申請ツール</title>
+<style>
+  :root { --blue:#2563eb; --gray:#6b7280; --line:#e5e7eb; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, "Segoe UI", "Hiragino Sans", Meiryo, sans-serif; margin: 0; background:#f8fafc; color:#111827; }
+  header { background:#1e293b; color:#fff; padding:16px 24px; }
+  header h1 { font-size:18px; margin:0; }
+  header p { margin:4px 0 0; font-size:12px; color:#cbd5e1; }
+  main { max-width: 820px; margin: 24px auto; padding: 0 16px; }
+  table { width:100%; border-collapse: collapse; background:#fff; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  th, td { padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; font-size:14px; }
+  th { background:#f1f5f9; font-weight:600; }
+  input[type=date], select, input[type=text] { padding:7px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:14px; width:100%; }
+  .btn { border:0; border-radius:8px; padding:10px 18px; font-size:14px; cursor:pointer; }
+  .btn-add { background:#fff; border:1px solid var(--blue); color:var(--blue); margin:12px 0; }
+  .btn-del { background:#fee2e2; color:#b91c1c; padding:6px 10px; }
+  .actions { display:flex; gap:12px; margin-top:20px; }
+  .btn-dry { background:#e2e8f0; color:#1e293b; }
+  .btn-apply { background:var(--blue); color:#fff; }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  #out { margin-top:20px; background:#0b1220; color:#d1e7ff; padding:14px; border-radius:8px; font-family: ui-monospace, monospace; font-size:13px; white-space:pre-wrap; min-height:60px; display:none; }
+  .msg { margin-top:14px; padding:12px; border-radius:8px; font-size:14px; display:none; }
+  .msg.ok { background:#dcfce7; color:#166534; }
+  .msg.ng { background:#fee2e2; color:#991b1b; }
+  .note { color:var(--gray); font-size:12px; margin-top:6px; }
+  .col-date{width:170px} .col-pat{width:230px} .col-del{width:60px}
+</style>
+</head>
+<body>
+<header>
+  <h1>オフィスステーション スケジュール申請</h1>
+  <p>日付とシフトを入力して「申請する」を押すと、自動でブラウザが申請を行います。</p>
+</header>
+<main>
+  <table>
+    <thead>
+      <tr><th class="col-date">日付</th><th class="col-pat">シフト</th><th>申請メッセージ（任意）</th><th class="col-del"></th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <button class="btn btn-add" id="addRow">＋ 行を追加</button>
+  <p class="note" id="patNote"></p>
+
+  <div class="actions">
+    <button class="btn btn-dry" id="dryBtn">確認のみ（送信しない）</button>
+    <button class="btn btn-apply" id="applyBtn">申請する</button>
+  </div>
+
+  <div class="msg" id="msg"></div>
+  <pre id="out"></pre>
+</main>
+
+<script>
+let ALIASES = {};
+
+async function init() {
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    ALIASES = cfg.aliases || {};
+  } catch (_) {}
+  const keys = Object.keys(ALIASES);
+  document.getElementById('patNote').textContent =
+    keys.length ? ('シフト略称: ' + keys.map(k => `${k}＝${ALIASES[k]}`).join(' / ')) : '';
+  addRow(); addRow();
+}
+
+function patternOptions() {
+  const keys = Object.keys(ALIASES);
+  if (!keys.length) return '<option value="">（aliases未設定）</option>';
+  return keys.map(k => `<option value="${k}">${k}（${ALIASES[k]}）</option>`).join('');
+}
+
+function addRow(date = '') {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="date" value="${date}"></td>
+    <td><select>${patternOptions()}</select></td>
+    <td><input type="text" placeholder=""></td>
+    <td><button class="btn btn-del">削除</button></td>`;
+  tr.querySelector('.btn-del').onclick = () => tr.remove();
+  document.getElementById('rows').appendChild(tr);
+}
+
+function collectRows() {
+  const rows = [];
+  for (const tr of document.querySelectorAll('#rows tr')) {
+    const [d, p, n] = tr.querySelectorAll('input[type=date], select, input[type=text]');
+    if (!d.value) continue;
+    rows.push({ date: d.value, pattern: p.value, note: n.value });
+  }
+  return rows;
+}
+
+async function run(dryRun) {
+  const rows = collectRows();
+  const msg = document.getElementById('msg');
+  const out = document.getElementById('out');
+  msg.style.display = 'none';
+  if (!rows.length) { showMsg(false, '日付を入力した行がありません。'); return; }
+
+  setBusy(true, dryRun);
+  out.style.display = 'block';
+  out.textContent = (dryRun ? '確認を実行中…' : '申請を実行中…') + ' ブラウザが自動で開きます。\n';
+
+  try {
+    const res = await fetch('/api/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun, rows }),
+    }).then(r => r.json());
+
+    out.textContent = (res.logs || []).join('\n');
+    showMsg(res.ok, res.message || (res.ok ? '完了しました。' : '失敗しました。'));
+  } catch (e) {
+    showMsg(false, '通信エラー: ' + e.message);
+  } finally {
+    setBusy(false);
+  }
+}
+
+function showMsg(ok, text) {
+  const msg = document.getElementById('msg');
+  msg.className = 'msg ' + (ok ? 'ok' : 'ng');
+  msg.textContent = text;
+  msg.style.display = 'block';
+}
+
+function setBusy(busy) {
+  document.getElementById('dryBtn').disabled = busy;
+  document.getElementById('applyBtn').disabled = busy;
+}
+
+document.getElementById('addRow').onclick = () => addRow();
+document.getElementById('dryBtn').onclick = () => run(true);
+document.getElementById('applyBtn').onclick = () => {
+  if (confirm('入力した内容で実際に申請を送信します。よろしいですか？')) run(false);
+};
+init();
+</script>
+</body>
+</html>
