@@ -17,22 +17,33 @@ function required(name) {
 
 export const config = {
   adminUrl: required('OFS_ADMIN_URL'),
-  loginId: required('OFS_LOGIN_ID'),
-  password: required('OFS_PASSWORD'),
+  // スケジュール申請ページのURL（ブラウザのアドレスバーからコピー）。空なら adminUrl を使う。
+  scheduleUrl: (process.env.OFS_SCHEDULE_URL || '').trim(),
   headful: (process.env.HEADFUL ?? 'true').toLowerCase() !== 'false',
   actionDelayMs: Number(process.env.ACTION_DELAY_MS ?? 800),
 };
 
+/** 略称(A/B等)→実シフト名の対応表を読み込む */
+function loadAliases() {
+  const p = path.join(ROOT, 'data', 'aliases.json');
+  if (!fs.existsSync(p)) return {};
+  const obj = JSON.parse(fs.readFileSync(p, 'utf8'));
+  delete obj._comment;
+  return obj;
+}
+
 /**
  * 申請対象スケジュールを CSV から読み込む。
+ * pattern欄は略称(A/B)でも実シフト名でも可。略称は data/aliases.json で解決。
  * @param {string} csvPath
- * @returns {Array<{date:string,start:string,end:string,breakStart:string,breakEnd:string,note:string}>}
+ * @returns {Array<{date:string, ymd:string, pattern:string, workingDayType:string, note:string}>}
  */
 export function loadSchedules(csvPath) {
   const abs = path.isAbsolute(csvPath) ? csvPath : path.join(ROOT, csvPath);
   if (!fs.existsSync(abs)) {
     throw new Error(`スケジュールCSVが見つかりません: ${abs}`);
   }
+  const aliases = loadAliases();
   const raw = fs.readFileSync(abs, 'utf8');
   const records = parse(raw, {
     columns: true,
@@ -42,37 +53,21 @@ export function loadSchedules(csvPath) {
   });
 
   return records.map((r, i) => {
-    const row = { ...r };
-    const date = row.date;
-    const start = row.start;
-    const end = row.end;
-    if (!date || !start || !end) {
-      throw new Error(`CSV ${i + 1}行目: date / start / end は必須です。`);
+    const date = r.date;
+    const pattern = r.pattern;
+    if (!date || !pattern) {
+      throw new Error(`CSV ${i + 1}行目: date と pattern は必須です。`);
     }
-    assertDate(date, i);
-    assertTime(start, i, 'start');
-    assertTime(end, i, 'end');
-    if (row.break_start) assertTime(row.break_start, i, 'break_start');
-    if (row.break_end) assertTime(row.break_end, i, 'break_end');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new Error(`CSV ${i + 1}行目: date は YYYY-MM-DD 形式にしてください: "${date}"`);
+    }
     return {
       date,
-      start,
-      end,
-      breakStart: row.break_start || '',
-      breakEnd: row.break_end || '',
-      note: row.note || '',
+      ymd: date.replace(/-/g, ''), // 20260710 形式（画面のid用）
+      pattern: aliases[pattern] ?? pattern, // 略称なら実シフト名へ
+      patternRaw: pattern,
+      workingDayType: r.working_day_type || '',
+      note: r.note || '',
     };
   });
-}
-
-function assertDate(v, i) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-    throw new Error(`CSV ${i + 1}行目: date は YYYY-MM-DD 形式にしてください: "${v}"`);
-  }
-}
-
-function assertTime(v, i, field) {
-  if (!/^\d{1,2}:\d{2}$/.test(v)) {
-    throw new Error(`CSV ${i + 1}行目: ${field} は HH:MM 形式にしてください: "${v}"`);
-  }
 }

@@ -1,106 +1,117 @@
 # オフィスステーション勤怠 スケジュール申請 自動化ツール
 
-[オフィスステーション勤怠](https://attendance.officestation.jp/) の管理画面に対し、
-**日々の勤務スケジュール（出勤/退勤時刻）の申請を自動化**する Node.js + Playwright 製ツールです。
+[オフィスステーション勤怠](https://attendance.officestation.jp/) の「スケジュール申請」を
+自動化する Node.js + Playwright 製ツールです。
 
 > オフィスステーション勤怠には外部連携用の公開APIが無いため、ブラウザ操作（Playwright）で
 > 実際の画面を操作して申請します。
+
+## このツールの申請方式
+
+申請画面は、出勤/退勤を直接入力するのではなく、**会社で定義済みのシフトパターンを
+プルダウンから選ぶ**方式です（例：`本社９時出勤`＝09:00–18:00、`店12:00-21:00` など）。
+そのため CSV では「日付」と「シフト名（または略称）」を指定します。
+
+選べるシフト名の一覧 → [`data/schedule-patterns.md`](data/schedule-patterns.md)
 
 ---
 
 ## セットアップ
 
 ```bash
-npm install            # 依存関係 + Chromium を取得（postinstall で playwright install）
-cp .env.example .env    # 認証情報を設定
+npm install                                  # 依存 + Chromium を取得
+cp .env.example .env                          # 接続先・設定
 cp data/schedules.example.csv data/schedules.csv
 ```
 
-`.env` を編集：
+`.env` の主な項目：
 
 | 変数 | 説明 |
 |------|------|
 | `OFS_ADMIN_URL` | 管理画面の入口URL（トークン付き。**秘密情報**） |
-| `OFS_LOGIN_ID` / `OFS_PASSWORD` | ログイン情報 |
+| `OFS_SCHEDULE_URL` | スケジュール申請画面のアドレスバーURL（任意） |
 | `HEADFUL` | `true` でブラウザ画面を表示（デバッグ向き） |
-| `ACTION_DELAY_MS` | 各操作の間の待機ミリ秒 |
 
----
+### ログインについて
 
-## ★ 最初にやること：画面のセレクタを埋める
-
-このツールは「処理の流れ」はできていますが、**実際のボタン/入力欄の指定（セレクタ）は
-`src/selectors.js` に空欄（TODO）で入っています**。実画面に合わせて埋める必要があります。
-
-### 手順A: HTMLを保存して貼る（推奨）
+ブラウザのセッションは `.pw-profile/` に保存されます。最初に一度だけ
 
 ```bash
 npm run dump
 ```
 
-ブラウザが開くので、**手動でログイン → スケジュール申請画面まで進め**、ターミナルで Enter。
-`captures/` に HTML とスクショが保存されます。この中身を共有すれば、`src/selectors.js` を
-正確に埋められます。
+でブラウザを開き、**手動でログイン → スケジュール申請画面まで進めて Enter**。
+以降は `npm run apply` がそのセッションを再利用してログイン不要で動きます
+（セッション切れの場合は、もう一度 `npm run dump` でログインし直してください）。
 
-### 手順B: Playwright codegen で操作を記録
+---
 
-```bash
-npm run codegen -- "$OFS_ADMIN_URL"
+## 申請内容を書く（`data/schedules.csv`）
+
+```csv
+date,pattern,working_day_type,note
+2026-07-10,A,,
+2026-07-11,B,,
+2026-07-13,A,,
 ```
 
-実際に操作すると、対応するセレクタ付きのコードが生成されます。それを `src/selectors.js` に反映します。
+- `date` … 申請対象日 `YYYY-MM-DD`
+- `pattern` … シフト。**略称(A/B)** または シフト名そのもの
+- `working_day_type` … 勤務日種別（任意。例：平日／法定休日／法定外休日）
+- `note` … 申請メッセージ（任意）
+
+### 略称 (`data/aliases.json`)
+
+CSV を `A` `B` だけで書けるようにする対応表です。
+
+```json
+{
+  "A": "本社９時出勤",
+  "B": "店12:00-21:00"
+}
+```
+
+> シフト名は申請画面のプルダウン表記と**完全一致**（全角/半角も）させてください。
 
 ---
 
 ## 実行
 
 ```bash
-# まずは送信せずに動作確認（フォーム入力まで行い、申請ボタンは押さない）
+# まず送信せずに動作確認（全日付のプルダウンを設定するが「申請する」は押さない）
 npm run apply:dry
 
-# 本番（申請を送信）
+# 本番（「申請する」を押して全日付をまとめて申請）
 npm run apply
-
-# CSV を指定したい場合
-node src/index.js --csv=data/2026-07.csv
 ```
 
-### スケジュールCSV (`data/schedules.csv`)
+ポイント：
 
-```csv
-date,start,end,break_start,break_end,note
-2026-06-23,09:00,18:00,12:00,13:00,
-2026-06-24,10:00,19:00,13:00,14:00,午前通院のため遅め
-```
-
-- `date` … 申請対象日 `YYYY-MM-DD`
-- `start` / `end` … 出勤/退勤 `HH:MM`
-- `break_start` / `break_end` … 休憩（任意）
-- `note` … 申請メッセージ（任意）
-- 先頭が `#` の行・空行は無視されます。
+- この画面は**「申請する」ボタン1つで、入力した全日付をまとめて送信**します。
+- 申請画面に**表示されていない日付（表示期間外・申請不可日）はスキップ**します。
+  対象日が見える「表示期間」を画面で選んでから実行してください。
+- 入力できないシフト名があった場合は、**送信せず中止**して候補を表示します。
 
 ---
 
-## 仕組み / ファイル構成
+## ファイル構成
 
 | ファイル | 役割 |
 |----------|------|
-| `src/index.js` | エントリポイント。CSV読込→ログイン→各日を申請 |
-| `src/config.js` | `.env` 読込・CSV パースとバリデーション |
+| `src/index.js` | CSV読込→画面を開く→各日入力→まとめて申請 |
+| `src/config.js` | `.env`/CSV/略称の読込とバリデーション |
 | `src/browser.js` | Playwright 起動（セッションを `.pw-profile/` に永続化） |
-| `src/login.js` | ログイン（既ログインなら自動スキップ） |
-| `src/applySchedule.js` | 申請画面への遷移・1日分の申請 |
-| `src/selectors.js` | **★画面セレクタの一元管理（ここを埋める）** |
-| `src/dumpPage.js` | セレクタ調査用に画面HTMLを保存 |
-
-セッションは `.pw-profile/` に保存されるため、一度ログインすれば次回以降は
-ログイン操作を省略できます（多要素認証がある場合に特に有効）。
+| `src/login.js` | 申請画面を開く・ログイン状態の確認 |
+| `src/applySchedule.js` | シフト選択・申請メッセージ入力・送信 |
+| `src/selectors.js` | 画面セレクタ定義（実画面に合わせ設定済み） |
+| `src/dumpPage.js` | 画面HTML保存（セレクタ調査・ログイン用） |
+| `data/schedule-patterns.md` | 選べるシフト一覧 |
 
 ---
 
 ## 注意
 
-- このツールは**自分自身の勤怠申請を効率化する目的**で使ってください。
+- 自分自身の勤怠申請を効率化する目的で使ってください。
+- まず必ず `npm run apply:dry` で内容を確認してから本番実行してください。
 - `.env` / `data/schedules.csv` / `.pw-profile/` / `captures/` は `.gitignore` 済みです。
-  認証情報やトークンを誤ってコミットしないよう注意してください。
-- 画面仕様が変わるとセレクタの更新が必要です。
+- 画面仕様やシフト設定が変わると、`src/selectors.js` や `data/schedule-patterns.md` の更新が必要です。

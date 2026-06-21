@@ -1,51 +1,37 @@
 /**
- * 画面のセレクタを一元管理するファイル。
+ * オフィスステーション勤怠「スケジュール申請」画面のセレクタ定義。
+ * 実画面のHTML（captures/ に保存したもの）を解析して設定済み。
  *
- * ★ ここが「あとで埋める」中心地です。
- *   実際の申請画面のHTMLを確認しながら、各 TODO を本物のセレクタに置き換えます。
- *   （`npm run dump` でログイン後のHTMLを保存できます）
+ * 画面の作り：
+ *  - 日付ごとに行があり、シフトを選ぶプルダウンの id は日付入り
+ *    例: #requestedSchedulePatternList_20260710
+ *  - 「申請する」ボタンは1つで、入力した全日付をまとめて送信する
  *
- * Playwright のセレクタは CSS / text= / role= などが使えます。
- *   例: '#loginId' , 'input[name="password"]' , 'text=申請する' ,
- *       'button:has-text("登録")' , 'role=button[name="保存"]'
- *
- * 値が null の項目は「未設定」として扱われ、その操作はスキップ or エラーになります。
+ * {ymd} は applySchedule.js が "20260710" のような値に置換します。
  */
 
 export const selectors = {
-  // --- ログイン画面 ---
-  login: {
-    idInput: null,        // TODO: ログインID入力欄  例: 'input[name="login_id"]'
-    passwordInput: null,  // TODO: パスワード入力欄  例: 'input[name="password"]'
-    submitButton: null,   // TODO: ログインボタン     例: 'button:has-text("ログイン")'
-    // ログイン成功の目印になる要素（これが見えたら成功とみなす）
-    loggedInMarker: null, // TODO: 例: 'text=ダッシュボード'
-  },
+  // 申請可能な状態か（＝ログイン済みで申請画面が出ているか）の目印
+  loggedInMarker: 'button:has-text("申請する")',
+  // ログイン画面に飛ばされた場合の検知用
+  loginPasswordField: 'input[type="password"]',
 
-  // --- スケジュール申請画面への遷移 ---
-  nav: {
-    // 申請画面へ行くためのリンク/ボタンを上から順にクリックしていく
-    // 例: ['text=勤怠', 'text=スケジュール申請']
-    toScheduleApply: [],  // TODO
-  },
+  // 日付ごとの「申請スケジュール」プルダウン（シフトパターンを選ぶ）
+  patternSelect: '#requestedSchedulePatternList_{ymd}',
+  // 全日付分のシフトプルダウン（日付の並び順を把握するのに使う）
+  patternSelectAll: 'select[name="requested_schedule_pattern_list"]',
 
-  // --- 1日分のスケジュール申請フォーム ---
-  // {date},{start},{end} は applySchedule.js が実際の値に置換します。
-  form: {
-    // 対象日のセル/行を開くための要素（日付で特定）。{date} は YYYY-MM-DD。
-    openDayFor: null,     // TODO: 例: '[data-date="{date}"]'
-    startInput: null,     // TODO: 出勤時刻の入力欄
-    endInput: null,       // TODO: 退勤時刻の入力欄
-    breakStartInput: null,// TODO: 休憩開始（任意）
-    breakEndInput: null,  // TODO: 休憩終了（任意）
-    noteInput: null,      // TODO: 申請メッセージ（任意）
-    submitButton: null,   // TODO: 申請/登録 ボタン
-    // 申請成功の目印（トースト等）。任意。
-    successMarker: null,  // TODO: 例: 'text=申請しました'
-  },
+  // 日付ごとの「勤務日種別」プルダウン（任意。平日/法定休日/法定外休日）
+  workingDayTypeSelect: '#requested_working_day_type_list_{ymd}',
+
+  // 申請メッセージ欄（各行に1つ。日付idが無いので行の並び順=patternSelectの順で対応づける）
+  remarkInputAll: 'input[name="remark_list"]',
+
+  // 申請（送信）ボタン。画面上下に同じものがあるため first() を使う。
+  submitButton: 'button.htBlock-buttonSave:has-text("申請する")',
 };
 
-/** "{date}" などのプレースホルダを置換するヘルパー */
+/** "{ymd}" などのプレースホルダを置換する */
 export function fillSelector(template, vars) {
   if (!template) return template;
   return template.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');

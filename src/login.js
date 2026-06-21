@@ -3,51 +3,48 @@ import { selectors } from './selectors.js';
 import { pause, screenshot } from './browser.js';
 
 /**
- * 管理画面へログインする。
- * 永続プロファイルにより既ログインの場合は、フォームをスキップして即 true を返す。
+ * スケジュール申請画面を開き、ログイン状態を確認する。
+ *
+ * セッションは永続プロファイル（.pw-profile）に保存されるため、
+ * 一度 `npm run dump` でログインしていれば、ここでは再ログイン不要で開けるはず。
  *
  * @param {import('playwright').Page} page
- * @returns {Promise<boolean>} ログイン状態かどうか
  */
-export async function ensureLoggedIn(page) {
-  await page.goto(config.adminUrl, { waitUntil: 'domcontentloaded' });
+export async function openSchedulePage(page) {
+  const url = config.scheduleUrl || config.adminUrl;
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
   await pause(page);
 
-  // 既にログイン済みなら目印が見えるはず
-  if (selectors.login.loggedInMarker) {
-    const already = await page.locator(selectors.login.loggedInMarker).first().isVisible().catch(() => false);
-    if (already) {
-      console.log('✓ 既存セッションでログイン済み');
-      return true;
-    }
+  // 申請画面の目印（「申請する」ボタン）が見えればOK
+  const ready = await page
+    .locator(selectors.loggedInMarker)
+    .first()
+    .isVisible()
+    .catch(() => false);
+  if (ready) {
+    console.log('✓ スケジュール申請画面を開きました');
+    return;
   }
 
-  const { idInput, passwordInput, submitButton } = selectors.login;
-  if (!idInput || !passwordInput || !submitButton) {
+  // ログイン画面に飛ばされていないか確認
+  const onLogin = await page
+    .locator(selectors.loginPasswordField)
+    .first()
+    .isVisible()
+    .catch(() => false);
+
+  const shot = await screenshot(page, 'open-failed');
+  if (onLogin) {
     throw new Error(
-      'ログイン用セレクタが未設定です。src/selectors.js の login.* を、実画面のHTMLに合わせて埋めてください。\n' +
-      '（`npm run dump` でログイン画面のHTMLを保存できます）'
+      'ログインが必要です（セッション切れ）。\n' +
+      '一度 `npm run dump` を実行してブラウザで手動ログインし、申請画面まで開いてから\n' +
+      'もう一度 `npm run apply` を実行してください。セッションは保存され次回から自動で開けます。\n' +
+      `スクショ: ${shot}`
     );
   }
-
-  console.log('… ログインフォームに入力中');
-  await page.fill(idInput, config.loginId);
-  await page.fill(passwordInput, config.password);
-  await pause(page);
-  await page.click(submitButton);
-
-  // 成功判定
-  if (selectors.login.loggedInMarker) {
-    try {
-      await page.locator(selectors.login.loggedInMarker).first().waitFor({ state: 'visible', timeout: 20000 });
-    } catch {
-      const shot = await screenshot(page, 'login-failed');
-      throw new Error(`ログインに失敗した可能性があります。スクショ: ${shot}`);
-    }
-  } else {
-    await page.waitForLoadState('networkidle').catch(() => {});
-  }
-
-  console.log('✓ ログイン成功');
-  return true;
+  throw new Error(
+    'スケジュール申請画面を開けませんでした。\n' +
+    '.env の OFS_SCHEDULE_URL に、申請画面のアドレスバーURLを設定してください。\n' +
+    `スクショ: ${shot}`
+  );
 }
