@@ -70,3 +70,12 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# --- Node / Playwright スケジュール申請ツール ---
+node_modules/
+.env
+.pw-profile/
+captures/
+screenshots/
+data/schedules.csv
+
