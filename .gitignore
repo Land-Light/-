@@ -85,3 +85,6 @@ venv/
 page_dump.json
 login_page_dump.json
 tasks_page_dump.json
+
+# Browser session data
+browser_profile/
