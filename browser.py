@@ -182,7 +182,7 @@ async def main() -> None:
         print("Browser started. Use the panel at bottom-right.")
         print("Close the window to exit.")
 
-        await context.wait_for_event("close")
+        await context.wait_for_event("close", timeout=0)
 
 
 if __name__ == "__main__":

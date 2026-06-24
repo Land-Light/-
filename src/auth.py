@@ -17,11 +17,18 @@ async def login(page: Page) -> None:
 
     await page.goto(LOGIN_URL, wait_until="networkidle")
 
-    await page.click(SEL_USERNAME)
-    await page.fill(SEL_USERNAME, username)
-    await page.click(SEL_PASSWORD)
-    await page.fill(SEL_PASSWORD, password)
-    await page.click(SEL_SUBMIT)
+    # Use triple-click + type for MUI/React inputs to ensure events fire
+    uid = page.locator('#uid')
+    await uid.click()
+    await uid.triple_click()
+    await uid.type(username, delay=50)
+
+    pwd = page.locator('input[type="password"]')
+    await pwd.click()
+    await pwd.triple_click()
+    await pwd.type(password, delay=50)
+
+    await page.locator(SEL_SUBMIT).click()
     await page.wait_for_load_state("networkidle")
 
     if page.url == LOGIN_URL:
