@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from playwright.async_api import Page
 
-TASKS_URL    = "https://www.toshin-correction.com/tasks"
+TASKS_URL    = "https://www.toshin-correction.com/correction"
 SEL_TASK_ROW = ".task-item, tr.task, [class*='task-row']"
 SEL_TASK_LINK = "a"
 SEL_CRITERIA_SECTION = ".criteria, .grading-criteria, [class*='criteria']"
