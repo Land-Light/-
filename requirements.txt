@@ -1,0 +1,9 @@
+# Core (required)
+numpy>=1.24
+Pillow>=10.0
+img2pdf>=0.5
+mss>=9.0
+pyautogui>=0.9.54
+
+# Optional: searchable-PDF OCR layer. Install separately if you want --ocr.
+#   pip install ocrmypdf   (also needs the Tesseract binary + language packs)
