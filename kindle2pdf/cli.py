@@ -27,6 +27,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--save-config", help="write the resolved settings to JSON and exit")
     p.add_argument("--region", nargs=4, type=int, metavar=("L", "T", "W", "H"),
                    help="capture rectangle: left top width height")
+    p.add_argument("--fullscreen", action="store_true",
+                   help="capture the whole primary monitor (no region needed)")
     p.add_argument("--key", help="page-turn key (default: right)")
     p.add_argument("--max-pages", type=int, help="safety cap on pages")
     p.add_argument("--settle", type=float, help="pause after each page turn (s)")
@@ -42,6 +44,9 @@ def config_from_args(args) -> CaptureConfig:
     cfg = CaptureConfig.load(args.config) if args.config else CaptureConfig()
     if args.region:
         cfg.region = Region(*args.region)
+    if getattr(args, "fullscreen", False):
+        from .capture import primary_monitor_region
+        cfg.region = primary_monitor_region()
     if args.key:
         cfg.turn_key = args.key
     if args.max_pages is not None:

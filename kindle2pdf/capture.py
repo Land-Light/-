@@ -60,3 +60,17 @@ def list_monitors() -> list:
     import mss
     with mss.mss() as sct:
         return list(sct.monitors)
+
+
+def primary_monitor_region() -> Region:
+    """Full-screen capture region for the primary monitor.
+
+    Handy when the reader is shown full-screen and there is nothing to select
+    by hand. ``mss`` reports monitor 1 as the primary display (index 0 is the
+    virtual union of all monitors); auto-crop later trims any uniform borders.
+    """
+    import mss
+    with mss.mss() as sct:
+        mons = sct.monitors
+        m = mons[1] if len(mons) > 1 else mons[0]
+        return Region(m["left"], m["top"], m["width"], m["height"])

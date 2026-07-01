@@ -17,7 +17,30 @@ from .page_turn import make_turner
 from .region_picker import pick_region
 
 
+def _enable_dpi_awareness() -> None:
+    """On Windows, make the process DPI-aware before any Tk window exists.
+
+    Without this, on a scaled display (e.g. 150%) Tk reports logical pixels
+    while ``mss`` grabs physical pixels, so the selected region would be
+    offset and the wrong size. Making the process DPI-aware puts both on the
+    same physical-pixel coordinate system. No-op on other platforms.
+    """
+    import sys
+    if not sys.platform.startswith("win"):
+        return
+    try:
+        import ctypes
+        # PROCESS_PER_MONITOR_DPI_AWARE = 2
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except Exception:
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
+
 def launch(config: CaptureConfig | None = None) -> None:
+    _enable_dpi_awareness()
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
 
@@ -46,14 +69,35 @@ def launch(config: CaptureConfig | None = None) -> None:
                        if r.is_valid else "(not set)")
 
     def on_pick():
+        # Hide the panel so it isn't captured, but keep the same Tk
+        # interpreter: the overlay is a modal child of ``root`` (a second
+        # tk.Tk() here crashes on Windows). Any failure is reported instead
+        # of taking the whole app down.
         root.withdraw()
-        root.update()
-        r = pick_region()
-        root.deiconify()
+        root.update_idletasks()
+        try:
+            r = pick_region(parent=root)
+        except Exception as e:
+            r = None
+            messagebox.showerror("Region selection failed", str(e))
+        finally:
+            root.deiconify()
+            root.lift()
         if r is not None:
             cfg.region = r
             set_region_label()
             status_var.set("Region set. Focus your Kindle window, then Start.")
+
+    def on_fullscreen():
+        # No region selection needed: capture the whole primary monitor.
+        from .capture import primary_monitor_region
+        try:
+            cfg.region = primary_monitor_region()
+        except Exception as e:
+            messagebox.showerror("Full-screen setup failed", str(e))
+            return
+        set_region_label()
+        status_var.set("Full screen set. Put Kindle in full screen, then Start.")
 
     def on_browse():
         p = filedialog.asksaveasfilename(
@@ -105,8 +149,11 @@ def launch(config: CaptureConfig | None = None) -> None:
 
     def on_start():
         if not cfg.region.is_valid:
-            messagebox.showwarning("No region", "Pick a capture region first.")
-            return
+            # Nothing selected: default to capturing the whole primary monitor,
+            # which is exactly right when the reader runs full-screen.
+            on_fullscreen()
+            if not cfg.region.is_valid:
+                return
         _set_running(True)
         status_var.set("Starting…")
         t = threading.Thread(target=worker, daemon=True)
@@ -123,10 +170,15 @@ def launch(config: CaptureConfig | None = None) -> None:
     frm = ttk.Frame(root, padding=12)
     frm.grid()
     row = 0
-    ttk.Button(frm, text="① Pick region", command=on_pick).grid(
+    ttk.Button(frm, text="■ Use full screen", command=on_fullscreen).grid(
         row=row, column=0, sticky="w", **pad)
     ttk.Label(frm, textvariable=region_var).grid(row=row, column=1, columnspan=2,
                                                  sticky="w", **pad)
+    row += 1
+    ttk.Button(frm, text="① Pick region (optional)", command=on_pick).grid(
+        row=row, column=0, sticky="w", **pad)
+    ttk.Label(frm, text="※全画面ならこの操作は不要").grid(
+        row=row, column=1, columnspan=2, sticky="w", **pad)
     row += 1
     ttk.Label(frm, text="Page-turn key").grid(row=row, column=0, sticky="w", **pad)
     ttk.Combobox(frm, textvariable=key_var, width=12,
