@@ -4,6 +4,14 @@ ReportLab で赤ペンのオーバーレイページを描画し、pypdf で元P
 完全にローカルで動作し、API を必要としない。
 
 座標系: ページ左上を (0, 0)、右下を (1, 1) とする割合指定。
+
+採点記号の規約(本プロジェクト共通ルール):
+- 正解         → ○ (circle)
+- 部分点       → △ (tri)
+- 誤答・指摘箇所 → ✔ (check)
+- ✗ (cross) は原則使用しない(kind としては残すが、通常の採点では使わないこと)
+- どの設問にも必ず何らかの記号を付ける(マーク漏れを作らない)
+判定から記号を選ぶときは mark_kind_for() を使う。
 """
 
 import io
@@ -18,6 +26,19 @@ from reportlab.pdfgen import canvas as rl_canvas
 from pdf_generator import GOTHIC, _register_fonts
 
 RED = HexColor("#d0342c")
+
+# 判定 → 記号の対応(採点記号の規約)
+JUDGEMENT_KINDS = {
+    "正解": "circle",
+    "部分点": "tri",
+    "誤答": "check",
+    "指摘": "check",
+}
+
+
+def mark_kind_for(judgement: str) -> str:
+    """判定(正解/部分点/誤答/指摘)から規約どおりの記号 kind を返す。"""
+    return JUDGEMENT_KINDS.get(judgement, "check")
 
 
 class Mark(BaseModel):
