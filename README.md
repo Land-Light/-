@@ -20,6 +20,8 @@
 - **学習済み採点基準** — 東京都立大(2023〜2025)・奈良女子大(2020〜2025)の
   過去問演習講座「解答・採点基準」を参照コーパスとして搭載
 - **PDF出力** — 添削結果レポートをワンクリックでPDFダウンロード(日本語フォント埋め込み)
+- **答案への直接書き込み** — スキャン答案PDFに赤ペン添削(設問上の得点、○✓✗△、
+  欄外の縦書き講評、得点欄・採点者欄)をオーバーレイ合成(`annotator.py`)
 
 ## セットアップ
 
@@ -49,6 +51,33 @@ Debian/Ubuntu なら `apt install fonts-ipafont` でインストールできま�
 | `grader.py` | Claude API 呼び出し(構造化出力で設問別・減点法の採点結果を取得) |
 | `pdf_generator.py` | ReportLab による添削結果PDFの生成 |
 | `templates/` | 入力フォーム・結果画面のテンプレート |
+
+## API が必要な処理と不要な処理
+
+| 処理 | API |
+|---|---|
+| 答案の内容判定・採点・講評の生成 | **必要**(Claude) |
+| 手書きスキャン答案の判読 | **必要**(Claude の画像認識) |
+| 採点結果レポートPDFの生成(`pdf_generator.py`) | 不要(完全ローカル) |
+| 答案への赤ペン書き込みPDFの生成(`annotator.py`) | 不要(完全ローカル) |
+
+`annotator.py` は ReportLab + pypdf のみで動作します。採点データ(得点・コメント・
+書き込み位置)を人手または別経路で用意すれば、APIキーなしで書き込みPDFを生成できます。
+
+```python
+from annotator import Mark, annotate_pdf
+
+src = open("答案スキャン.pdf", "rb").read()
+marks = [
+    Mark(page=1, x=0.685, y=0.10, kind="text", text="6", size=22),   # 設問上の得点
+    Mark(page=1, x=0.183, y=0.265, kind="circle"),                    # 正解の○
+    Mark(page=1, x=0.470, y=0.20, kind="vtext", size=8.2,             # 縦書き講評
+         text="「ゆゆし」は多義語。ここでは文脈から「すばらしい」と訳しましょう。"),
+]
+open("書き込み済み.pdf", "wb").write(annotate_pdf(src, marks))
+```
+
+座標はページ左上を(0,0)、右下を(1,1)とする割合で指定します。
 
 ## 技術メモ
 
