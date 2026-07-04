@@ -41,6 +41,18 @@ def mark_kind_for(judgement: str) -> str:
     return JUDGEMENT_KINDS.get(judgement, "check")
 
 
+def mark_kind_for_score(score: int, max_score: int) -> str:
+    """得点から規約どおりの記号 kind を返す(記号と得点の不整合を防ぐ)。
+
+    満点=○(circle)、0点=✔(check)、それ以外の部分点=△(tri)。
+    """
+    if score >= max_score:
+        return "circle"
+    if score <= 0:
+        return "check"
+    return "tri"
+
+
 class Mark(BaseModel):
     """赤ペン書き込み1つ分。
 
