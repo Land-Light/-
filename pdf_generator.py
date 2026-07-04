@@ -28,7 +28,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from grader import GradingResult, QuestionInput
+from grader import GRADER_NAME, GradingResult, QuestionInput
 
 # _register_fonts() が実際に使えるフォント名で上書きする
 GOTHIC = "JPGothic"
@@ -136,6 +136,10 @@ def _styles():
             "deduction", fontName=MINCHO, fontSize=9.5, leading=15,
             textColor=RED,
         ),
+        "addition": ParagraphStyle(
+            "addition", fontName=MINCHO, fontSize=9.5, leading=15,
+            textColor=ACCENT,
+        ),
         "score": ParagraphStyle(
             "score", fontName=GOTHIC, fontSize=25, leading=31,
             alignment=TA_CENTER, textColor=RED,
@@ -177,7 +181,13 @@ def build_pdf(
 
     story.append(Paragraph("国語 過去問添削 結果レポート", st["title"]))
     now = datetime.now(JST).strftime("%Y年%m月%d日 %H:%M")
-    story.append(Paragraph(f"ジャンル:{_esc(genre_label)} / 添削日時:{now}", st["meta"]))
+    story.append(Paragraph(
+        f"出典判別:{_esc(result.matched_exam)} / 採点方式:{_esc(result.grading_method)}",
+        st["meta"],
+    ))
+    story.append(Paragraph(
+        f"添削日時:{now} / 採点者:{GRADER_NAME}", st["meta"],
+    ))
     story.append(Spacer(1, 3 * mm))
     story.append(HRFlowable(width="100%", thickness=1.2, color=ACCENT))
     story.append(Spacer(1, 4 * mm))
@@ -237,27 +247,34 @@ def build_pdf(
             block.append(Paragraph("提出答案", st["small_label"]))
             block.append(Paragraph(_esc(qin.answer), st["quote"]))
 
-        # 減点内訳
-        block.append(Paragraph("減点内訳", st["small_label"]))
-        if q.deductions:
-            rows = [
-                [
-                    Paragraph(f"−{d.points}点", st["deduction"]),
-                    Paragraph(_esc(d.reason), st["deduction"]),
-                ]
-                for d in q.deductions
-            ]
-            ded = Table(rows, colWidths=[18 * mm, 156 * mm])
-            ded.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), RED_BG),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e0b4ae")),
+        # 採点内訳(適用基準を併記)
+        block.append(Paragraph(
+            f"採点内訳 <font color='#5f6b7a' size=8.5>({_esc(q.applied_rubric)})</font>",
+            st["small_label"],
+        ))
+        if q.adjustments:
+            rows = []
+            row_styles = [
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#ccd5e6")),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("TOPPADDING", (0, 0), (-1, -1), 3),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ]))
+            ]
+            for idx, d in enumerate(q.adjustments):
+                if d.kind == "加点":
+                    style, sign, bg = st["addition"], "+", LIGHT_BG
+                else:
+                    style, sign, bg = st["deduction"], "−", RED_BG
+                rows.append([
+                    Paragraph(f"{sign}{d.points}点", style),
+                    Paragraph(_esc(d.reason), style),
+                ])
+                row_styles.append(("BACKGROUND", (0, idx), (-1, idx), bg))
+            ded = Table(rows, colWidths=[18 * mm, 156 * mm])
+            ded.setStyle(TableStyle(row_styles))
             block.append(ded)
         else:
-            block.append(Paragraph("減点なし(満点)", st["body"]))
+            block.append(Paragraph("指摘事項なし(満点)", st["body"]))
 
         block.append(Paragraph("講評", st["small_label"]))
         block.append(Paragraph(_esc(q.comment), st["body"]))

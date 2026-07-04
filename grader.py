@@ -1,17 +1,23 @@
 """国語入試答案の添削・採点を行う Claude API 呼び出しモジュール。
 
-予備校の過去問演習講座(解答・解説・採点基準)の形式に倣い、
-設問ごとに減点法で採点し、減点内訳と赤ペン講評を返す。
+フロー:
+1. 提出された設問・答案から、どの大学・年度・大問の過去問かを判別する
+2. 参照コーパス(過去問演習講座の解答・採点基準)から該当の採点基準を探す
+3. 見つかればその基準に厳密に従って採点する(加点法・減点法・併用など、
+   基準が定める方式のまま)。見つからなければ同じ形式で基準を自作して採点する
+4. 採点者名は「佐藤」で固定
 """
 
 import os
 from functools import lru_cache
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 import anthropic
 from pydantic import BaseModel, Field
 
 MODEL = "claude-opus-4-8"
+
+GRADER_NAME = "佐藤"
 
 _REFERENCE_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "reference", "rubric_examples.txt"
@@ -27,32 +33,34 @@ def _load_reference() -> str:
     except OSError:
         return ""
 
-SYSTEM_PROMPT = """あなたは日本の大学入試国語(現代文・古文・漢文・小論文)の過去問添削指導に長年携わってきたベテラン採点者です。
-予備校の過去問演習講座と同じ流儀で、受験生の答案を厳密かつ建設的に添削してください。
 
-採点の方針(重要):
-- 各設問は「減点法」で採点する。まず満点解答に必要な要素を列挙し、欠落・誤りごとに
-  「『〜』という内容がなければ○点減点」の形式で減点する。減点の合計が満点を超える場合、その設問は0点とする。
-- 採点基準が与えられている場合は、その基準に厳密に従うこと。自分の基準で上書きしない。
-- 採点基準がない場合は、本文・設問・模範解答から自分で採点基準(必要要素と減点幅)を構成して適用する。
-- 現代語訳では文法事項(助動詞の意味・敬語・句法など)の訳出漏れを減点対象として明示する。
-- 記述説明問題では「設問要求への対応(文末表現含む)」「本文根拠」「必要要素の網羅」「字数・表現」を確認する。
-- 理由説明問題で文末が理由の形(〜から。〜ため。)になっていなければ減点する。
+SYSTEM_PROMPT = """あなたは日本の大学入試国語(現代文・古文・漢文・小論文)の過去問添削指導に長年携わってきたベテラン採点者「佐藤」です。
+予備校の過去問演習講座の採点者として、受験生の答案を厳密かつ建設的に添削してください。
 
-講評の方針:
-- 答案の余白に赤ペンで書き込む講評のように、「どこが」「なぜ」減点かを具体的に指摘する。
-- 本文の該当箇所(段落・表現)を根拠として示す。
-- 受験生本人に語りかける文体で、良い点を認めた上で、次に何をすべきかを明確に伝える。
-- 各設問に満点相当の書き直し例を必ず示す。
-- 誤字・脱字・不自然な日本語も指摘する。"""
+必ず次の手順で採点すること:
+1. 【出典の判別】提出された設問・答案・本文を、後述の参照実例(過去問の解答・採点基準)と照合し、
+   どの大学・年度・大問の問題かを判別する。判別結果(大学名・年度・大問・出典作品)を必ず報告する。
+   判別できない場合は「判別できず」と報告する。
+2. 【採点基準の選択】参照実例に該当の採点基準がある場合は、その基準に厳密に従って採点する。
+   基準が加点法なら加点法、減点法なら減点法、併用なら併用のまま運用し、自分の基準で上書きしない。
+   利用者が採点基準を貼り付けた場合は、それを最優先で適用する。
+   どちらも無い場合のみ、参照実例と同じ形式・粒度(「『〜』という内容がなければ○点減点」
+   「Ｘという内容(○点)」「＊〜も許容」)で採点基準を自作して適用する。
+3. 【採点】各設問について、適用した基準の項目ごとに加点・減点を判定し、内訳をすべて明示する。
+   0点以下になった場合、その問は0点とする。誤字脱字以外の部分点は基準に無い限り認めない。
+4. 【講評】答案の余白に赤ペンで書き込むように、「どこが」「なぜ」加点・減点なのかを、
+   本文の該当箇所を根拠に具体的に指摘する。受験生本人に語りかける文体で、良い点を認めた上で
+   次に何をすべきかを明確に伝える。各設問に満点相当の書き直し例を必ず示す。
+   誤字・脱字・不自然な日本語も指摘する。"""
 
 
-class Deduction(BaseModel):
-    """減点内訳の1項目。"""
+class ScoreAdjustment(BaseModel):
+    """加点・減点の内訳1項目。"""
 
-    points: int = Field(description="減点数(正の整数。例: 2点減点なら 2)")
+    kind: Literal["加点", "減点"] = Field(description="加点か減点か")
+    points: int = Field(description="点数(正の整数)")
     reason: str = Field(
-        description="減点理由。「『〜』という内容がないため」など採点基準の形式で具体的に"
+        description="判定理由。適用した採点基準の項目(「『〜』という内容がないため」等)を明記"
     )
 
 
@@ -60,16 +68,27 @@ class QuestionGrading(BaseModel):
     """設問1つ分の採点結果。"""
 
     label: str = Field(description="設問番号(例: 問一、問二(1))")
-    score: int = Field(description="この設問の得点(満点−減点合計。0未満なら0)")
+    score: int = Field(description="この設問の得点(0未満なら0)")
     max_score: int = Field(description="この設問の配点")
-    deductions: List[Deduction] = Field(description="減点内訳。満点なら空リスト")
-    comment: str = Field(description="この設問への赤ペン講評(良い点・減点箇所の具体的指摘)")
+    applied_rubric: str = Field(
+        description="適用した採点基準の出典(例: 2024年度 東京都立大学 第一問 問四の採点基準 / 利用者提供の採点基準 / 自作基準)"
+    )
+    adjustments: List[ScoreAdjustment] = Field(
+        description="加点・減点の内訳。加点法の基準なら獲得した要素を加点として列挙する"
+    )
+    comment: str = Field(description="この設問への赤ペン講評(良い点・失点箇所の具体的指摘)")
     rewrite_example: str = Field(description="満点相当の解答例(書き直し例)")
 
 
 class GradingResult(BaseModel):
     """添削結果全体。"""
 
+    matched_exam: str = Field(
+        description="判別した出典(例: 2024年度 東京都立大学 国語 第一問〈古文『十訓抄』〉)。判別できない場合は「判別できず」"
+    )
+    grading_method: str = Field(
+        description="適用した採点方式(例: 減点法 / 加点法・減点法併用 / 利用者提供基準)"
+    )
     total_score: int = Field(description="合計得点")
     max_score: int = Field(description="配点合計")
     grade_label: str = Field(description="評価(例: A / B / C / 合格圏 / 要努力)")
@@ -84,13 +103,14 @@ class QuestionInput(BaseModel):
     """フォームから受け取る設問1つ分の入力。"""
 
     label: str
-    question: str
+    question: str = ""
     answer: str
-    max_score: int
+    max_score: Optional[int] = None
     model_answer: Optional[str] = None
 
 
 GENRE_LABELS = {
+    "auto": "自動判別",
     "hyoron": "現代文(評論)",
     "shosetsu": "現代文(小説)",
     "kobun": "古文",
@@ -109,28 +129,30 @@ def grade_answers(
     """答案一式を添削・採点して構造化された結果を返す。"""
     client = anthropic.Anthropic()
 
+    parts = []
     genre_label = GENRE_LABELS.get(genre, genre)
-    total = sum(q.max_score for q in questions)
-    parts = [f"【ジャンル】{genre_label}", f"【配点合計】{total}点"]
+    if genre != "auto":
+        parts.append(f"【ジャンル】{genre_label}")
     if target_university:
         parts.append(f"【志望校・レベル】{target_university}")
     if passage:
         parts.append(f"【本文(問題文)】\n{passage}")
     if rubric:
-        parts.append(
-            f"【採点基準】(この基準に厳密に従って採点すること)\n{rubric}"
-        )
+        parts.append(f"【利用者提供の採点基準】(最優先で適用すること)\n{rubric}")
 
     for q in questions:
-        block = [f"◆{q.label}(配点{q.max_score}点)", f"設問: {q.question}"]
+        block = [f"◆{q.label}" + (f"(配点{q.max_score}点)" if q.max_score else "(配点は基準から判断)")]
+        if q.question:
+            block.append(f"設問: {q.question}")
         if q.model_answer:
             block.append(f"模範解答: {q.model_answer}")
         block.append(f"受験生の答案: {q.answer}")
         parts.append("\n".join(block))
 
     parts.append(
-        "上記の答案を設問ごとに減点法で添削・採点してください。"
-        "各設問の得点は配点から減点合計を引いた値(0未満は0)とし、"
+        "上記の答案について、まず出典(大学・年度・大問)を判別し、"
+        "該当する採点基準を選んで、その基準が定める方式のまま採点してください。"
+        "配点が入力されていない設問は、判別した採点基準の配点を用いてください。"
         "合計得点は各設問の得点の和と一致させてください。"
     )
 
@@ -142,12 +164,9 @@ def grade_answers(
                 "type": "text",
                 "text": (
                     "以下は、実際の予備校の過去問演習講座で使われている"
-                    "「解答・採点基準」の実例です。減点項目の立て方"
-                    "(「『〜』という内容がなければ○点減点」「＊〜も許容」など)、"
-                    "許容解答の示し方、要素ごとの配点の粒度を、この実例と同じ"
-                    "厳密さ・形式で運用してください。また、受験生が提出した設問が"
-                    "実例中の過去問と一致する場合は、該当する採点基準に厳密に"
-                    "従って採点してください。\n\n" + reference
+                    "「解答・採点基準」の実例(参照実例)です。出典判別と"
+                    "採点基準の選択・運用は、必ずこの実例に基づいて行ってください。\n\n"
+                    + reference
                 ),
             }
         )

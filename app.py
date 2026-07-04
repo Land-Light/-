@@ -5,7 +5,7 @@ import uuid
 
 from flask import Flask, abort, render_template, request, send_file
 
-from grader import GENRE_LABELS, QuestionInput, grade_answers
+from grader import GENRE_LABELS, GRADER_NAME, QuestionInput, grade_answers
 from pdf_generator import build_pdf
 
 app = Flask(__name__)
@@ -27,15 +27,15 @@ def _parse_questions(form) -> list:
     maxes = form.getlist("q_max")
     models = form.getlist("q_model")
     questions = []
-    for i in range(len(texts)):
-        text = texts[i].strip()
-        answer = answers[i].strip() if i < len(answers) else ""
+    for i in range(len(answers)):
+        text = texts[i].strip() if i < len(texts) else ""
+        answer = answers[i].strip()
         if not text and not answer:
             continue  # 空の設問ブロックはスキップ
         try:
-            max_score = int(maxes[i]) if i < len(maxes) else 10
+            max_score = int(maxes[i]) if i < len(maxes) and maxes[i].strip() else None
         except (ValueError, IndexError):
-            max_score = 10
+            max_score = None
         label = labels[i].strip() if i < len(labels) and labels[i].strip() else f"問{i + 1}"
         model = models[i].strip() if i < len(models) else ""
         questions.append(
@@ -58,11 +58,11 @@ def grade():
     target_university = request.form.get("target_university", "").strip() or None
 
     questions = _parse_questions(request.form)
-    invalid = [q for q in questions if not q.question or not q.answer]
+    invalid = [q for q in questions if not q.answer]
     if not questions or invalid:
         return render_template(
             "index.html", genres=GENRE_LABELS,
-            error="各設問には「設問」と「答案」の両方を入力してください。",
+            error="各設問には少なくとも「答案」を入力してください(設問文があると出典判別の精度が上がります)。",
             form=request.form,
         ), 400
 
@@ -93,6 +93,7 @@ def grade():
         result_id=result_id,
         genre_label=GENRE_LABELS.get(genre, genre),
         questions=questions,
+        grader_name=GRADER_NAME,
     )
 
 

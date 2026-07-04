@@ -4,9 +4,10 @@
 
 <div class="card">
   <p class="notice">
-    過去問の設問とあなたの答案を入力すると、AIが予備校の添削と同じように<strong>設問ごとの減点法</strong>で採点し、
-    減点内訳・赤ペン講評・書き直し例・学習アドバイスを返します。結果はPDFでダウンロードできます。<br>
-    本文・模範解答・採点基準(赤本や過去問演習講座のもの)も入力すると、採点精度が大きく上がります。
+    答案を入力すると、AIが<strong>出典(大学・年度・大問)を判別</strong>し、学習済みの採点基準を探して
+    <strong>その基準が定める方式(加点法・減点法・併用)のまま</strong>採点します。
+    加点・減点の内訳、赤ペン講評、書き直し例、学習アドバイス付きの結果をPDFでダウンロードできます。<br>
+    設問文・本文・模範解答・採点基準も入力すると、判別と採点の精度が大きく上がります。
   </p>
 
   <form action="/grade" method="post" onsubmit="document.getElementById('loading').style.display='block'; document.getElementById('submit-btn').disabled=true;">
@@ -53,12 +54,12 @@
     </legend>
     <div class="row">
       <div style="flex:3;">
-        <label>設問 <span class="opt">(必須)</span></label>
+        <label>設問 <span class="opt">(任意・出典判別の精度が上がります)</span></label>
         <textarea name="q_text" rows="2" placeholder="例: 傍線部Aとはどういうことか、一〇〇字以内で説明せよ。"></textarea>
       </div>
       <div style="flex:1; min-width:110px;">
-        <label>配点(点)</label>
-        <input type="number" name="q_max" min="1" max="100" value="10">
+        <label>配点(点) <span class="opt">(空欄=基準から自動)</span></label>
+        <input type="number" name="q_max" min="1" max="100" placeholder="自動">
       </div>
     </div>
     <label>模範解答 <span class="opt">(任意)</span></label>

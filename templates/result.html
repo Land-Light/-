@@ -9,7 +9,11 @@
     </span>
     <span class="grade">評価:{{ result.grade_label }}</span>
   </div>
-  <p class="notice" style="margin-top:0.6rem;">ジャンル:{{ genre_label }}</p>
+  <p class="notice" style="margin-top:0.6rem;">
+    出典判別:<strong>{{ result.matched_exam }}</strong> /
+    採点方式:{{ result.grading_method }} /
+    採点者:{{ grader_name }}
+  </p>
 
   {% set qmap = {} %}
   {% for q in questions %}{% if qmap.update({q.label: q}) %}{% endif %}{% endfor %}
@@ -28,15 +32,18 @@
     <div class="quote"><pre class="user-text">{{ qin.answer }}</pre></div>
     {% endif %}
 
-    <p class="mini-label">減点内訳</p>
-    {% if q.deductions %}
+    <p class="mini-label">採点内訳 <span style="font-weight:400; color:var(--muted);">({{ q.applied_rubric }})</span></p>
+    {% if q.adjustments %}
     <table class="deductions">
-      {% for d in q.deductions %}
-      <tr><td class="pts">−{{ d.points }}点</td><td>{{ d.reason }}</td></tr>
+      {% for d in q.adjustments %}
+      <tr class="{{ 'plus' if d.kind == '加点' else 'minus' }}">
+        <td class="pts">{{ '+' if d.kind == '加点' else '−' }}{{ d.points }}点</td>
+        <td>{{ d.reason }}</td>
+      </tr>
       {% endfor %}
     </table>
     {% else %}
-    <p>減点なし(満点)</p>
+    <p>指摘事項なし(満点)</p>
     {% endif %}
 
     <p class="mini-label">講評</p>
@@ -81,7 +88,9 @@
   }
   .mini-label { color: var(--accent); font-weight: 700; font-size: 0.88rem; margin: 0.9rem 0 0.25rem; }
   table.deductions { border-collapse: collapse; width: calc(100% - 2.2rem); font-size: 0.92rem; }
-  table.deductions td { border: 1px solid #e0b4ae; background: #fdf3f2; color: #c0392b; padding: 0.4rem 0.7rem; }
+  table.deductions td { border: 1px solid #ccd5e6; padding: 0.4rem 0.7rem; }
+  table.deductions tr.minus td { border-color: #e0b4ae; background: #fdf3f2; color: #c0392b; }
+  table.deductions tr.plus td { border-color: #b9cbe8; background: #f0f5fc; color: #1a3a6e; }
   table.deductions td.pts { width: 4.5em; font-weight: 700; text-align: center; white-space: nowrap; }
   .quote.rewrite { border-left: 4px solid #c0392b; }
   .q-result .quote { margin-bottom: 0.4rem; }
