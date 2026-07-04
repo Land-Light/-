@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}添削結果 — 国語 過去問添削AI{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="score-banner">
+    <span><span class="num">{{ result.total_score }}</span> <span class="denom">/ {{ result.max_score }} 点</span></span>
+    <span class="per-q">
+      {% for q in result.questions %}<span class="pq">{{ q.label }} {{ q.score }}/{{ q.max_score }}</span>{% endfor %}
+    </span>
+    <span class="grade">評価:{{ result.grade_label }}</span>
+  </div>
+  <p class="notice" style="margin-top:0.6rem;">ジャンル:{{ genre_label }}</p>
+
+  {% set qmap = {} %}
+  {% for q in questions %}{% if qmap.update({q.label: q}) %}{% endif %}{% endfor %}
+
+  {% for q in result.questions %}
+  <div class="q-result">
+    <div class="q-head">
+      <span>{{ q.label }}</span>
+      <span>得点 {{ q.score }} / {{ q.max_score }} 点</span>
+    </div>
+    {% set qin = qmap.get(q.label) %}
+    {% if qin %}
+    <p class="mini-label">設問</p>
+    <div class="quote"><pre class="user-text">{{ qin.question }}</pre></div>
+    <p class="mini-label">提出答案</p>
+    <div class="quote"><pre class="user-text">{{ qin.answer }}</pre></div>
+    {% endif %}
+
+    <p class="mini-label">減点内訳</p>
+    {% if q.deductions %}
+    <table class="deductions">
+      {% for d in q.deductions %}
+      <tr><td class="pts">−{{ d.points }}点</td><td>{{ d.reason }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p>減点なし(満点)</p>
+    {% endif %}
+
+    <p class="mini-label">講評</p>
+    <p style="white-space: pre-wrap;">{{ q.comment }}</p>
+
+    <p class="mini-label">書き直し例(満点解答例)</p>
+    <div class="quote rewrite">{{ q.rewrite_example }}</div>
+  </div>
+  {% endfor %}
+
+  <h2 class="section">総評</h2>
+  <p style="white-space: pre-wrap;">{{ result.overall_comment }}</p>
+
+  <h2 class="section">良かった点</h2>
+  <ul class="points">
+    {% for s in result.strengths %}<li>{{ s }}</li>{% endfor %}
+  </ul>
+
+  <h2 class="section">改善すべき点</h2>
+  <ul class="points">
+    {% for s in result.improvements %}<li>{{ s }}</li>{% endfor %}
+  </ul>
+
+  <h2 class="section">今後の学習アドバイス</h2>
+  <p style="white-space: pre-wrap;">{{ result.study_advice }}</p>
+
+  <div class="actions">
+    <a class="btn-pdf" href="/pdf/{{ result_id }}">添削結果をPDFでダウンロード</a>
+    <a class="btn-back" href="/">別の答案を添削する</a>
+  </div>
+</div>
+
+<style>
+  .score-banner .per-q { display: flex; gap: 0.7rem; flex-wrap: wrap; font-size: 0.9rem; color: var(--muted); align-items: center; }
+  .score-banner .num { color: #c0392b; }
+  .q-result { border: 1.5px solid var(--border); border-radius: 10px; margin: 1.3rem 0; overflow: hidden; }
+  .q-result > * { margin-left: 1.1rem; margin-right: 1.1rem; }
+  .q-head {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--accent); color: #fff; font-weight: 700;
+    padding: 0.5rem 1.1rem; margin: 0 0 0.6rem;
+  }
+  .mini-label { color: var(--accent); font-weight: 700; font-size: 0.88rem; margin: 0.9rem 0 0.25rem; }
+  table.deductions { border-collapse: collapse; width: calc(100% - 2.2rem); font-size: 0.92rem; }
+  table.deductions td { border: 1px solid #e0b4ae; background: #fdf3f2; color: #c0392b; padding: 0.4rem 0.7rem; }
+  table.deductions td.pts { width: 4.5em; font-weight: 700; text-align: center; white-space: nowrap; }
+  .quote.rewrite { border-left: 4px solid #c0392b; }
+  .q-result .quote { margin-bottom: 0.4rem; }
+  .q-result > p:last-of-type, .q-result > .quote:last-child { margin-bottom: 1rem; }
+</style>
+{% endblock %}

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}国語 過去問添削AI{% endblock %}</title>
+  <style>
+    :root {
+      --accent: #1a3a6e;
+      --accent-light: #eef2f8;
+      --border: #c8d2e4;
+      --text: #23282e;
+      --muted: #5f6b7a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+      color: var(--text);
+      background: #f7f8fa;
+      line-height: 1.8;
+    }
+    header {
+      background: var(--accent);
+      color: #fff;
+      padding: 1.1rem 1.5rem;
+    }
+    header h1 { margin: 0; font-size: 1.25rem; letter-spacing: 0.08em; }
+    header a { color: #fff; text-decoration: none; }
+    header .sub { font-size: 0.8rem; opacity: 0.85; margin-top: 0.2rem; }
+    main { max-width: 860px; margin: 1.8rem auto 4rem; padding: 0 1.2rem; }
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem 1.7rem;
+      margin-bottom: 1.4rem;
+      box-shadow: 0 1px 4px rgba(26, 58, 110, 0.06);
+    }
+    label { display: block; font-weight: 600; margin: 1rem 0 0.3rem; font-size: 0.95rem; }
+    label .opt { font-weight: 400; color: var(--muted); font-size: 0.8rem; }
+    textarea, input[type="text"], input[type="number"], select {
+      width: 100%;
+      padding: 0.6rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      background: #fff;
+    }
+    textarea:focus, input:focus, select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+    textarea { resize: vertical; }
+    .row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .row > div { flex: 1; min-width: 200px; }
+    button.primary {
+      margin-top: 1.4rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.8rem 2.2rem;
+      font-size: 1.05rem;
+      font-family: inherit;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+    }
+    button.primary:hover { background: #244b8c; }
+    .error {
+      background: #fdecec;
+      border: 1px solid #e5a3a3;
+      color: #8f1f1f;
+      border-radius: 8px;
+      padding: 0.8rem 1rem;
+      margin-bottom: 1.2rem;
+    }
+    .notice { color: var(--muted); font-size: 0.85rem; }
+    #loading {
+      display: none;
+      margin-top: 1rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    /* 結果画面 */
+    .score-banner {
+      display: flex;
+      align-items: baseline;
+      gap: 1.2rem;
+      background: var(--accent-light);
+      border: 1.5px solid var(--accent);
+      border-radius: 10px;
+      padding: 1rem 1.5rem;
+      flex-wrap: wrap;
+    }
+    .score-banner .num { font-size: 2.6rem; font-weight: 700; color: var(--accent); }
+    .score-banner .denom { font-size: 1.2rem; color: var(--muted); }
+    .score-banner .grade { font-size: 1.1rem; font-weight: 700; margin-left: auto; }
+    h2.section { color: var(--accent); font-size: 1.1rem; border-left: 5px solid var(--accent); padding-left: 0.6rem; margin: 1.8rem 0 0.7rem; }
+    table.criteria { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+    table.criteria th, table.criteria td { border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: left; vertical-align: top; }
+    table.criteria th { background: var(--accent); color: #fff; font-weight: 600; }
+    table.criteria tr:nth-child(even) td { background: var(--accent-light); }
+    ul.points { margin: 0.3rem 0; padding-left: 1.4rem; }
+    .quote { background: var(--accent-light); border-radius: 8px; padding: 0.9rem 1.1rem; white-space: pre-wrap; }
+    .actions { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
+    .actions a {
+      display: inline-block;
+      padding: 0.75rem 1.8rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+    }
+    .btn-pdf { background: var(--accent); color: #fff; }
+    .btn-pdf:hover { background: #244b8c; }
+    .btn-back { background: #fff; color: var(--accent); border: 1.5px solid var(--accent); }
+    pre.user-text { white-space: pre-wrap; font-family: inherit; margin: 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><a href="/">国語 過去問添削AI</a></h1>
+    <div class="sub">大学入試国語(現代文・古文・漢文・小論文)の答案を添削・採点し、PDFで返却します</div>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

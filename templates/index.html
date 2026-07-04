@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <p class="notice">
+    過去問の設問とあなたの答案を入力すると、AIが予備校の添削と同じように<strong>設問ごとの減点法</strong>で採点し、
+    減点内訳・赤ペン講評・書き直し例・学習アドバイスを返します。結果はPDFでダウンロードできます。<br>
+    本文・模範解答・採点基準(赤本や過去問演習講座のもの)も入力すると、採点精度が大きく上がります。
+  </p>
+
+  <form action="/grade" method="post" onsubmit="document.getElementById('loading').style.display='block'; document.getElementById('submit-btn').disabled=true;">
+    <div class="row">
+      <div>
+        <label for="genre">ジャンル</label>
+        <select id="genre" name="genre">
+          {% for key, label in genres.items() %}
+          <option value="{{ key }}" {% if form and form.get('genre') == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="target_university">志望校・レベル <span class="opt">(任意)</span></label>
+        <input type="text" id="target_university" name="target_university"
+               placeholder="例: 東京都立大学 / 共通テスト / 早稲田大 文"
+               value="{{ form.get('target_university', '') if form else '' }}">
+      </div>
+    </div>
+
+    <label for="passage">本文(問題文) <span class="opt">(任意・入力すると採点精度が上がります)</span></label>
+    <textarea id="passage" name="passage" rows="6"
+              placeholder="評論・小説・古文・漢文の本文をここに貼り付けてください">{{ form.get('passage', '') if form else '' }}</textarea>
+
+    <label for="rubric">採点基準 <span class="opt">(任意・赤本や過去問演習講座の採点基準があれば貼り付けてください。厳密に従って採点します)</span></label>
+    <textarea id="rubric" name="rubric" rows="4"
+              placeholder="例: 問四 8点満点 1.「格別に着飾ったのに」という内容がなければ、1点減点。 2.「行列が始まる前に」という内容がなければ、1点減点。…">{{ form.get('rubric', '') if form else '' }}</textarea>
+
+    <h2 class="section" style="margin-top:1.6rem;">設問と答案</h2>
+    <div id="questions"></div>
+    <button type="button" class="btn-add" onclick="addQuestion()">+ 設問を追加</button>
+
+    <br>
+    <button class="primary" id="submit-btn" type="submit">添削を依頼する</button>
+    <div id="loading">採点中です…(設問数により1〜数分かかります)</div>
+  </form>
+</div>
+
+<template id="q-template">
+  <fieldset class="q-block">
+    <legend>
+      <input type="text" name="q_label" class="q-label" placeholder="問一">
+      <button type="button" class="btn-remove" onclick="this.closest('.q-block').remove(); renumber();">削除</button>
+    </legend>
+    <div class="row">
+      <div style="flex:3;">
+        <label>設問 <span class="opt">(必須)</span></label>
+        <textarea name="q_text" rows="2" placeholder="例: 傍線部Aとはどういうことか、一〇〇字以内で説明せよ。"></textarea>
+      </div>
+      <div style="flex:1; min-width:110px;">
+        <label>配点(点)</label>
+        <input type="number" name="q_max" min="1" max="100" value="10">
+      </div>
+    </div>
+    <label>模範解答 <span class="opt">(任意)</span></label>
+    <textarea name="q_model" rows="2" placeholder="模範解答があれば貼り付けてください"></textarea>
+    <label>あなたの答案 <span class="opt">(必須)</span></label>
+    <textarea name="q_answer" rows="3" placeholder="あなたが書いた答案をそのまま入力してください"></textarea>
+  </fieldset>
+</template>
+
+<style>
+  .q-block {
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    margin: 0 0 1rem;
+    padding: 0.4rem 1.1rem 1.1rem;
+    background: #fbfcfe;
+  }
+  .q-block legend { display: flex; gap: 0.6rem; align-items: center; padding: 0 0.4rem; }
+  .q-block .q-label { width: 7em; font-weight: 700; text-align: center; }
+  .btn-add {
+    background: #fff; color: var(--accent);
+    border: 1.5px dashed var(--accent); border-radius: 8px;
+    padding: 0.55rem 1.6rem; font-family: inherit; font-size: 0.95rem;
+    cursor: pointer; margin-top: 0.2rem;
+  }
+  .btn-add:hover { background: var(--accent-light); }
+  .btn-remove {
+    background: #fff; color: #a33; border: 1px solid #c99;
+    border-radius: 6px; padding: 0.15rem 0.7rem; font-size: 0.8rem;
+    font-family: inherit; cursor: pointer;
+  }
+</style>
+
+<script>
+  const KANJI = ["一","二","三","四","五","六","七","八","九","十"];
+  function addQuestion() {
+    const tpl = document.getElementById("q-template");
+    const node = tpl.content.cloneNode(true);
+    document.getElementById("questions").appendChild(node);
+    renumber();
+  }
+  function renumber() {
+    document.querySelectorAll("#questions .q-label").forEach((el, i) => {
+      if (!el.dataset.touched) el.value = "問" + (KANJI[i] || (i + 1));
+      el.addEventListener("input", () => el.dataset.touched = "1", { once: true });
+    });
+  }
+  addQuestion();
+</script>
+{% endblock %}
