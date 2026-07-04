@@ -7,6 +7,7 @@ from flask import Flask, abort, render_template, request, send_file
 
 from grader import GENRE_LABELS, GRADER_NAME, QuestionInput, grade_answers
 from pdf_generator import build_pdf
+from scan_grader import grade_and_annotate
 
 app = Flask(__name__)
 
@@ -93,6 +94,96 @@ def grade():
         result_id=result_id,
         genre_label=GENRE_LABELS.get(genre, genre),
         questions=questions,
+        grader_name=GRADER_NAME,
+    )
+
+
+@app.route("/grade-scans", methods=["POST"])
+def grade_scans():
+    """スキャン答案PDF(複数可)を一括採点する。"""
+    files = [f for f in request.files.getlist("scans") if f and f.filename]
+    rubric = request.form.get("scan_rubric", "").strip() or None
+    if not files:
+        return render_template(
+            "index.html", genres=GENRE_LABELS,
+            error="答案PDFを1つ以上選択してください。", form=request.form,
+        ), 400
+
+    batch = []
+    for f in files:
+        entry = {"filename": f.filename}
+        try:
+            pdf_bytes = f.read()
+            result, annotated = grade_and_annotate(pdf_bytes, rubric=rubric)
+            result_id = uuid.uuid4().hex
+            _results[result_id] = {
+                "result": result,
+                "genre_label": GENRE_LABELS.get("auto", "自動判別"),
+                "questions": result.transcriptions,
+                "annotated": annotated,
+                "filename": f.filename,
+            }
+            entry.update({"ok": True, "result_id": result_id, "result": result})
+        except Exception as e:  # 1枚の失敗で全体を止めない
+            entry.update({"ok": False, "error": str(e)})
+        batch.append(entry)
+
+    batch_id = uuid.uuid4().hex
+    _results[f"batch:{batch_id}"] = [e.get("result_id") for e in batch if e.get("ok")]
+    return render_template(
+        "scans_result.html", batch=batch, batch_id=batch_id, grader_name=GRADER_NAME,
+    )
+
+
+@app.route("/annotated/<result_id>")
+def download_annotated(result_id: str):
+    """赤ペン書き込み済み答案PDFのダウンロード。"""
+    data = _results.get(result_id)
+    if data is None or "annotated" not in data:
+        abort(404)
+    name = data.get("filename", "答案.pdf").rsplit(".", 1)[0]
+    return send_file(
+        io.BytesIO(data["annotated"]),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"{name}_添削済み.pdf",
+    )
+
+
+@app.route("/annotated-zip/<batch_id>")
+def download_annotated_zip(batch_id: str):
+    """バッチ内の書き込み済みPDFをまとめてZIPでダウンロード。"""
+    import zipfile
+
+    ids = _results.get(f"batch:{batch_id}")
+    if not ids:
+        abort(404)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for rid in ids:
+            data = _results.get(rid)
+            if data and "annotated" in data:
+                name = data.get("filename", f"{rid}.pdf").rsplit(".", 1)[0]
+                zf.writestr(f"{name}_添削済み.pdf", data["annotated"])
+    buf.seek(0)
+    return send_file(
+        buf, mimetype="application/zip",
+        as_attachment=True, download_name="添削済み答案.zip",
+    )
+
+
+@app.route("/result/<result_id>")
+def show_result(result_id: str):
+    """採点結果レポートのWeb表示(スキャン採点用)。"""
+    data = _results.get(result_id)
+    if data is None:
+        abort(404)
+    return render_template(
+        "result.html",
+        result=data["result"],
+        result_id=result_id,
+        genre_label=data.get("genre_label", ""),
+        questions=data.get("questions", []),
         grader_name=GRADER_NAME,
     )
 

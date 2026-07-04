@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}一括採点結果 — 国語 過去問添削AI{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 class="section" style="margin-top:0;">スキャン答案 一括採点結果</h2>
+  <p class="notice">採点者:{{ grader_name }} / {{ batch|length }}件中 {{ batch|selectattr("ok")|list|length }}件成功</p>
+
+  <table class="batch">
+    <tr>
+      <th>ファイル</th><th>出典判別</th><th>得点</th><th>評価</th><th>ダウンロード</th>
+    </tr>
+    {% for e in batch %}
+    <tr>
+      <td>{{ e.filename }}</td>
+      {% if e.ok %}
+      <td>{{ e.result.matched_exam }}
+        {% if e.result.student_name %}<br><span class="muted">氏名:{{ e.result.student_name }}</span>{% endif %}
+      </td>
+      <td class="score">{{ e.result.total_score }} / {{ e.result.max_score }}</td>
+      <td>{{ e.result.grade_label }}</td>
+      <td>
+        <a href="/annotated/{{ e.result_id }}">書き込み済み答案PDF</a><br>
+        <a href="/pdf/{{ e.result_id }}">レポートPDF</a> /
+        <a href="/result/{{ e.result_id }}">Web表示</a>
+      </td>
+      {% else %}
+      <td colspan="4" class="err">エラー: {{ e.error }}</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </table>
+
+  <div class="actions">
+    {% if batch|selectattr("ok")|list|length > 0 %}
+    <a class="btn-pdf" href="/annotated-zip/{{ batch_id }}">書き込み済み答案を一括ダウンロード(ZIP)</a>
+    {% endif %}
+    <a class="btn-back" href="/">戻る</a>
+  </div>
+</div>
+
+<style>
+  table.batch { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+  table.batch th, table.batch td { border: 1px solid var(--border); padding: 0.55rem 0.7rem; text-align: left; vertical-align: top; }
+  table.batch th { background: var(--accent); color: #fff; font-weight: 600; }
+  table.batch td.score { font-weight: 700; color: #c0392b; white-space: nowrap; }
+  table.batch td.err { color: #8f1f1f; background: #fdecec; }
+  table.batch .muted { color: var(--muted); font-size: 0.85rem; }
+</style>
+{% endblock %}

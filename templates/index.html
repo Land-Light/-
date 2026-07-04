@@ -3,6 +3,28 @@
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
 <div class="card">
+  <h2 class="section" style="margin-top:0;">スキャン答案をアップロード(複数可)</h2>
+  <p class="notice">
+    答案用紙のスキャンPDFをアップロードすると、AIが手書きを判読して出典を判別し、
+    採点基準に沿って採点します。<strong>答案に赤ペンで直接書き込んだPDF</strong>と採点レポートを返却します。
+    複数枚まとめてのアップロードに対応しています。
+  </p>
+  <form action="/grade-scans" method="post" enctype="multipart/form-data"
+        onsubmit="document.getElementById('scan-loading').style.display='block'; this.querySelector('button').disabled=true;">
+    <label for="scans">答案PDF(複数選択可)</label>
+    <input type="file" id="scans" name="scans" accept="application/pdf" multiple required>
+    <label for="scan_rubric">採点基準 <span class="opt">(任意・貼り付けると最優先で適用)</span></label>
+    <textarea id="scan_rubric" name="scan_rubric" rows="3"
+              placeholder="赤本・過去問演習講座の採点基準があれば貼り付けてください"></textarea>
+    <button class="primary" type="submit">一括採点する</button>
+    <div id="scan-loading" style="display:none; margin-top:1rem; color:var(--accent); font-weight:600;">
+      採点中です…(1枚あたり1〜数分かかります。枚数分お待ちください)
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2 class="section" style="margin-top:0;">テキストで入力して添削</h2>
   <p class="notice">
     答案を入力すると、AIが<strong>出典(大学・年度・大問)を判別</strong>し、学習済みの採点基準を探して
     <strong>その基準が定める方式(加点法・減点法・併用)のまま</strong>採点します。
