@@ -69,6 +69,36 @@ Debian/Ubuntu なら `apt install fonts-ipafont` でインストールできま�
 | `scan_grader.py` | スキャン答案の判読・採点・書き込み位置生成(Claude 画像認識) |
 | `templates/` | 入力フォーム・結果画面のテンプレート |
 
+## 公開デプロイ(URLでアクセスできるようにする)
+
+Docker 化済みなので、Render / Railway / Fly.io などにそのままデプロイできます。
+
+### Render(推奨・最短)
+
+1. https://render.com にサインアップし、GitHub アカウントを連携
+2. ダッシュボードで「New +」→「**Blueprint**」→ このリポジトリを選択
+   (`render.yaml` の設定が自動で読み込まれます)
+3. 環境変数を入力
+   - `ANTHROPIC_API_KEY` — Anthropic の APIキー(採点に必須)
+   - `APP_PASSWORD` — ページ全体に掛ける保護パスワード(**公開URLでは必ず設定**)
+4. 「Apply」→ 数分で `https://kokugo-tensaku-ai.onrender.com` のようなURLが発行されます
+
+ブラウザでURLを開くとパスワード入力(Basic認証)が出ます。ユーザー名は任意、
+パスワードに `APP_PASSWORD` の値を入れると利用できます。
+
+### Railway / Fly.io / その他
+
+- Railway: 「New Project」→「Deploy from GitHub repo」→ 環境変数2つを設定(Procfile/Dockerfile を自動検出)
+- 任意のVPS: `docker build -t kokugo . && docker run -p 80:8000 -e ANTHROPIC_API_KEY=... -e APP_PASSWORD=... kokugo`
+
+### 運用上の注意
+
+- **`APP_PASSWORD` を必ず設定してください。** 未設定のまま公開すると、誰でもあなたの
+  APIキーで採点(=課金)できてしまいます
+- スキャン採点は1枚あたり1〜数分かかります。無料プランのプラットフォームは
+  リクエストタイムアウトが短いことがあるため、切れる場合は1回のアップロード枚数を減らしてください
+- 採点結果はメモリ保持のため、再デプロイ・再起動で消えます(PDFは都度ダウンロードしてください)
+
 ## API が必要な処理と不要な処理
 
 | 処理 | API |

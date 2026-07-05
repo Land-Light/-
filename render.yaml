@@ -1,0 +1,15 @@
+# Render (https://render.com) ワンクリックデプロイ設定
+# ダッシュボードで「New +」→「Blueprint」→ このリポジトリを選択すると
+# この設定どおりに Web サービスが作成される。
+services:
+  - type: web
+    name: kokugo-tensaku-ai
+    runtime: docker
+    plan: starter  # 無料枠は free(スリープあり)。常時稼働なら starter 以上
+    branch: claude/japanese-exam-grader-9bdwfj
+    healthCheckPath: /
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false  # ダッシュボードで手入力(リポジトリに含めない)
+      - key: APP_PASSWORD
+        sync: false  # 公開URLの保護用パスワード。手入力

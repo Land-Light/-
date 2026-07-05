@@ -1,18 +1,37 @@
 """国語入試 過去問添削AI — Flask アプリ本体。"""
 
 import io
+import os
 import uuid
 
-from flask import Flask, abort, render_template, request, send_file
+from flask import Flask, Response, abort, render_template, request, send_file
 
 from grader import GENRE_LABELS, GRADER_NAME, QuestionInput, grade_answers
 from pdf_generator import build_pdf
 from scan_grader import grade_and_annotate
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # アップロード上限 64MB
 
 # 添削結果の一時保存(PDF ダウンロード用)。プロセス内メモリ保持。
 _results: dict = {}
+
+# 公開デプロイ時の簡易認証。環境変数 APP_PASSWORD を設定すると
+# Basic 認証(ユーザー名は任意、パスワード一致)が全ページに掛かる。
+_APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+
+
+@app.before_request
+def _require_password():
+    if not _APP_PASSWORD:
+        return None  # 未設定ならローカル利用とみなし認証なし
+    auth = request.authorization
+    if auth and auth.password == _APP_PASSWORD:
+        return None
+    return Response(
+        "認証が必要です", 401,
+        {"WWW-Authenticate": 'Basic realm="kokugo-tensaku"'},
+    )
 
 
 @app.route("/")
