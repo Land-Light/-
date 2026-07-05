@@ -9,6 +9,7 @@ from flask import Flask, Response, abort, render_template, request, send_file
 from grader import GENRE_LABELS, GRADER_NAME, QuestionInput, grade_answers
 from pdf_generator import build_pdf
 from scan_grader import grade_and_annotate
+from toshin_fetcher import ToshinFetchError, fetch_answers
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # アップロード上限 64MB
@@ -141,6 +142,53 @@ def grade_scans():
                 "questions": result.transcriptions,
                 "annotated": annotated,
                 "filename": f.filename,
+            }
+            entry.update({"ok": True, "result_id": result_id, "result": result})
+        except Exception as e:  # 1枚の失敗で全体を止めない
+            entry.update({"ok": False, "error": str(e)})
+        batch.append(entry)
+
+    batch_id = uuid.uuid4().hex
+    _results[f"batch:{batch_id}"] = [e.get("result_id") for e in batch if e.get("ok")]
+    return render_template(
+        "scans_result.html", batch=batch, batch_id=batch_id, grader_name=GRADER_NAME,
+    )
+
+
+@app.route("/fetch-toshin", methods=["POST"])
+def fetch_toshin():
+    """東進添削システムから答案を自動取得して一括採点する。"""
+    rubric = request.form.get("toshin_rubric", "").strip() or None
+    try:
+        max_count = int(request.form.get("toshin_max", "5"))
+    except ValueError:
+        max_count = 5
+
+    try:
+        answers = fetch_answers(max_count=max_count)
+    except ToshinFetchError as e:
+        return render_template(
+            "index.html", genres=GENRE_LABELS,
+            error=f"東進からの取得に失敗しました: {e}", form=request.form,
+        ), 502
+
+    batch = []
+    for a in answers:
+        entry = {"filename": a.filename}
+        if not a.pdf_bytes:
+            entry.update({"ok": False, "error": a.meta.get("error", "ダウンロード失敗")})
+            batch.append(entry)
+            continue
+        try:
+            result, annotated = grade_and_annotate(a.pdf_bytes, rubric=rubric)
+            result_id = uuid.uuid4().hex
+            _results[result_id] = {
+                "result": result,
+                "genre_label": GENRE_LABELS.get("auto", "自動判別"),
+                "questions": result.transcriptions,
+                "annotated": annotated,
+                "filename": a.filename,
+                "source_meta": a.meta,
             }
             entry.update({"ok": True, "result_id": result_id, "result": result})
         except Exception as e:  # 1枚の失敗で全体を止めない

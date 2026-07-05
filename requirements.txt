@@ -4,3 +4,4 @@ reportlab>=4.0
 pypdf>=4.0
 pypdfium2>=4.0
 gunicorn>=21.0
+playwright>=1.40

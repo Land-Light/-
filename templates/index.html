@@ -24,6 +24,31 @@
 </div>
 
 <div class="card">
+  <h2 class="section" style="margin-top:0;">東進 添削システムから自動取込</h2>
+  <p class="notice">
+    東進添削システム(toshin-correction.com)にログインし、割り当てられた答案を自動ダウンロードして
+    一括採点します。サーバーの環境変数 <code>TOSHIN_USER</code> / <code>TOSHIN_PASSWORD</code> に
+    ログイン情報を設定しておいてください。
+  </p>
+  <form action="/fetch-toshin" method="post"
+        onsubmit="document.getElementById('toshin-loading').style.display='block'; this.querySelector('button').disabled=true;">
+    <div class="row">
+      <div style="max-width:200px;">
+        <label for="toshin_max">最大取得件数</label>
+        <input type="number" id="toshin_max" name="toshin_max" min="1" max="20" value="5">
+      </div>
+    </div>
+    <label for="toshin_rubric">採点基準 <span class="opt">(任意・貼り付けると最優先で適用)</span></label>
+    <textarea id="toshin_rubric" name="toshin_rubric" rows="2"
+              placeholder="採点基準があれば貼り付けてください"></textarea>
+    <button class="primary" type="submit">東進から取得して一括採点</button>
+    <div id="toshin-loading" style="display:none; margin-top:1rem; color:var(--accent); font-weight:600;">
+      取得・採点中です…(取得+1枚あたり1〜数分かかります)
+    </div>
+  </form>
+</div>
+
+<div class="card">
   <h2 class="section" style="margin-top:0;">テキストで入力して添削</h2>
   <p class="notice">
     答案を入力すると、AIが<strong>出典(大学・年度・大問)を判別</strong>し、学習済みの採点基準を探して

@@ -100,6 +100,26 @@ Docker 化済みなので、Render / Railway / Fly.io などにそのままデ�
   リクエストタイムアウトが短いことがあるため、切れる場合は1回のアップロード枚数を減らしてください
 - 採点結果はメモリ保持のため、再デプロイ・再起動で消えます(PDFは都度ダウンロードしてください)
 
+## 東進 添削システムからの自動取込
+
+トップページの「東進 添削システムから自動取込」から、toshin-correction.com に
+ログインして割り当て答案を自動ダウンロード→一括採点できます。
+
+サーバーの環境変数に以下を設定してください(**コードやリポジトリに書かないこと**):
+
+| 環境変数 | 内容 |
+|---|---|
+| `TOSHIN_USER` | 東進添削システムのログインID |
+| `TOSHIN_PASSWORD` | 同パスワード |
+| `TOSHIN_URL` | 一覧ページURL(省略時 `https://www.toshin-correction.com/correction`) |
+
+- Playwright(Chromium)を使用します。Dockerfile はインストール済み。
+  手動セットアップの場合は `playwright install --with-deps chromium` を実行してください
+- サイトのUI変更で取得に失敗する場合は `/tmp/debug_toshin_error.png` に失敗時の
+  画面が保存されるので、それをもとに `toshin_fetcher.py` のセレクタを調整してください
+- 自動アクセスはご自身のアカウント・業務範囲での利用にとどめ、
+  サービスの利用規約に従ってください
+
 ## API が必要な処理と不要な処理
 
 | 処理 | API |
