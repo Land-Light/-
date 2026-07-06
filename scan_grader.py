@@ -71,6 +71,10 @@ class ScanGradingResult(GradingResult):
     grader_pos: Optional[MarkPos] = Field(
         default=None, description="答案の「採点者」欄の枠内の位置(あれば)"
     )
+    overall_comment_pos: Optional[MarkPos] = Field(
+        default=None,
+        description="総評を書き込む位置。最終ページの大きな余白(答案記入欄・枠と重ならない場所)の右上端を指定する",
+    )
 
 
 SCAN_INSTRUCTIONS = """答案はスキャン画像で与えられます。追加の手順:
@@ -85,6 +89,9 @@ annotations に指定すること。座標は各ページ画像の左上を(0,0)
 - comment_pos: 答案記入欄のすぐ左の余白の上端。margin_comment が縦書きで印字される。
   下方向に1文字ずつ、左方向に折り返して印字されるため、記入欄と重ならない余白を選ぶ。
 - 答案用紙に「得点」欄があれば total_score_pos、「採点者」欄があれば grader_pos に枠内の位置を指定する。
+- overall_comment_pos: 最終ページの大きな空白スペース(答案記入欄・罫線・QRコードと重ならない場所)の
+  右上端を指定する。ここに総評(overall_comment)が縦書きで印字される。縦書きは指定位置から下に
+  1文字ずつ、約30字で左の列に折り返すため、総評の長さに見合った幅の余白を選ぶこと。
 - questions に含めた全設問について、annotations にも必ず対応する項目を作ること(マーク漏れ禁止)。"""
 
 
@@ -219,6 +226,20 @@ def build_marks(result: ScanGradingResult) -> List[Mark]:
         p = result.grader_pos
         marks.append(Mark(page=p.page, x=p.x, y=p.y, kind="text",
                           text=GRADER_NAME, size=11))
+
+    # 総評を最終ページの余白に縦書きで書き込む
+    if result.overall_comment:
+        if result.overall_comment_pos:
+            p = result.overall_comment_pos
+            page, x, y = p.page, p.x, p.y
+        else:
+            # フォールバック: 記号を打った最終ページの中央左寄り
+            page = max((a.symbol_pos.page for a in result.annotations), default=1)
+            x, y = 0.50, 0.15
+        # 「◎総評」を独立した先頭列(右端)にし、本文を左の列へ流す
+        marks.append(Mark(page=page, x=x, y=y, kind="vtext",
+                          text="◎総評\n" + result.overall_comment,
+                          size=9.5, max_rows=30))
     return marks
 
 
