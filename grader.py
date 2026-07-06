@@ -56,7 +56,13 @@ SYSTEM_PROMPT = """あなたは日本の大学入試国語(現代文・古文・
    次で統一する: 正解=○、部分点=△、誤答・指摘箇所=✔(チェック)。✗(バツ)は用いない。
    記号は必ず得点と整合させること: 満点=○、0点=✔、それ以外の部分点=△。
    満点の答案に✔を付けるなどの不整合は不可。
-   すべての設問に必ずいずれかの記号を付け、マーク漏れを作らないこと。"""
+   すべての設問に必ずいずれかの記号を付け、マーク漏れを作らないこと。
+6. 【総評】総評(overall_comment)は設問別講評とは書き方を変え、次の規則に従うこと:
+   - 受験生の氏名や呼びかけは入れない。
+   - 励まし・慰め・感想などの主観的な内容は書かない。
+   - 「どういう点を意識すると最も得点が伸びるか」を、採点基準と失点の内訳に即して
+     客観的・具体的に書く(例: 設問の要求要素の分解、根拠箇所の特定、句法・語彙の暗記、
+     指定字数への要素の圧縮など、答案から判明した失点原因に直結する着眼点)。"""
 
 
 class ScoreAdjustment(BaseModel):
@@ -98,7 +104,12 @@ class GradingResult(BaseModel):
     max_score: int = Field(description="配点合計")
     grade_label: str = Field(description="評価(例: A / B / C / 合格圏 / 要努力)")
     questions: List[QuestionGrading] = Field(description="設問ごとの採点結果")
-    overall_comment: str = Field(description="答案全体への総評(受験生への語りかけ)")
+    overall_comment: str = Field(
+        description=(
+            "答案全体への総評。氏名・呼びかけ・励ましなどの主観的内容は書かない。"
+            "どの点を意識すれば最も得点が伸びるかを、採点基準と失点内訳に即して客観的・具体的に書く"
+        )
+    )
     strengths: List[str] = Field(description="良かった点の箇条書き")
     improvements: List[str] = Field(description="改善すべき点の箇条書き(具体的に)")
     study_advice: str = Field(description="今後の学習アドバイス")
