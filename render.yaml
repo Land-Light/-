@@ -5,7 +5,7 @@ services:
   - type: web
     name: kokugo-tensaku-ai
     runtime: docker
-    plan: starter  # 無料枠は free(スリープあり)。常時稼働なら starter 以上
+    plan: free  # 無料枠(15分無アクセスでスリープ)。常時稼働なら starter 以上に変更
     branch: claude/japanese-exam-grader-9bdwfj
     healthCheckPath: /
     envVars:
