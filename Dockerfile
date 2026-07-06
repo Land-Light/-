@@ -16,5 +16,7 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
-# 採点は1リクエスト数分かかるため timeout を長めに設定
-CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:${PORT:-8000} --workers 2 --threads 4 --timeout 900"]
+# 採点は1リクエスト数分かかるため timeout を長めに設定。
+# 無料プラン(メモリ512MB)ではワーカー2つで OOM 再起動ループに陥り
+# サービスが Live にならないため、ワーカーは 1 に固定(同時処理はスレッドで確保)。
+CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:${PORT:-8000} --workers 1 --threads 4 --timeout 900"]
