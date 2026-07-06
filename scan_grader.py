@@ -236,9 +236,8 @@ def build_marks(result: ScanGradingResult) -> List[Mark]:
             # フォールバック: 記号を打った最終ページの中央左寄り
             page = max((a.symbol_pos.page for a in result.annotations), default=1)
             x, y = 0.50, 0.15
-        # 「◎総評」を独立した先頭列(右端)にし、本文を左の列へ流す
         marks.append(Mark(page=page, x=x, y=y, kind="vtext",
-                          text="◎総評\n" + result.overall_comment,
+                          text=result.overall_comment,
                           size=9.5, max_rows=30))
     return marks
 
