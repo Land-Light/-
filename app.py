@@ -24,6 +24,10 @@ _APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
 
 @app.before_request
 def _require_password():
+    # ヘルスチェック用エンドポイントは認証を掛けない
+    # (掛けると Render 等の死活監視が 401 で失敗し、サービスが Live にならない)
+    if request.path == "/healthz":
+        return None
     if not _APP_PASSWORD:
         return None  # 未設定ならローカル利用とみなし認証なし
     auth = request.authorization
@@ -33,6 +37,12 @@ def _require_password():
         "認証が必要です", 401,
         {"WWW-Authenticate": 'Basic realm="kokugo-tensaku"'},
     )
+
+
+@app.route("/healthz")
+def healthz():
+    """死活監視用。認証不要で 200 を返す(Render のヘルスチェック用)。"""
+    return "ok", 200
 
 
 @app.route("/")

@@ -7,7 +7,7 @@ services:
     runtime: docker
     plan: free  # 無料枠(15分無アクセスでスリープ)。常時稼働なら starter 以上に変更
     branch: claude/japanese-exam-grader-9bdwfj
-    healthCheckPath: /
+    healthCheckPath: /healthz  # 認証不要の死活監視用エンドポイント
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false  # ダッシュボードで手入力(リポジトリに含めない)
