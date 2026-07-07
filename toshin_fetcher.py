@@ -156,6 +156,44 @@ def _follow_grading_app_link(page) -> None:
                 return
 
 
+def _find_download_control(row):
+    """行の中からダウンロード用の操作要素を探す。
+
+    MUI のテーブルは行内に複数のアイコンボタン(閲覧・DL・削除など)が並び、
+    最後の要素が無効化(disabled)されていることがある。そこで
+    (1) ダウンロードを示す属性、(2) 無効でない有効なボタン/リンク、の順で探す。
+    """
+    # (1) ダウンロードを示す明示的な手掛かり
+    for sel in [
+        'a[href$=".pdf"]', 'a[download]',
+        'button[aria-label*="ダウンロード"]', 'a[aria-label*="ダウンロード"]',
+        'button[title*="ダウンロード"]', 'a[title*="ダウンロード"]',
+        '[aria-label*="download" i]', '[title*="download" i]',
+        '[data-test*="download" i]',
+    ]:
+        loc = row.locator(sel)
+        for j in range(loc.count()):
+            el = loc.nth(j)
+            try:
+                if el.is_visible() and el.is_enabled():
+                    return el
+            except Exception:
+                continue
+    # (2) 有効な(disabledでない)ボタン/リンクのうち最後のもの
+    cand = row.locator("button:not([disabled]), a[href]")
+    enabled = []
+    for j in range(cand.count()):
+        el = cand.nth(j)
+        try:
+            if el.is_visible() and el.is_enabled():
+                enabled.append(el)
+        except Exception:
+            continue
+    if enabled:
+        return enabled[-1]
+    return None
+
+
 def _row_meta(row) -> dict:
     """一覧テーブルの行からメタ情報を取り出す(ベストエフォート)。"""
     cells = [c.strip() for c in row.inner_text().split("\n") if c.strip()]
@@ -230,22 +268,31 @@ def fetch_answers(max_count: int = 20, headless: bool = True) -> List[FetchedAns
             if n == 0:
                 raise ToshinFetchError("答案一覧に行がありません(未割当の可能性)。")
 
+            list_dumped = False
             for i in range(n):
                 row = rows.nth(i)
                 meta = _row_meta(row)
-                # 行の最終セル(答案列)にあるダウンロードボタン/アイコンをクリック
-                btn = row.locator("td").last.locator("button, a, [role='button']")
-                if btn.count() == 0:
-                    btn = row.locator("button, a").last
+                # 行内のダウンロード操作要素を探す(無効ボタンを避ける)
+                btn = _find_download_control(row)
                 try:
+                    if btn is None:
+                        raise RuntimeError("ダウンロードボタンが見つかりません(すべて無効の可能性)")
                     with page.expect_download(timeout=60000) as dl_info:
-                        btn.first.click()
+                        btn.click()
                     download = dl_info.value
                     path = download.path()
                     pdf_bytes = open(path, "rb").read()
                     name = download.suggested_filename or f"answer_{i + 1}.pdf"
                     fetched.append(FetchedAnswer(filename=name, pdf_bytes=pdf_bytes, meta=meta))
                 except Exception as e:  # 1行の失敗で全体を止めない
+                    # 最初の失敗時に一覧ページのHTML/スクショを保存(構造調整用)
+                    if not list_dumped:
+                        _save_debug(page)
+                        list_dumped = True
+                    try:
+                        meta["row_html"] = row.evaluate("el => el.outerHTML")[:1500]
+                    except Exception:
+                        pass
                     fetched.append(FetchedAnswer(
                         filename=f"row{i + 1}_error", pdf_bytes=b"",
                         meta={**meta, "error": str(e)},
