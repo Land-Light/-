@@ -162,7 +162,9 @@ def grade_scanned_pdf(
     system_blocks[-1]["cache_control"] = {"type": "ephemeral"}
 
     try:
-        response = client.messages.parse(
+        # max_tokens が大きい(思考+長い出力)ため、SDK の10分ガードを回避すべく
+        # タイムアウトを明示指定する(gunicorn の 900 秒より短い 800 秒)。
+        response = client.with_options(timeout=800.0).messages.parse(
             model=MODEL,
             max_tokens=32000,
             thinking={"type": "adaptive"},

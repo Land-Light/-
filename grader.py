@@ -189,7 +189,8 @@ def grade_answers(
     # 最後のブロックに cache_control を置き、system 全体をキャッシュする
     system_blocks[-1]["cache_control"] = {"type": "ephemeral"}
 
-    response = client.messages.parse(
+    # max_tokens が大きいため、SDK の10分ガードを回避すべくタイムアウトを明示指定する
+    response = client.with_options(timeout=800.0).messages.parse(
         model=MODEL,
         max_tokens=32000,
         thinking={"type": "adaptive"},
