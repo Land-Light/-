@@ -49,41 +49,95 @@ def _creds():
     return user, password
 
 
+def _find_id_input(page):
+    """ログインID入力欄(パスワード以外の最初の可視テキスト入力)を返す。
+
+    東進サイトは Vuetify 系のUIで、ラベル「ID」が placeholder 属性でない
+    ことがあるため、属性名に頼らず「可視のテキスト系 input のうち
+    パスワードでない最初のもの」を ID 欄とみなす。
+    """
+    inputs = page.locator("input")
+    for i in range(inputs.count()):
+        el = inputs.nth(i)
+        try:
+            if not el.is_visible():
+                continue
+            t = (el.get_attribute("type") or "text").lower()
+            if t in ("password", "hidden", "checkbox", "radio", "submit", "button", "file"):
+                continue
+            return el
+        except Exception:
+            continue
+    return None
+
+
 def _try_login(page, user: str, password: str) -> None:
-    """ログインフォームが表示されていれば入力して送信する(ベストエフォート)。"""
-    # ID入力欄の候補
-    id_selectors = [
-        'input[name*="user" i]', 'input[name*="login" i]', 'input[name*="id" i]',
-        'input[type="email"]', 'input[type="text"]',
-    ]
-    pw_selector = 'input[type="password"]'
-    if page.locator(pw_selector).count() == 0:
+    """ログインフォームが表示されていれば入力して送信する。"""
+    pw = page.locator('input[type="password"]')
+    if pw.count() == 0:
         return  # ログイン済み(またはログイン画面ではない)
 
-    for sel in id_selectors:
-        loc = page.locator(sel)
-        if loc.count() > 0 and loc.first.is_visible():
-            loc.first.fill(user)
-            break
-    else:
+    id_el = _find_id_input(page)
+    if id_el is None:
         raise ToshinFetchError("ログインID入力欄が見つかりませんでした。")
+    id_el.click()
+    id_el.fill(user)
+    pw.first.click()
+    pw.first.fill(password)
 
-    page.locator(pw_selector).first.fill(password)
-
-    # 送信ボタンの候補
+    # 「ログイン」ボタンを押す(候補を順に試す)
+    clicked = False
     for sel in [
-        'button[type="submit"]', 'input[type="submit"]',
         'button:has-text("ログイン")', 'button:has-text("サインイン")',
+        'button:has-text("ログオン")', 'button[type="submit"]', 'input[type="submit"]',
         'button:has-text("Login")', 'button:has-text("Sign in")',
     ]:
         loc = page.locator(sel)
         if loc.count() > 0 and loc.first.is_visible():
             loc.first.click()
+            clicked = True
             break
-    else:
-        page.locator(pw_selector).first.press("Enter")
+    if not clicked:
+        pw.first.press("Enter")
 
-    page.wait_for_load_state("networkidle", timeout=30000)
+    try:
+        page.wait_for_load_state("networkidle", timeout=30000)
+    except Exception:
+        pass
+
+    # ログイン後もパスワード欄が残っていれば失敗とみなす(認証情報の誤り等)
+    page.wait_for_timeout(1500)
+    if page.locator('input[type="password"]').count() > 0 and _find_id_input(page) is not None:
+        raise ToshinFetchError(
+            "ログインに失敗しました。環境変数 TOSHIN_USER / TOSHIN_PASSWORD が"
+            "正しいか(パスワード変更後の最新の値か)確認してください。"
+        )
+
+
+def _has_answer_table(page) -> bool:
+    """答案一覧の表(行あり)が存在するか。"""
+    try:
+        return page.locator("table tbody tr").count() > 0
+    except Exception:
+        return False
+
+
+def _follow_grading_app_link(page) -> None:
+    """「添削者Webアプリ」など、答案一覧へ進むリンクがあればクリックする。"""
+    for sel in [
+        'a:has-text("添削者Webアプリ")', 'a:has-text("添削")',
+        'a:has-text("答案")', 'a:has-text("一覧")', 'a:has-text("こちら")',
+        'button:has-text("添削者Webアプリ")', 'button:has-text("添削")',
+    ]:
+        loc = page.locator(sel)
+        if loc.count() > 0 and loc.first.is_visible():
+            try:
+                loc.first.click()
+                page.wait_for_load_state("networkidle", timeout=30000)
+            except Exception:
+                pass
+            if _has_answer_table(page):
+                return
 
 
 def _row_meta(row) -> dict:
@@ -122,9 +176,17 @@ def fetch_answers(max_count: int = 20, headless: bool = True) -> List[FetchedAns
             page.goto(url, wait_until="networkidle", timeout=60000)
             _try_login(page, user, password)
 
-            # ログイン後、一覧ページに居ることを確認(必要なら再遷移)
-            if "/correction" not in page.url:
-                page.goto(url, wait_until="networkidle", timeout=60000)
+            # ログイン後、答案一覧(table)を探す。すぐ見つからなければ
+            # 「添削者Webアプリ」等のリンクをたどってから再探索する。
+            if not _has_answer_table(page):
+                # 一覧URLへ再遷移してみる
+                if "/correction" not in page.url:
+                    try:
+                        page.goto(url, wait_until="networkidle", timeout=60000)
+                    except Exception:
+                        pass
+                if not _has_answer_table(page):
+                    _follow_grading_app_link(page)
 
             page.wait_for_selector("table tbody tr", timeout=30000)
             rows = page.locator("table tbody tr")
