@@ -248,10 +248,13 @@ def _click_and_get_pdf(page, context, btn, idx: int):
             except Exception:
                 pass
             # 3) 候補URLを新しい順に取得して PDF なら返す
+            #    reference(問題・採点基準)は答案ではないので除外する
             for u in reversed(candidates):
                 if u in tried:
                     continue
                 tried.add(u)
+                if "reference" in u.lower():
+                    continue
                 try:
                     resp = context.request.get(u)
                     if resp.ok:
@@ -267,8 +270,10 @@ def _click_and_get_pdf(page, context, btn, idx: int):
             page.remove_listener("download", _on_download)
         except Exception:
             pass
+    seen = sorted(set(pdf_urls))
     raise RuntimeError(
-        f"答案PDFを取得できませんでした(検出したPDF応答: {len(pdf_urls)}件)"
+        f"答案PDFを取得できませんでした(検出URL {len(seen)}件: "
+        + " , ".join(seen)[:400] + ")"
     )
 
 
@@ -370,14 +375,20 @@ def fetch_answers(max_count: int = 20, headless: bool = True) -> List[FetchedAns
             for i in range(n):
                 row = rows.nth(i)
                 meta = _row_meta(row)
-                # 「答案」列のセルにある有効なダウンロードボタンを狙う
+                # 答案DLは行内の「有効なアイコンボタン」で特定する。
+                # (採点基準=テキストボタン、点数入力=無効アイコンボタン、と区別できる)
                 btn = None
-                if dl_col is not None:
+                ib = row.locator(
+                    'button.MuiIconButton-root:not(.Mui-disabled):not([disabled])'
+                )
+                if ib.count() > 0:
+                    btn = ib.first
+                if btn is None and dl_col is not None:  # フォールバック: 答案列セル
                     cell = row.locator("td").nth(dl_col)
                     c = cell.locator("button:not([disabled]), a[href]")
                     if c.count() > 0:
                         btn = c.first
-                if btn is None:  # フォールバック
+                if btn is None:
                     btn = _find_download_control(row)
                 try:
                     if btn is None:
