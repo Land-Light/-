@@ -100,17 +100,33 @@ def _try_login(page, user: str, password: str) -> None:
     if not clicked:
         pw.first.press("Enter")
 
+    # ログイン処理の完了を待つ:ログイン画面(パスワード欄)から離れれば成功。
+    # 認証に時間がかかる場合があるので最大45秒待つ。
     try:
-        page.wait_for_load_state("networkidle", timeout=30000)
+        page.wait_for_selector('input[type="password"]', state="detached", timeout=45000)
     except Exception:
         pass
 
-    # ログイン後もパスワード欄が残っていれば失敗とみなす(認証情報の誤り等)
-    page.wait_for_timeout(1500)
-    if page.locator('input[type="password"]').count() > 0 and _find_id_input(page) is not None:
+    if page.locator('input[type="password"]').count() > 0:
+        # まだログイン画面 → 認証失敗の可能性。サイト側のエラーメッセージを拾う
+        site_msg = ""
+        for sel in [
+            '.v-messages__message', '.v-alert', '[role="alert"]',
+            '.error', '.error-message', 'text=/違い|正しく|失敗|エラー/',
+        ]:
+            try:
+                loc = page.locator(sel)
+                if loc.count() > 0 and loc.first.is_visible():
+                    t = loc.first.inner_text().strip()
+                    if t:
+                        site_msg = t
+                        break
+            except Exception:
+                continue
+        detail = f"(サイトの表示: {site_msg})" if site_msg else ""
         raise ToshinFetchError(
             "ログインに失敗しました。環境変数 TOSHIN_USER / TOSHIN_PASSWORD が"
-            "正しいか(パスワード変更後の最新の値か)確認してください。"
+            "正しいか(パスワード変更後の最新の値か)確認してください。" + detail
         )
 
 
