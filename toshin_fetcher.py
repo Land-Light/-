@@ -157,6 +157,19 @@ def _row_meta(row) -> dict:
     return meta
 
 
+def _save_debug(page) -> str:
+    """失敗時の画面(PNG)とHTMLを保存し、現在地のヒント文字列を返す。"""
+    try:
+        page.screenshot(path=os.path.join(_DEBUG_DIR, "debug_toshin_error.png"),
+                        full_page=True)
+        with open(os.path.join(_DEBUG_DIR, "debug_toshin_error.html"),
+                  "w", encoding="utf-8") as fh:
+            fh.write(page.content())
+        return f"(現在地: {page.url} 「{page.title()}」/ 失敗画面は /toshin-debug で確認)"
+    except Exception:
+        return ""
+
+
 def fetch_answers(max_count: int = 20, headless: bool = True) -> List[FetchedAnswer]:
     """東進添削システムにログインし、一覧の各行から答案PDFをダウンロードする。"""
     from playwright.sync_api import sync_playwright
@@ -173,7 +186,14 @@ def fetch_answers(max_count: int = 20, headless: bool = True) -> List[FetchedAns
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
         try:
-            page.goto(url, wait_until="networkidle", timeout=60000)
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            # SPA(Vuetify)なのでフォームや一覧の描画を待ってからログインする
+            try:
+                page.wait_for_selector(
+                    'input[type="password"], table tbody tr', timeout=30000
+                )
+            except Exception:
+                pass
             _try_login(page, user, password)
 
             # ログイン後、答案一覧(table)を探す。すぐ見つからなければ
@@ -215,20 +235,12 @@ def fetch_answers(max_count: int = 20, headless: bool = True) -> List[FetchedAns
                         meta={**meta, "error": str(e)},
                     ))
             return fetched
-        except ToshinFetchError:
-            raise
         except Exception as e:
-            shot = os.path.join(_DEBUG_DIR, "debug_toshin_error.png")
-            hint = ""
-            try:
-                page.screenshot(path=shot, full_page=True)
-                # セレクタ調整用に、失敗時のURL・タイトル・HTMLも保存する
-                with open(os.path.join(_DEBUG_DIR, "debug_toshin_error.html"),
-                          "w", encoding="utf-8") as fh:
-                    fh.write(page.content())
-                hint = f"(現在地: {page.url} 「{page.title()}」/ 詳細は /toshin-debug で確認)"
-            except Exception:
-                pass
+            # 失敗時は必ず最新の画面を保存する(ログイン失敗も含む)
+            hint = _save_debug(page)
+            if isinstance(e, ToshinFetchError):
+                # 既に分かりやすいメッセージがある場合はヒントだけ添える
+                raise ToshinFetchError(f"{e} {hint}") from e
             raise ToshinFetchError(f"東進サイトの操作に失敗しました: {e} {hint}") from e
         finally:
             context.close()
