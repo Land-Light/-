@@ -161,14 +161,22 @@ def grade_scanned_pdf(
         )
     system_blocks[-1]["cache_control"] = {"type": "ephemeral"}
 
-    response = client.messages.parse(
-        model=MODEL,
-        max_tokens=16000,
-        thinking={"type": "adaptive"},
-        system=system_blocks,
-        messages=[{"role": "user", "content": content}],
-        output_format=ScanGradingResult,
-    )
+    try:
+        response = client.messages.parse(
+            model=MODEL,
+            max_tokens=32000,
+            thinking={"type": "adaptive"},
+            system=system_blocks,
+            messages=[{"role": "user", "content": content}],
+            output_format=ScanGradingResult,
+        )
+    except Exception as e:
+        # 出力途中切れ等でJSON解析に失敗した場合の分かりやすいメッセージ
+        if "json" in str(e).lower() or "EOF" in str(e) or "validation error" in str(e).lower():
+            raise RuntimeError(
+                "採点結果が長すぎて途中で切れました。1回のアップロード枚数を減らしてお試しください。"
+            ) from e
+        raise
 
     if response.stop_reason == "refusal":
         raise RuntimeError("採点リクエストが安全上の理由で処理できませんでした。")

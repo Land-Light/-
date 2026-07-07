@@ -191,7 +191,7 @@ def grade_answers(
 
     response = client.messages.parse(
         model=MODEL,
-        max_tokens=16000,
+        max_tokens=32000,
         thinking={"type": "adaptive"},
         system=system_blocks,
         messages=[{"role": "user", "content": "\n\n".join(parts)}],
