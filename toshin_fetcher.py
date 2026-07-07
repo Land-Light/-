@@ -18,6 +18,7 @@ Playwright(Chromium)でログイン→答案一覧(/correction)→各行のダ�
 
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from typing import List
 
@@ -197,40 +198,78 @@ def _find_download_control(row):
 def _click_and_get_pdf(page, context, btn, idx: int):
     """ダウンロードボタンを押し、PDFの (ファイル名, バイト列) を返す。
 
-    直接ダウンロード / 新規タブでのPDF表示 の双方に対応する。
+    このサイトは PDF を <object data="S3署名付きURL"> でページ内に埋め込む方式。
+    そのため、クリック時に流れる PDF のネットワーク応答を捕まえて取得する。
+    直接ダウンロード / 新規タブ表示 / 埋め込み のいずれにも対応する。
     """
-    # まず直接ダウンロード(download イベント)を待つ。
-    try:
-        with page.expect_download(timeout=30000) as dl_info:
-            btn.click()
-        download = dl_info.value
-        data = open(download.path(), "rb").read()
-        return (download.suggested_filename or f"answer_{idx}.pdf"), data
-    except Exception:
-        pass
+    pdf_urls: List[str] = []
+    download_holder: dict = {}
 
-    # ダウンロードが来なければ、新規タブで開いたPDFのURLを取得して取りに行く
-    for pg in list(context.pages):
-        if pg == page:
-            continue
+    def _on_response(r):
         try:
-            pg.wait_for_load_state("domcontentloaded", timeout=5000)
+            u = r.url or ""
+            if ".pdf" in u.lower():
+                pdf_urls.append(u)
         except Exception:
             pass
-        u = pg.url or ""
-        if u and (".pdf" in u.lower() or "amazonaws" in u.lower() or "s3" in u.lower()):
-            try:
-                resp = context.request.get(u)
-                if resp.ok:
-                    body = resp.body()
-                    if body:
-                        return f"answer_{idx}.pdf", body
-            finally:
+
+    def _on_download(d):
+        download_holder["d"] = d
+
+    page.on("response", _on_response)
+    page.on("download", _on_download)
+    tried: set = set()
+    try:
+        btn.click()
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            # 1) 直接ダウンロード
+            d = download_holder.get("d")
+            if d is not None:
                 try:
-                    pg.close()
+                    return (d.suggested_filename or f"answer_{idx}.pdf"), open(d.path(), "rb").read()
                 except Exception:
-                    pass
-    raise RuntimeError("ダウンロードもPDFタブも検出できませんでした")
+                    download_holder.pop("d", None)
+            # 2) ネットワークに流れた PDF / 新規タブ / DOM 埋め込みの URL を集める
+            candidates = list(pdf_urls)
+            for pg in list(context.pages):
+                if pg != page and pg.url and ".pdf" in pg.url.lower():
+                    candidates.append(pg.url)
+            try:
+                els = page.locator(
+                    'object[data*=".pdf"], embed[src*=".pdf"], '
+                    'iframe[src*=".pdf"], a[href*=".pdf"]'
+                )
+                for j in range(min(els.count(), 6)):
+                    for attr in ("data", "src", "href"):
+                        v = els.nth(j).get_attribute(attr)
+                        if v and ".pdf" in v.lower():
+                            candidates.append(v)
+            except Exception:
+                pass
+            # 3) 候補URLを新しい順に取得して PDF なら返す
+            for u in reversed(candidates):
+                if u in tried:
+                    continue
+                tried.add(u)
+                try:
+                    resp = context.request.get(u)
+                    if resp.ok:
+                        body = resp.body()
+                        if body and body[:5] == b"%PDF-":
+                            return f"answer_{idx}.pdf", body
+                except Exception:
+                    continue
+            page.wait_for_timeout(500)
+    finally:
+        try:
+            page.remove_listener("response", _on_response)
+            page.remove_listener("download", _on_download)
+        except Exception:
+            pass
+    raise RuntimeError(
+        f"答案PDFを取得できませんでした(検出したPDF応答: {len(pdf_urls)}件)"
+    )
 
 
 def _download_col_index(page):
