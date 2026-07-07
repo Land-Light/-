@@ -157,11 +157,16 @@ def fetch_answers(max_count: int = 20, headless: bool = True) -> List[FetchedAns
             raise
         except Exception as e:
             shot = os.path.join(_DEBUG_DIR, "debug_toshin_error.png")
+            hint = ""
             try:
                 page.screenshot(path=shot, full_page=True)
-                hint = f"(スクリーンショット: {shot})"
+                # セレクタ調整用に、失敗時のURL・タイトル・HTMLも保存する
+                with open(os.path.join(_DEBUG_DIR, "debug_toshin_error.html"),
+                          "w", encoding="utf-8") as fh:
+                    fh.write(page.content())
+                hint = f"(現在地: {page.url} 「{page.title()}」/ 詳細は /toshin-debug で確認)"
             except Exception:
-                hint = ""
+                pass
             raise ToshinFetchError(f"東進サイトの操作に失敗しました: {e} {hint}") from e
         finally:
             context.close()

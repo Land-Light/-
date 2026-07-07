@@ -212,6 +212,31 @@ def fetch_toshin():
     )
 
 
+@app.route("/toshin-debug")
+def toshin_debug():
+    """東進取得失敗時のスクリーンショットをブラウザで表示する(セレクタ調整用)。"""
+    debug_dir = os.environ.get("TOSHIN_DEBUG_DIR", "/tmp")
+    path = os.path.join(debug_dir, "debug_toshin_error.png")
+    if not os.path.exists(path):
+        return (
+            "デバッグ用スクリーンショットがありません。"
+            "先に「東進から自動取込」を実行して失敗した後にアクセスしてください。",
+            404,
+        )
+    return send_file(path, mimetype="image/png")
+
+
+@app.route("/toshin-debug-html")
+def toshin_debug_html():
+    """東進取得失敗時のページHTMLを表示する(セレクタ調整用)。"""
+    debug_dir = os.environ.get("TOSHIN_DEBUG_DIR", "/tmp")
+    path = os.path.join(debug_dir, "debug_toshin_error.html")
+    if not os.path.exists(path):
+        return ("デバッグ用HTMLがありません。", 404)
+    with open(path, encoding="utf-8") as fh:
+        return Response(fh.read(), mimetype="text/plain; charset=utf-8")
+
+
 @app.route("/annotated/<result_id>")
 def download_annotated(result_id: str):
     """赤ペン書き込み済み答案PDFのダウンロード。"""
