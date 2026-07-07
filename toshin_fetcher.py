@@ -198,18 +198,28 @@ def _find_download_control(row):
 def _click_and_get_pdf(page, context, btn, idx: int):
     """ダウンロードボタンを押し、PDFの (ファイル名, バイト列) を返す。
 
-    このサイトは PDF を <object data="S3署名付きURL"> でページ内に埋め込む方式。
-    そのため、クリック時に流れる PDF のネットワーク応答を捕まえて取得する。
+    答案DLは URL に .pdf を含まない(APIや署名付きURL)ことがあるため、
+    URL 文字列ではなく Content-Type(application/pdf 等)でPDF応答を判定する。
     直接ダウンロード / 新規タブ表示 / 埋め込み のいずれにも対応する。
     """
-    pdf_urls: List[str] = []
+    pdf_responses: list = []
+    all_urls: list = []
     download_holder: dict = {}
 
     def _on_response(r):
         try:
             u = r.url or ""
-            if ".pdf" in u.lower():
-                pdf_urls.append(u)
+            if len(all_urls) < 300:
+                all_urls.append(u)
+            lu = u.lower()
+            ct = ""
+            try:
+                ct = (r.headers or {}).get("content-type", "").lower()
+            except Exception:
+                ct = ""
+            if (lu.endswith(".pdf") or ".pdf?" in lu
+                    or "application/pdf" in ct or "octet-stream" in ct):
+                pdf_responses.append(r)
         except Exception:
             pass
 
@@ -219,6 +229,11 @@ def _click_and_get_pdf(page, context, btn, idx: int):
     page.on("response", _on_response)
     page.on("download", _on_download)
     tried: set = set()
+    tried_resp: set = set()
+
+    def _accept(u: str, body) -> bool:
+        return bool(body) and body[:5] == b"%PDF-" and "reference" not in (u or "").lower()
+
     try:
         btn.click()
         deadline = time.time() + 30
@@ -230,36 +245,50 @@ def _click_and_get_pdf(page, context, btn, idx: int):
                     return (d.suggested_filename or f"answer_{idx}.pdf"), open(d.path(), "rb").read()
                 except Exception:
                     download_holder.pop("d", None)
-            # 2) ネットワークに流れた PDF / 新規タブ / DOM 埋め込みの URL を集める
-            candidates = list(pdf_urls)
+            # 2) Content-Type で捕捉したPDF応答から本体を取得(referenceは除外)
+            for r in list(pdf_responses):
+                if id(r) in tried_resp:
+                    continue
+                tried_resp.add(id(r))
+                u = r.url or ""
+                if "reference" in u.lower():
+                    continue
+                body = None
+                try:
+                    body = r.body()
+                except Exception:
+                    body = None
+                if not body:  # 応答本体が取れなければURLから取り直す
+                    try:
+                        rr = context.request.get(u)
+                        body = rr.body() if rr.ok else None
+                    except Exception:
+                        body = None
+                if _accept(u, body):
+                    return f"answer_{idx}.pdf", body
+            # 3) 新規タブ / DOM 埋め込みの URL を取得
+            candidates = []
             for pg in list(context.pages):
-                if pg != page and pg.url and ".pdf" in pg.url.lower():
+                if pg != page and pg.url:
                     candidates.append(pg.url)
             try:
-                els = page.locator(
-                    'object[data*=".pdf"], embed[src*=".pdf"], '
-                    'iframe[src*=".pdf"], a[href*=".pdf"]'
-                )
-                for j in range(min(els.count(), 6)):
+                els = page.locator("object[data], embed[src], iframe[src], a[href]")
+                for j in range(min(els.count(), 10)):
                     for attr in ("data", "src", "href"):
                         v = els.nth(j).get_attribute(attr)
-                        if v and ".pdf" in v.lower():
+                        if v:
                             candidates.append(v)
             except Exception:
                 pass
-            # 3) 候補URLを新しい順に取得して PDF なら返す
-            #    reference(問題・採点基準)は答案ではないので除外する
-            for u in reversed(candidates):
-                if u in tried:
+            for u in candidates:
+                if u in tried or "reference" in u.lower():
                     continue
                 tried.add(u)
-                if "reference" in u.lower():
-                    continue
                 try:
-                    resp = context.request.get(u)
-                    if resp.ok:
-                        body = resp.body()
-                        if body and body[:5] == b"%PDF-":
+                    rr = context.request.get(u)
+                    if rr.ok:
+                        body = rr.body()
+                        if _accept(u, body):
                             return f"answer_{idx}.pdf", body
                 except Exception:
                     continue
@@ -270,11 +299,11 @@ def _click_and_get_pdf(page, context, btn, idx: int):
             page.remove_listener("download", _on_download)
         except Exception:
             pass
-    seen = sorted(set(pdf_urls))
-    raise RuntimeError(
-        f"答案PDFを取得できませんでした(検出URL {len(seen)}件: "
-        + " , ".join(seen)[:400] + ")"
-    )
+    # 診断用に、クリック後に流れた通信URLの一部をエラーに載せる
+    sample = [u for u in all_urls if "toshin" in u.lower() or "amazon" in u.lower()
+              or "download" in u.lower() or ".pdf" in u.lower()]
+    hint = " , ".join(sample[-6:])[:400] if sample else "該当なし(/toshin-debug で画面を確認)"
+    raise RuntimeError(f"答案PDFを取得できませんでした(通信: {hint})")
 
 
 def _download_col_index(page):
