@@ -194,6 +194,64 @@ def _find_download_control(row):
     return None
 
 
+def _click_and_get_pdf(page, context, btn, idx: int):
+    """ダウンロードボタンを押し、PDFの (ファイル名, バイト列) を返す。
+
+    直接ダウンロード / 新規タブでのPDF表示 の双方に対応する。
+    """
+    # まず直接ダウンロード(download イベント)を待つ。
+    try:
+        with page.expect_download(timeout=30000) as dl_info:
+            btn.click()
+        download = dl_info.value
+        data = open(download.path(), "rb").read()
+        return (download.suggested_filename or f"answer_{idx}.pdf"), data
+    except Exception:
+        pass
+
+    # ダウンロードが来なければ、新規タブで開いたPDFのURLを取得して取りに行く
+    for pg in list(context.pages):
+        if pg == page:
+            continue
+        try:
+            pg.wait_for_load_state("domcontentloaded", timeout=5000)
+        except Exception:
+            pass
+        u = pg.url or ""
+        if u and (".pdf" in u.lower() or "amazonaws" in u.lower() or "s3" in u.lower()):
+            try:
+                resp = context.request.get(u)
+                if resp.ok:
+                    body = resp.body()
+                    if body:
+                        return f"answer_{idx}.pdf", body
+            finally:
+                try:
+                    pg.close()
+                except Exception:
+                    pass
+    raise RuntimeError("ダウンロードもPDFタブも検出できませんでした")
+
+
+def _download_col_index(page):
+    """ヘッダーから「答案」列(data-test-id="download")の列番号を返す。"""
+    headers = page.locator("thead th")
+    n = headers.count()
+    for i in range(n):
+        try:
+            if (headers.nth(i).get_attribute("data-test-id") or "") == "download":
+                return i
+        except Exception:
+            continue
+    for i in range(n):  # フォールバック: ヘッダー文字が「答案」
+        try:
+            if headers.nth(i).inner_text().strip() == "答案":
+                return i
+        except Exception:
+            continue
+    return None
+
+
 def _row_meta(row) -> dict:
     """一覧テーブルの行からメタ情報を取り出す(ベストエフォート)。"""
     cells = [c.strip() for c in row.inner_text().split("\n") if c.strip()]
@@ -268,21 +326,24 @@ def fetch_answers(max_count: int = 20, headless: bool = True) -> List[FetchedAns
             if n == 0:
                 raise ToshinFetchError("答案一覧に行がありません(未割当の可能性)。")
 
+            dl_col = _download_col_index(page)
             list_dumped = False
             for i in range(n):
                 row = rows.nth(i)
                 meta = _row_meta(row)
-                # 行内のダウンロード操作要素を探す(無効ボタンを避ける)
-                btn = _find_download_control(row)
+                # 「答案」列のセルにある有効なダウンロードボタンを狙う
+                btn = None
+                if dl_col is not None:
+                    cell = row.locator("td").nth(dl_col)
+                    c = cell.locator("button:not([disabled]), a[href]")
+                    if c.count() > 0:
+                        btn = c.first
+                if btn is None:  # フォールバック
+                    btn = _find_download_control(row)
                 try:
                     if btn is None:
-                        raise RuntimeError("ダウンロードボタンが見つかりません(すべて無効の可能性)")
-                    with page.expect_download(timeout=60000) as dl_info:
-                        btn.click()
-                    download = dl_info.value
-                    path = download.path()
-                    pdf_bytes = open(path, "rb").read()
-                    name = download.suggested_filename or f"answer_{i + 1}.pdf"
+                        raise RuntimeError("ダウンロードボタンが見つかりません")
+                    name, pdf_bytes = _click_and_get_pdf(page, context, btn, i + 1)
                     fetched.append(FetchedAnswer(filename=name, pdf_bytes=pdf_bytes, meta=meta))
                 except Exception as e:  # 1行の失敗で全体を止めない
                     # 最初の失敗時に一覧ページのHTML/スクショを保存(構造調整用)
@@ -290,12 +351,13 @@ def fetch_answers(max_count: int = 20, headless: bool = True) -> List[FetchedAns
                         _save_debug(page)
                         list_dumped = True
                     try:
-                        meta["row_html"] = row.evaluate("el => el.outerHTML")[:1500]
+                        others = [pg.url for pg in context.pages if pg != page and pg.url]
                     except Exception:
-                        pass
+                        others = []
+                    extra = (" / 新規タブ: " + ", ".join(others)) if others else ""
                     fetched.append(FetchedAnswer(
                         filename=f"row{i + 1}_error", pdf_bytes=b"",
-                        meta={**meta, "error": str(e)},
+                        meta={**meta, "error": str(e) + extra},
                     ))
             return fetched
         except Exception as e:
