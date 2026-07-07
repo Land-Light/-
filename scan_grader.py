@@ -82,17 +82,27 @@ SCAN_INSTRUCTIONS = """答案はスキャン画像で与えられます。追加
 【判読】手書き文字を丁寧に判読し、設問ごとに transcriptions へ転記すること。
 崩し字などで判読に自信がない文字は「(?)」を付す。誤記と思われる字はそのまま転記し、講評で指摘する。
 
-【書き込み位置の指定】各設問について、答案画像に赤ペンで書き込むための位置を
+【小問ごとのマーク】問一(1)(2)や問二アイウのように小問がある設問は、小問ごとに
+transcriptions・questions・annotations をそれぞれ分けて作り、各小問に得点・記号・講評を付ける。
+「問一」を1つにまとめてはならない。小問の数だけマークを作ること。
+
+【書き込み位置の指定】各設問(小問含む)について、答案画像に赤ペンで書き込むための位置を
 annotations に指定すること。座標は各ページ画像の左上を(0,0)、右下を(1,1)とする割合。
-- score_pos: 設問番号ラベル(「問一」等)の真上の余白。得点数字を書く。
-- symbol_pos: その設問の答案記入欄の中央付近。○/△/✔記号を書く(記号の種類はシステムが得点から決める)。
-- comment_pos: 答案記入欄のすぐ左の余白の上端。margin_comment が縦書きで印字される。
-  下方向に1文字ずつ、左方向に折り返して印字されるため、記入欄と重ならない余白を選ぶ。
-- 答案用紙に「得点」欄があれば total_score_pos、「採点者」欄があれば grader_pos に枠内の位置を指定する。
+位置は必ず実際の画像を見て、対象の設問・解答・欄の座標を正確に読み取って決めること。
+- score_pos: その設問(小問)の解答が書かれた行の右端付近の余白、または設問番号ラベルの
+  真上の余白。得点数字を書く。他の設問の得点や記号と重ならないようにする。
+- symbol_pos: その設問(小問)の解答が実際に書かれている位置の中央〜末尾付近。○/△/✔記号を書く
+  (記号の種類はシステムが得点から決める)。必ずその小問の解答欄の上に来るようにし、
+  隣の設問の欄にはみ出さないこと。
+- comment_pos: その設問の解答欄のすぐ左(または直近)の余白の上端。margin_comment が縦書きで印字される。
+  下方向に1文字ずつ、左方向に折り返して印字されるため、記入欄・罫線と重ならない余白を選ぶ。
+- total_score_pos: 答案用紙に「得点」欄(枠)があれば、その枠の内側中央の座標を指定する。
+- grader_pos: 「採点者」「担当」等の欄(枠)があれば、その枠の内側中央の座標を指定する。
+  枠からずれないよう、枠の位置を画像から正確に読み取ること(佐藤 と印字される)。
 - overall_comment_pos: 最終ページの大きな空白スペース(答案記入欄・罫線・QRコードと重ならない場所)の
   右上端を指定する。ここに総評(overall_comment)が縦書きで印字される。縦書きは指定位置から下に
   1文字ずつ、約30字で左の列に折り返すため、総評の長さに見合った幅の余白を選ぶこと。
-- questions に含めた全設問について、annotations にも必ず対応する項目を作ること(マーク漏れ禁止)。"""
+- questions に含めた全設問(小問含む)について、annotations にも必ず対応する項目を作ること(マーク漏れ禁止)。"""
 
 
 def render_pages_png(pdf_bytes: bytes, scale: float = _RENDER_SCALE) -> List[bytes]:
@@ -162,16 +172,17 @@ def grade_scanned_pdf(
     system_blocks[-1]["cache_control"] = {"type": "ephemeral"}
 
     try:
-        # max_tokens が大きい(思考+長い出力)ため、SDK の10分ガードを回避すべく
-        # タイムアウトを明示指定する(gunicorn の 900 秒より短い 800 秒)。
-        response = client.with_options(timeout=800.0).messages.parse(
+        # max_tokens が大きい(思考+長い出力)ため、非ストリーミングだと SDK の
+        # 10分ガードで弾かれる。ストリーミングで受信し完成メッセージを取得する。
+        with client.with_options(timeout=800.0).messages.stream(
             model=MODEL,
             max_tokens=32000,
             thinking={"type": "adaptive"},
             system=system_blocks,
             messages=[{"role": "user", "content": content}],
             output_format=ScanGradingResult,
-        )
+        ) as stream:
+            response = stream.get_final_message()
     except Exception as e:
         # 出力途中切れ等でJSON解析に失敗した場合の分かりやすいメッセージ
         if "json" in str(e).lower() or "EOF" in str(e) or "validation error" in str(e).lower():
