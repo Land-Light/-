@@ -9,15 +9,22 @@
 """
 
 import os
+import re
 from functools import lru_cache
 from typing import List, Literal, Optional
 
 import anthropic
 from pydantic import BaseModel, Field
 
-MODEL = "claude-opus-4-8"
+# 採点用モデル。コスト重視で sonnet を既定にする(精度重視なら claude-opus-4-8)。
+MODEL = "claude-sonnet-5"
+# 出典判別(大学・年度の判定)用の安価なモデル。
+IDENTIFY_MODEL = "claude-haiku-4-5"
 
 GRADER_NAME = "佐藤"
+
+# 参照コーパスに含まれる大学(フル名 → 略称も許容)
+_UNIVERSITIES = ["東京都立大学", "奈良女子大学", "埼玉大学", "千葉大学"]
 
 _REFERENCE_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "reference", "rubric_examples.txt"
@@ -32,6 +39,63 @@ def _load_reference() -> str:
             return f.read().strip()
     except OSError:
         return ""
+
+
+@lru_cache(maxsize=1)
+def _reference_sections():
+    """コーパスを `=== 年度 大学名 … ===` 見出しごとのセクションに分割する。
+
+    返り値: [(header, section_text), ...]
+    """
+    text = _load_reference()
+    if not text:
+        return ()
+    parts = re.split(r"(?m)^(=== .*? ===)\s*$", text)
+    sections = []
+    # parts = [preamble, header1, body1, header2, body2, ...]
+    for i in range(1, len(parts) - 1, 2):
+        header = parts[i].strip()
+        body = parts[i + 1].strip()
+        sections.append((header, header + "\n" + body))
+    return tuple(sections)
+
+
+def select_reference(hint: Optional[str]) -> str:
+    """出典ヒント(大学名・年度等)に合致する採点基準セクションだけを返す。
+
+    ・大学が判別でき、年度も合致 → その年度のセクションだけ(最小)
+    ・大学のみ判別 → その大学の全セクション
+    ・判別できない/曖昧 → 全コーパス(安全側。誤った基準で採点しない)
+    """
+    sections = _reference_sections()
+    if not sections:
+        return ""
+    if not hint:
+        return _load_reference()
+
+    # 大学を判別(フル名・略称の両方を許容)
+    uni = None
+    for u in _UNIVERSITIES:
+        short = u.replace("大学", "大")
+        if u in hint or short in hint or (u == "東京都立大学" and "都立" in hint):
+            uni = u
+            break
+    if uni is None:
+        return _load_reference()  # 大学不明 → 全体(安全側)
+
+    short = uni.replace("大学", "大")
+    uni_secs = [(h, b) for (h, b) in sections if uni in h or short in h]
+    if not uni_secs:
+        return _load_reference()
+
+    # 年度が合致すればさらに絞り込む
+    m = re.search(r"(20\d{2})", hint or "")
+    if m:
+        yr_secs = [(h, b) for (h, b) in uni_secs if m.group(1) in h]
+        if yr_secs:
+            uni_secs = yr_secs
+
+    return "\n\n".join(b for (_, b) in uni_secs)
 
 
 SYSTEM_PROMPT = """あなたは日本の大学入試国語(現代文・古文・漢文・小論文)の過去問添削指導に長年携わってきたベテラン採点者「佐藤」です。
@@ -180,7 +244,12 @@ def grade_answers(
     )
 
     system_blocks = [{"type": "text", "text": SYSTEM_PROMPT}]
-    reference = _load_reference()
+    # 出典ヒント(志望校・本文・設問文)から採点基準を絞り込む(コスト削減)
+    hint = " ".join(
+        filter(None, [target_university, (passage or "")[:800]]
+               + [q.question for q in questions])
+    )
+    reference = select_reference(hint)
     if reference:
         system_blocks.append(
             {

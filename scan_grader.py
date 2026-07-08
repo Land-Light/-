@@ -20,13 +20,16 @@ from pydantic import BaseModel, Field
 from annotator import Mark, annotate_pdf, mark_kind_for_score
 from grader import (
     GRADER_NAME,
+    IDENTIFY_MODEL,
     GradingResult,
     QuestionInput,
     SYSTEM_PROMPT,
     _load_reference,
+    select_reference,
 )
 
-MODEL = "claude-opus-4-8"
+# コスト重視で sonnet を既定にする(精度重視なら claude-opus-4-8)。
+MODEL = "claude-sonnet-5"
 
 _RENDER_SCALE = 2.0  # 手書き判読用に高めの解像度で描画する
 
@@ -119,6 +122,44 @@ def render_pages_png(pdf_bytes: bytes, scale: float = _RENDER_SCALE) -> List[byt
     return images
 
 
+def _identify_exam(client, pages: List[bytes]) -> str:
+    """答案の先頭ページから大学名・年度・大問を安価なモデルで判別する。
+
+    採点基準コーパスを絞り込むためのヒント文字列を返す(失敗時は空文字)。
+    """
+    content: list = []
+    for png in pages[:2]:  # ヘッダーは先頭ページにある
+        content.append(
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": base64.standard_b64encode(png).decode(),
+                },
+            }
+        )
+    content.append(
+        {
+            "type": "text",
+            "text": (
+                "この答案用紙のヘッダーや印字から、大学名・年度・大問(学部が分かれば学部も)を"
+                "短く一行で答えてください。例: 千葉大学 2018年度 文系 第1問。"
+                "判別できなければ「不明」とだけ答えてください。"
+            ),
+        }
+    )
+    try:
+        resp = client.messages.create(
+            model=IDENTIFY_MODEL,
+            max_tokens=100,
+            messages=[{"role": "user", "content": content}],
+        )
+        return "".join(b.text for b in resp.content if b.type == "text").strip()
+    except Exception:
+        return ""
+
+
 def grade_scanned_pdf(
     pdf_bytes: bytes,
     rubric: Optional[str] = None,
@@ -127,6 +168,8 @@ def grade_scanned_pdf(
     client = anthropic.Anthropic()
 
     pages = render_pages_png(pdf_bytes)
+    # 二段階参照: まず出典を判別し、該当する採点基準だけを読み込む(コスト削減)
+    exam_hint = _identify_exam(client, pages)
     content = []
     for i, png in enumerate(pages):
         content.append({"type": "text", "text": f"【答案 {i + 1}/{len(pages)}ページ目】"})
@@ -156,7 +199,8 @@ def grade_scanned_pdf(
     )
 
     system_blocks = [{"type": "text", "text": SYSTEM_PROMPT + "\n\n" + SCAN_INSTRUCTIONS}]
-    reference = _load_reference()
+    # 判別できた出典で採点基準を絞り込む(判別不能なら全コーパスに自動フォールバック)
+    reference = select_reference(exam_hint) if exam_hint and exam_hint != "不明" else _load_reference()
     if reference:
         system_blocks.append(
             {
