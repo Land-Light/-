@@ -51,13 +51,14 @@ class QuestionAnnotation(BaseModel):
     symbol_pos: MarkPos = Field(description="記号(○/△/✔)を書く位置(答案記入欄の中央付近)")
     comment_code: Optional[str] = Field(
         default=None,
-        description="定型講評コード(KANJI/OKURI/KEYWORD/SHORT/OVER/UNDER/OFF/KUHOU/GOGI/BLANK/NIHONGO)。"
-        "典型的な指摘はこのコードだけを入れ、margin_comment は空にする(出力節約)",
+        description="定型講評コード。機械的な指摘(KANJI/OKURI/BLANK/OVER/UNDER/NIHONGO)のみに使う。"
+        "記述・内容問題では使わず margin_comment に具体的に書くこと",
     )
     margin_comment: str = Field(
         default="",
-        description="欄外に赤ペンで書く短い講評(縦書き)。定型で足りる場合は空にし comment_code を使う。"
-        "独自の具体的指摘が必要なときだけ簡潔(30〜60字)に書く。正解の設問は空にする",
+        description="欄外に赤ペンで書く講評(縦書き)。記述・内容問題では必ずここに、"
+        "欠けている指定語句・要素を名指しし、どう直せば得点になるかを1〜2文(40〜80字)で具体的に書く。"
+        "抽象的な決まり文句だけは不可。正解の設問は空にする",
     )
     comment_pos: Optional[MarkPos] = Field(
         default=None,
@@ -117,15 +118,20 @@ annotations に指定すること。座標は各ページ画像の左上を(0,0)
   1文字ずつ、約30字で左の列に折り返すため、総評の長さに見合った幅の余白を選ぶこと。
 - questions に含めた全設問(小問含む)について、annotations にも必ず対応する項目を作ること(マーク漏れ禁止)。
 
-【コスト節約(講評の使い回し)】出力を短くするため、次を厳守すること:
+【講評の方針(具体性を優先しつつ出力を節約)】
 - 正解(満点)の設問には欄外講評を付けない(margin_comment も comment_code も空)。○マークだけで足りる。
-- よくある指摘は、自分で文章を書かず comment_code に該当コードだけを入れ、margin_comment は空にする。
-  コード一覧: KANJI(漢字誤り)/OKURI(送り仮名)/KEYWORD(指定語句・要素の欠落)/SHORT(内容不足)/
-  OVER(字数超過)/UNDER(字数不足)/OFF(趣旨のずれ)/KUHOU(漢文句法の誤り)/GOGI(古語・語義の誤り)/
-  BLANK(無答)/NIHONGO(不自然な日本語)。
-  ★BLANK(無答)は解答欄が白紙・未記入のときだけ使う。記入はあるが不正解・要素不足で0点の場合は
-  BLANK ではなく KEYWORD・OFF・SHORT など内容に合ったコード(または自由記述)を使うこと。
-- どのコードにも当てはまらない独自の具体的指摘が必要なときだけ、margin_comment に簡潔(30〜60字)に書く。
+- 定型コード(comment_code)は「機械的で説明の要らない指摘」だけに使う:
+  KANJI(漢字誤り)/OKURI(送り仮名)/BLANK(白紙・無答)/OVER(字数超過)/UNDER(字数不足)/NIHONGO(不自然な日本語)。
+  例えば漢字書き取りの誤りは KANJI コードだけでよい。
+- 記述・説明・要約・内容読解などの問題(現代文・古文・漢文の記述設問)は、定型コードを使わず
+  必ず margin_comment に「具体的に」書く。次を必ず含めること:
+    ・何が欠けて/誤って失点したか(指定語句・要素を名指し。例「指定語『視線』が使われていません」
+      「『個人所蔵の否定』の要素が抜けています」「主語の取り違えです」)
+    ・本文のどこを踏まえるべきか、どう直せば得点になるか(端的に)
+  「内容が不足しています」「趣旨がずれています」のような、どの答案にも当てはまる抽象的な文だけで
+  済ませてはならない。その答案・その設問に固有の指摘を1〜2文(40〜80字)で書くこと。
+  (KEYWORD/SHORT/OFF/KUHOU/GOGI のコードは、具体的に書けないときの最終手段に留める。)
+- BLANK(無答)は解答欄が白紙・未記入のときだけ。記入があり不正解の場合は自由記述で理由を書く。
 - strengths・improvements・study_advice は空(空配列・空文字)にする。書き込みPDFでは使用しない。
 - rewrite_example(書き直し例)は誤答・部分点の設問だけ記載し、正解の設問は空にする。
 - transcriptions は採点に必要な範囲で簡潔に。長い答案を一字一句すべて写す必要はない。"""
