@@ -3,9 +3,12 @@
 import concurrent.futures
 import io
 import os
+import threading
 import uuid
 
-from flask import Flask, Response, abort, render_template, request, send_file
+from flask import (
+    Flask, Response, abort, redirect, render_template, request, send_file, url_for,
+)
 
 from annotator import Mark, annotate_pdf
 from grader import GENRE_LABELS, GRADER_NAME, QuestionInput, grade_answers
@@ -22,47 +25,104 @@ GRADE_CONCURRENCY = max(1, int(os.environ.get("GRADE_CONCURRENCY", "3")))
 
 # 添削結果の一時保存(PDF ダウンロード用)。プロセス内メモリ保持。
 _results: dict = {}
+# バッチ処理の進捗(取得・採点をバックグラウンドで実行し、画面はポーリングで進捗表示)
+_batches: dict = {}
 
 
-def _grade_batch(items: list, rubric):
-    """items(=[{filename, pdf_bytes, source_meta?}, ...])を並列採点し、
-    結果を _results に保存して batch(表示用リスト)を返す。順序は維持する。"""
-    batch = [None] * len(items)
+def _grade_one_into(slot: dict, item: dict, rubric):
+    """1枚を採点し、結果を _results に保存して slot(進捗表示用)を更新する。"""
+    slot["status"] = "grading"
+    pdf_bytes = item.get("pdf_bytes")
+    if not pdf_bytes:
+        slot.update(status="error", error=item.get("error", "ダウンロード失敗"))
+        return
+    try:
+        result = grade_scanned_pdf(pdf_bytes, rubric=rubric)
+        marks = build_marks(result)
+        result_id = uuid.uuid4().hex
+        _results[result_id] = {
+            "result": result,
+            "genre_label": GENRE_LABELS.get("auto", "自動判別"),
+            "questions": result.transcriptions,
+            "pdf_bytes": pdf_bytes,
+            "marks": [m.model_dump() for m in marks],  # 編集可能な書き込み位置
+            "filename": item["filename"],
+            "source_meta": item.get("source_meta"),
+        }
+        slot.update(
+            status="done", result_id=result_id,
+            exam=result.matched_exam, score=result.total_score,
+            max_score=result.max_score, grade=result.grade_label,
+        )
+    except Exception as e:  # 1枚の失敗で全体を止めない
+        slot.update(status="error", error=str(e))
 
-    def _one(idx: int, item: dict):
-        entry = {"filename": item["filename"]}
-        pdf_bytes = item.get("pdf_bytes")
-        if not pdf_bytes:
-            entry.update({"ok": False, "error": item.get("error", "ダウンロード失敗")})
-            return idx, entry
-        try:
-            result = grade_scanned_pdf(pdf_bytes, rubric=rubric)
-            marks = build_marks(result)
-            result_id = uuid.uuid4().hex
-            _results[result_id] = {
-                "result": result,
-                "genre_label": GENRE_LABELS.get("auto", "自動判別"),
-                "questions": result.transcriptions,
-                "pdf_bytes": pdf_bytes,
-                "marks": [m.model_dump() for m in marks],  # 編集可能な書き込み位置
-                "filename": item["filename"],
-                "source_meta": item.get("source_meta"),
-            }
-            entry.update({"ok": True, "result_id": result_id, "result": result})
-        except Exception as e:  # 1枚の失敗で全体を止めない
-            entry.update({"ok": False, "error": str(e)})
-        return idx, entry
 
+def _grade_items_bg(state: dict, items: list, rubric):
+    """items を並列採点し、state["items"] の各 slot を更新する。"""
+    state["items"] = [{"filename": it["filename"], "status": "pending"} for it in items]
+    state["total"] = len(items)
+    state["phase"] = "grading"
     workers = min(GRADE_CONCURRENCY, max(1, len(items)))
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = [ex.submit(_one, i, it) for i, it in enumerate(items)]
-        for fut in concurrent.futures.as_completed(futures):
-            idx, entry = fut.result()
-            batch[idx] = entry
+        futs = [ex.submit(_grade_one_into, state["items"][i], it, rubric)
+                for i, it in enumerate(items)]
+        for f in concurrent.futures.as_completed(futs):
+            f.result()
+    state["phase"] = "done"
 
+
+def _new_batch() -> str:
     batch_id = uuid.uuid4().hex
-    _results[f"batch:{batch_id}"] = [e.get("result_id") for e in batch if e and e.get("ok")]
-    return batch, batch_id
+    _batches[batch_id] = {"phase": "starting", "total": 0, "items": [], "error": None}
+    return batch_id
+
+
+def _start_scan_batch(items: list, rubric) -> str:
+    """アップロード済みPDF群をバックグラウンドで採点開始し、batch_id を返す。"""
+    batch_id = _new_batch()
+    state = _batches[batch_id]
+
+    def worker():
+        try:
+            _grade_items_bg(state, items, rubric)
+        except Exception as e:
+            state.update(phase="error", error=str(e))
+
+    threading.Thread(target=worker, daemon=True).start()
+    return batch_id
+
+
+def _start_toshin_batch(max_count: int, rubric) -> str:
+    """東進から取得→採点までをバックグラウンドで実行し、batch_id を返す。"""
+    batch_id = _new_batch()
+    state = _batches[batch_id]
+    state["phase"] = "fetching"
+
+    def worker():
+        try:
+            answers = fetch_answers(max_count=max_count)
+        except ToshinFetchError as e:
+            state.update(phase="error", error=f"東進からの取得に失敗しました: {e}")
+            return
+        except Exception as e:
+            state.update(phase="error", error=f"東進からの取得に失敗しました: {e}")
+            return
+        items = [
+            {"filename": a.filename, "pdf_bytes": a.pdf_bytes,
+             "source_meta": a.meta, "error": a.meta.get("error", "ダウンロード失敗")}
+            for a in answers
+        ]
+        if not items:
+            state.update(phase="error", error="取得できる答案がありませんでした。")
+            return
+        try:
+            _grade_items_bg(state, items, rubric)
+        except Exception as e:
+            state.update(phase="error", error=str(e))
+
+    threading.Thread(target=worker, daemon=True).start()
+    return batch_id
 
 # 公開デプロイ時の簡易認証。環境変数 APP_PASSWORD を設定すると
 # Basic 認証(ユーザー名は任意、パスワード一致)が全ページに掛かる。
@@ -177,7 +237,7 @@ def grade():
 
 @app.route("/grade-scans", methods=["POST"])
 def grade_scans():
-    """スキャン答案PDF(複数可)を一括採点する。"""
+    """スキャン答案PDF(複数可)をバックグラウンドで一括採点し進捗画面へ。"""
     files = [f for f in request.files.getlist("scans") if f and f.filename]
     rubric = request.form.get("scan_rubric", "").strip() or None
     if not files:
@@ -187,38 +247,45 @@ def grade_scans():
         ), 400
 
     items = [{"filename": f.filename, "pdf_bytes": f.read()} for f in files]
-    batch, batch_id = _grade_batch(items, rubric)
-    return render_template(
-        "scans_result.html", batch=batch, batch_id=batch_id, grader_name=GRADER_NAME,
-    )
+    batch_id = _start_scan_batch(items, rubric)
+    return redirect(url_for("batch_progress", batch_id=batch_id))
 
 
 @app.route("/fetch-toshin", methods=["POST"])
 def fetch_toshin():
-    """東進添削システムから答案を自動取得して一括採点する。"""
+    """東進から取得→採点をバックグラウンドで開始し、進捗画面へ即座に遷移する。"""
     rubric = request.form.get("toshin_rubric", "").strip() or None
     try:
         max_count = int(request.form.get("toshin_max", "10"))
     except ValueError:
         max_count = 10
+    batch_id = _start_toshin_batch(max_count, rubric)
+    return redirect(url_for("batch_progress", batch_id=batch_id))
 
-    try:
-        answers = fetch_answers(max_count=max_count)
-    except ToshinFetchError as e:
-        return render_template(
-            "index.html", genres=GENRE_LABELS,
-            error=f"東進からの取得に失敗しました: {e}", form=request.form,
-        ), 502
 
-    items = [
-        {"filename": a.filename, "pdf_bytes": a.pdf_bytes,
-         "source_meta": a.meta, "error": a.meta.get("error", "ダウンロード失敗")}
-        for a in answers
-    ]
-    batch, batch_id = _grade_batch(items, rubric)
-    return render_template(
-        "scans_result.html", batch=batch, batch_id=batch_id, grader_name=GRADER_NAME,
-    )
+@app.route("/batch/<batch_id>")
+def batch_progress(batch_id: str):
+    """一括採点の進捗画面(JSでポーリングして完了分から表示)。"""
+    if batch_id not in _batches:
+        abort(404)
+    return render_template("batch_status.html", batch_id=batch_id, grader_name=GRADER_NAME)
+
+
+@app.route("/batch-status/<batch_id>")
+def batch_status(batch_id: str):
+    """進捗を JSON で返す(バックグラウンド採点のポーリング用)。"""
+    state = _batches.get(batch_id)
+    if state is None:
+        abort(404)
+    items = state.get("items", [])
+    done = sum(1 for it in items if it.get("status") in ("done", "error"))
+    return {
+        "phase": state.get("phase"),
+        "error": state.get("error"),
+        "total": state.get("total", 0),
+        "done": done,
+        "items": items,
+    }
 
 
 @app.route("/toshin-debug")
@@ -272,7 +339,10 @@ def download_annotated_zip(batch_id: str):
     """バッチ内の書き込み済みPDFをまとめてZIPでダウンロード。"""
     import zipfile
 
-    ids = _results.get(f"batch:{batch_id}")
+    state = _batches.get(batch_id)
+    if not state:
+        abort(404)
+    ids = [it.get("result_id") for it in state.get("items", []) if it.get("result_id")]
     if not ids:
         abort(404)
     buf = io.BytesIO()

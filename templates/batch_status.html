@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}一括採点(処理中) — 国語 過去問添削AI{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 class="section" style="margin-top:0;">スキャン答案 一括採点</h2>
+  <p class="notice">採点者:{{ grader_name }}</p>
+
+  <div id="phase" style="font-weight:600; margin-bottom:0.6rem;">準備中…</div>
+  <div style="background:var(--border,#eee); border-radius:6px; overflow:hidden; height:14px; margin-bottom:0.4rem;">
+    <div id="bar" style="height:100%; width:0%; background:var(--accent,#2a4d8f); transition:width .3s;"></div>
+  </div>
+  <div id="count" class="muted" style="margin-bottom:1rem;"></div>
+
+  <table class="batch">
+    <thead>
+      <tr><th>ファイル</th><th>出典判別</th><th>得点</th><th>評価</th><th>状態 / ダウンロード</th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <div class="actions" style="margin-top:1rem;">
+    <a id="zip" class="btn-pdf" style="display:none;" href="/annotated-zip/{{ batch_id }}">書き込み済みを一括ダウンロード(ZIP)</a>
+    <a class="btn-back" href="/">戻る</a>
+  </div>
+</div>
+
+<style>
+  table.batch { width:100%; border-collapse:collapse; font-size:0.92rem; }
+  table.batch th, table.batch td { border:1px solid var(--border,#ccc); padding:0.5rem 0.7rem; text-align:left; vertical-align:top; }
+  table.batch th { background:var(--accent,#2a4d8f); color:#fff; }
+  table.batch td.score { font-weight:700; color:#c0392b; white-space:nowrap; }
+  .st-pending { color:var(--muted,#888); }
+  .st-grading { color:var(--accent,#2a4d8f); font-weight:600; }
+  .st-error { color:#8f1f1f; background:#fdecec; }
+</style>
+
+<script>
+const BATCH_ID = "{{ batch_id }}";
+const phaseEl = document.getElementById('phase');
+const barEl = document.getElementById('bar');
+const countEl = document.getElementById('count');
+const rowsEl = document.getElementById('rows');
+const zipEl = document.getElementById('zip');
+
+function esc(s){ return (s||'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+function render(data){
+  const phaseText = {
+    starting:'準備中…', fetching:'東進から答案を取得中…(初回は数十秒)',
+    grading:'採点中…', done:'完了しました', error:'エラー'
+  }[data.phase] || '処理中…';
+  phaseEl.textContent = phaseText;
+
+  if(data.phase === 'error'){
+    phaseEl.style.color = '#8f1f1f';
+    countEl.textContent = data.error || '';
+    return true;
+  }
+
+  const total = data.total || 0;
+  const done = data.done || 0;
+  barEl.style.width = total ? Math.round(done/total*100)+'%' : (data.phase==='fetching'?'8%':'0%');
+  countEl.textContent = total ? `${done} / ${total} 件完了` : '';
+
+  rowsEl.innerHTML = '';
+  let anyDone = false;
+  (data.items||[]).forEach(it => {
+    const tr = document.createElement('tr');
+    let statusCell = '';
+    if(it.status === 'done'){
+      anyDone = true;
+      statusCell = `<a href="/edit/${it.result_id}">✎ 記号の位置を修正</a><br><a href="/annotated/${it.result_id}">書き込み済みPDF</a>`;
+    } else if(it.status === 'error'){
+      statusCell = `<span class="st-error">エラー: ${esc(it.error)}</span>`;
+    } else if(it.status === 'grading'){
+      statusCell = `<span class="st-grading">採点中…</span>`;
+    } else {
+      statusCell = `<span class="st-pending">待機中</span>`;
+    }
+    tr.innerHTML =
+      `<td>${esc(it.filename)}</td>` +
+      `<td>${esc(it.exam||'')}</td>` +
+      `<td class="score">${it.status==='done' ? (it.score+' / '+it.max_score) : ''}</td>` +
+      `<td>${esc(it.grade||'')}</td>` +
+      `<td>${statusCell}</td>`;
+    rowsEl.appendChild(tr);
+  });
+
+  zipEl.style.display = anyDone ? '' : 'none';
+  return data.phase === 'done';
+}
+
+async function poll(){
+  try{
+    const res = await fetch(`/batch-status/${BATCH_ID}`);
+    if(!res.ok){ phaseEl.textContent = '状態を取得できませんでした'; return; }
+    const data = await res.json();
+    const finished = render(data);
+    if(!finished) setTimeout(poll, 2000);
+  }catch(e){ setTimeout(poll, 3000); }
+}
+poll();
+</script>
+{% endblock %}
