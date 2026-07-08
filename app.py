@@ -1,5 +1,6 @@
 """国語入試 過去問添削AI — Flask アプリ本体。"""
 
+import concurrent.futures
 import io
 import os
 import uuid
@@ -12,10 +13,53 @@ from scan_grader import grade_and_annotate
 from toshin_fetcher import ToshinFetchError, fetch_answers
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # アップロード上限 64MB
+app.config["MAX_CONTENT_LENGTH"] = 256 * 1024 * 1024  # アップロード上限 256MB(大量枚数対応)
+
+# 一括採点の並列数。答案採点はAPI待ちが大半なので並列化で総時間を短縮できる。
+# メモリ(無料枠512MB)とAPIレート制限を考慮した既定値。環境変数で調整可。
+GRADE_CONCURRENCY = max(1, int(os.environ.get("GRADE_CONCURRENCY", "3")))
 
 # 添削結果の一時保存(PDF ダウンロード用)。プロセス内メモリ保持。
 _results: dict = {}
+
+
+def _grade_batch(items: list, rubric):
+    """items(=[{filename, pdf_bytes, source_meta?}, ...])を並列採点し、
+    結果を _results に保存して batch(表示用リスト)を返す。順序は維持する。"""
+    batch = [None] * len(items)
+
+    def _one(idx: int, item: dict):
+        entry = {"filename": item["filename"]}
+        pdf_bytes = item.get("pdf_bytes")
+        if not pdf_bytes:
+            entry.update({"ok": False, "error": item.get("error", "ダウンロード失敗")})
+            return idx, entry
+        try:
+            result, annotated = grade_and_annotate(pdf_bytes, rubric=rubric)
+            result_id = uuid.uuid4().hex
+            _results[result_id] = {
+                "result": result,
+                "genre_label": GENRE_LABELS.get("auto", "自動判別"),
+                "questions": result.transcriptions,
+                "annotated": annotated,
+                "filename": item["filename"],
+                "source_meta": item.get("source_meta"),
+            }
+            entry.update({"ok": True, "result_id": result_id, "result": result})
+        except Exception as e:  # 1枚の失敗で全体を止めない
+            entry.update({"ok": False, "error": str(e)})
+        return idx, entry
+
+    workers = min(GRADE_CONCURRENCY, max(1, len(items)))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = [ex.submit(_one, i, it) for i, it in enumerate(items)]
+        for fut in concurrent.futures.as_completed(futures):
+            idx, entry = fut.result()
+            batch[idx] = entry
+
+    batch_id = uuid.uuid4().hex
+    _results[f"batch:{batch_id}"] = [e.get("result_id") for e in batch if e and e.get("ok")]
+    return batch, batch_id
 
 # 公開デプロイ時の簡易認証。環境変数 APP_PASSWORD を設定すると
 # Basic 認証(ユーザー名は任意、パスワード一致)が全ページに掛かる。
@@ -139,27 +183,8 @@ def grade_scans():
             error="答案PDFを1つ以上選択してください。", form=request.form,
         ), 400
 
-    batch = []
-    for f in files:
-        entry = {"filename": f.filename}
-        try:
-            pdf_bytes = f.read()
-            result, annotated = grade_and_annotate(pdf_bytes, rubric=rubric)
-            result_id = uuid.uuid4().hex
-            _results[result_id] = {
-                "result": result,
-                "genre_label": GENRE_LABELS.get("auto", "自動判別"),
-                "questions": result.transcriptions,
-                "annotated": annotated,
-                "filename": f.filename,
-            }
-            entry.update({"ok": True, "result_id": result_id, "result": result})
-        except Exception as e:  # 1枚の失敗で全体を止めない
-            entry.update({"ok": False, "error": str(e)})
-        batch.append(entry)
-
-    batch_id = uuid.uuid4().hex
-    _results[f"batch:{batch_id}"] = [e.get("result_id") for e in batch if e.get("ok")]
+    items = [{"filename": f.filename, "pdf_bytes": f.read()} for f in files]
+    batch, batch_id = _grade_batch(items, rubric)
     return render_template(
         "scans_result.html", batch=batch, batch_id=batch_id, grader_name=GRADER_NAME,
     )
@@ -170,9 +195,9 @@ def fetch_toshin():
     """東進添削システムから答案を自動取得して一括採点する。"""
     rubric = request.form.get("toshin_rubric", "").strip() or None
     try:
-        max_count = int(request.form.get("toshin_max", "5"))
+        max_count = int(request.form.get("toshin_max", "10"))
     except ValueError:
-        max_count = 5
+        max_count = 10
 
     try:
         answers = fetch_answers(max_count=max_count)
@@ -182,31 +207,12 @@ def fetch_toshin():
             error=f"東進からの取得に失敗しました: {e}", form=request.form,
         ), 502
 
-    batch = []
-    for a in answers:
-        entry = {"filename": a.filename}
-        if not a.pdf_bytes:
-            entry.update({"ok": False, "error": a.meta.get("error", "ダウンロード失敗")})
-            batch.append(entry)
-            continue
-        try:
-            result, annotated = grade_and_annotate(a.pdf_bytes, rubric=rubric)
-            result_id = uuid.uuid4().hex
-            _results[result_id] = {
-                "result": result,
-                "genre_label": GENRE_LABELS.get("auto", "自動判別"),
-                "questions": result.transcriptions,
-                "annotated": annotated,
-                "filename": a.filename,
-                "source_meta": a.meta,
-            }
-            entry.update({"ok": True, "result_id": result_id, "result": result})
-        except Exception as e:  # 1枚の失敗で全体を止めない
-            entry.update({"ok": False, "error": str(e)})
-        batch.append(entry)
-
-    batch_id = uuid.uuid4().hex
-    _results[f"batch:{batch_id}"] = [e.get("result_id") for e in batch if e.get("ok")]
+    items = [
+        {"filename": a.filename, "pdf_bytes": a.pdf_bytes,
+         "source_meta": a.meta, "error": a.meta.get("error", "ダウンロード失敗")}
+        for a in answers
+    ]
+    batch, batch_id = _grade_batch(items, rubric)
     return render_template(
         "scans_result.html", batch=batch, batch_id=batch_id, grader_name=GRADER_NAME,
     )

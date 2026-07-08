@@ -355,7 +355,7 @@ def _save_debug(page) -> str:
         return ""
 
 
-def fetch_answers(max_count: int = 20, headless: bool = True) -> List[FetchedAnswer]:
+def fetch_answers(max_count: int = 100, headless: bool = True) -> List[FetchedAnswer]:
     """東進添削システムにログインし、一覧の各行から答案PDFをダウンロードする。"""
     from playwright.sync_api import sync_playwright
 
