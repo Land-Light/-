@@ -43,12 +43,29 @@ class MarkPos(BaseModel):
     y: float = Field(description="上端からの割合 0〜1")
 
 
+class ItemMark(BaseModel):
+    """漢字書き取り・記号選択など、小問集合の各小問に付ける正誤マーク。"""
+
+    pos: MarkPos = Field(description="その小問の解答欄上の記号位置")
+    correct: bool = Field(description="正解なら true(○)、不正解なら false(✔)")
+
+
 class QuestionAnnotation(BaseModel):
     """設問1つ分の書き込み位置と欄外講評。"""
 
     label: str = Field(description="設問番号(例: 問一)。採点結果の label と一致させる")
-    score_pos: MarkPos = Field(description="得点数字を書く位置(設問番号ラベルの真上の余白)")
-    symbol_pos: MarkPos = Field(description="記号(○/△/✔)を書く位置(答案記入欄の中央付近)")
+    score_pos: MarkPos = Field(
+        description="この設問の得点(漢字・記号の集合設問なら合計点)を1つだけ書く位置(設問番号ラベルの真上の余白)"
+    )
+    symbol_pos: Optional[MarkPos] = Field(
+        default=None,
+        description="記述・内容問題で記号(○/△/✔)を1つ置く位置。漢字・記号の集合設問では使わず item_marks を使う",
+    )
+    item_marks: List[ItemMark] = Field(
+        default_factory=list,
+        description="漢字書き取り・記号選択など、小問を多数○×で採点する設問の各小問マーク位置と正誤。"
+        "これを使う設問では symbol_pos は不要。通常の記述問題では空にする",
+    )
     comment_code: Optional[str] = Field(
         default=None,
         description="定型講評コード。機械的な指摘(KANJI/OKURI/BLANK/OVER/UNDER/NIHONGO)のみに使う。"
@@ -94,9 +111,14 @@ SCAN_INSTRUCTIONS = """答案はスキャン画像で与えられます。追加
 【判読】手書き文字を丁寧に判読し、設問ごとに transcriptions へ転記すること。
 崩し字などで判読に自信がない文字は「(?)」を付す。誤記と思われる字はそのまま転記し、講評で指摘する。
 
-【小問ごとのマーク】問一(1)(2)や問二アイウのように小問がある設問は、小問ごとに
-transcriptions・questions・annotations をそれぞれ分けて作り、各小問に得点・記号・講評を付ける。
-「問一」を1つにまとめてはならない。小問の数だけマークを作ること。
+【設問タイプ別の書き込み】
+(A) 漢字書き取り・記号選択・抜き出しなど「小問を多数○×で採点する設問」(問一 ア〜コ 等):
+  questions では設問全体(問一)を1項目にまとめ、score は合計点にする。
+  annotations では score_pos に合計点を1つだけ書き、item_marks に各小問の位置と正誤(correct)を列挙する。
+  各小問には○(正解)/✔(不正解)が打たれる。この種の設問には得点数字を小問ごとに書かない。
+  ★漢字問題・記号問題には講評(margin_comment・comment_code)を一切付けない(空にする)。
+(B) 内容の異なる記述小問(問二(1)(2)など、別々に説明する小問):小問ごとに questions・annotations を分け、
+  それぞれ symbol_pos に記号を1つ、必要なら具体的な margin_comment を書く。
 
 【書き込み位置の指定】各設問(小問含む)について、答案画像に赤ペンで書き込むための位置を
 annotations に指定すること。座標は各ページ画像の左上を(0,0)、右下を(1,1)とする割合。
@@ -289,23 +311,36 @@ def build_marks(result: ScanGradingResult) -> List[Mark]:
         q = scores.get(a.label)
         if q is None:
             continue
-        # 設問上の得点
+        # 設問上の得点(集合設問なら合計点)を1つ書く
         marks.append(
             Mark(page=a.score_pos.page, x=a.score_pos.x, y=a.score_pos.y,
                  kind="text", text=str(q.score), size=22)
         )
-        # 得点に応じた記号(○/△/✔)
-        kind = mark_kind_for_score(q.score, q.max_score)
-        if kind == "circle":
-            marks.append(
-                Mark(page=a.symbol_pos.page, x=a.symbol_pos.x, y=a.symbol_pos.y,
-                     kind="circle", width=0.05, height=0.09)
-            )
-        else:
-            marks.append(
-                Mark(page=a.symbol_pos.page, x=a.symbol_pos.x, y=a.symbol_pos.y,
-                     kind=kind, size=15)
-            )
+
+        if a.item_marks:
+            # 漢字・記号などの集合設問: 各小問に○(正解)/✔(不正解)を打つ。コメントは付けない。
+            for im in a.item_marks:
+                if im.correct:
+                    marks.append(Mark(page=im.pos.page, x=im.pos.x, y=im.pos.y,
+                                      kind="circle", width=0.05, height=0.09))
+                else:
+                    marks.append(Mark(page=im.pos.page, x=im.pos.x, y=im.pos.y,
+                                      kind="check", size=15))
+            continue  # 集合設問には欄外講評を付けない
+
+        # 通常設問: 得点に応じた記号(○/△/✔)を1つ
+        if a.symbol_pos:
+            kind = mark_kind_for_score(q.score, q.max_score)
+            if kind == "circle":
+                marks.append(
+                    Mark(page=a.symbol_pos.page, x=a.symbol_pos.x, y=a.symbol_pos.y,
+                         kind="circle", width=0.05, height=0.09)
+                )
+            else:
+                marks.append(
+                    Mark(page=a.symbol_pos.page, x=a.symbol_pos.x, y=a.symbol_pos.y,
+                         kind=kind, size=15)
+                )
         # 欄外の縦書き講評(自由記述が無ければ定型講評コードを展開して使う)
         margin = resolve_comment(a.comment_code, a.margin_comment)
         if margin and a.comment_pos:
