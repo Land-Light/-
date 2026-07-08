@@ -25,6 +25,7 @@ from grader import (
     QuestionInput,
     SYSTEM_PROMPT,
     _load_reference,
+    resolve_comment,
     select_reference,
 )
 
@@ -48,12 +49,19 @@ class QuestionAnnotation(BaseModel):
     label: str = Field(description="設問番号(例: 問一)。採点結果の label と一致させる")
     score_pos: MarkPos = Field(description="得点数字を書く位置(設問番号ラベルの真上の余白)")
     symbol_pos: MarkPos = Field(description="記号(○/△/✔)を書く位置(答案記入欄の中央付近)")
+    comment_code: Optional[str] = Field(
+        default=None,
+        description="定型講評コード(KANJI/OKURI/KEYWORD/SHORT/OVER/UNDER/OFF/KUHOU/GOGI/BLANK/NIHONGO)。"
+        "典型的な指摘はこのコードだけを入れ、margin_comment は空にする(出力節約)",
+    )
     margin_comment: str = Field(
-        description="欄外に赤ペンで書く短い講評(30〜90字。縦書きで印字される)"
+        default="",
+        description="欄外に赤ペンで書く短い講評(縦書き)。定型で足りる場合は空にし comment_code を使う。"
+        "独自の具体的指摘が必要なときだけ簡潔(30〜60字)に書く。正解の設問は空にする",
     )
     comment_pos: Optional[MarkPos] = Field(
         default=None,
-        description="欄外講評の書き出し位置(答案記入欄のすぐ左の余白の上端)。余白が無ければ省略",
+        description="欄外講評の書き出し位置(答案記入欄のすぐ左の余白の上端)。講評が無ければ省略",
     )
 
 
@@ -105,7 +113,18 @@ annotations に指定すること。座標は各ページ画像の左上を(0,0)
 - overall_comment_pos: 最終ページの大きな空白スペース(答案記入欄・罫線・QRコードと重ならない場所)の
   右上端を指定する。ここに総評(overall_comment)が縦書きで印字される。縦書きは指定位置から下に
   1文字ずつ、約30字で左の列に折り返すため、総評の長さに見合った幅の余白を選ぶこと。
-- questions に含めた全設問(小問含む)について、annotations にも必ず対応する項目を作ること(マーク漏れ禁止)。"""
+- questions に含めた全設問(小問含む)について、annotations にも必ず対応する項目を作ること(マーク漏れ禁止)。
+
+【コスト節約(講評の使い回し)】出力を短くするため、次を厳守すること:
+- 正解(満点)の設問には欄外講評を付けない(margin_comment も comment_code も空)。○マークだけで足りる。
+- よくある指摘は、自分で文章を書かず comment_code に該当コードだけを入れ、margin_comment は空にする。
+  コード一覧: KANJI(漢字誤り)/OKURI(送り仮名)/KEYWORD(指定語句・要素の欠落)/SHORT(内容不足)/
+  OVER(字数超過)/UNDER(字数不足)/OFF(趣旨のずれ)/KUHOU(漢文句法の誤り)/GOGI(古語・語義の誤り)/
+  BLANK(無答)/NIHONGO(不自然な日本語)。
+- どのコードにも当てはまらない独自の具体的指摘が必要なときだけ、margin_comment に簡潔(30〜60字)に書く。
+- strengths・improvements・study_advice は空(空配列・空文字)にする。書き込みPDFでは使用しない。
+- rewrite_example(書き直し例)は誤答・部分点の設問だけ記載し、正解の設問は空にする。
+- transcriptions は採点に必要な範囲で簡潔に。長い答案を一字一句すべて写す必要はない。"""
 
 
 def render_pages_png(pdf_bytes: bytes, scale: float = _RENDER_SCALE) -> List[bytes]:
@@ -276,11 +295,12 @@ def build_marks(result: ScanGradingResult) -> List[Mark]:
                 Mark(page=a.symbol_pos.page, x=a.symbol_pos.x, y=a.symbol_pos.y,
                      kind=kind, size=15)
             )
-        # 欄外の縦書き講評
-        if a.margin_comment and a.comment_pos:
+        # 欄外の縦書き講評(自由記述が無ければ定型講評コードを展開して使う)
+        margin = resolve_comment(a.comment_code, a.margin_comment)
+        if margin and a.comment_pos:
             marks.append(
                 Mark(page=a.comment_pos.page, x=a.comment_pos.x, y=a.comment_pos.y,
-                     kind="vtext", text=a.margin_comment, size=8.2, max_rows=30)
+                     kind="vtext", text=margin, size=8.2, max_rows=30)
             )
 
     if result.total_score_pos:

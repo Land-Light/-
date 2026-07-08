@@ -26,6 +26,31 @@ GRADER_NAME = "佐藤"
 # 参照コーパスに含まれる大学(フル名 → 略称も許容)
 _UNIVERSITIES = ["東京都立大学", "奈良女子大学", "埼玉大学", "千葉大学"]
 
+# よくある指摘の定型講評(使い回し)。AIはコードだけ返し、本文はここから展開する。
+# → 出力トークンを節約してコストを下げる。すべて丁寧語(です・ます調)。
+COMMENT_TEMPLATES = {
+    "KANJI": "漢字の誤りです。とめ・はね・画数まで正確に書きましょう。",
+    "OKURI": "送り仮名が誤っています。正しい送り方を確認しましょう。",
+    "KEYWORD": "設問が求める指定語句・要素が入っていません。",
+    "SHORT": "方向性は合っていますが、必要な内容が不足しています。",
+    "OVER": "指定字数を超えています。要素を圧縮しましょう。",
+    "UNDER": "指定字数に足りません。要素を補いましょう。",
+    "OFF": "本文の趣旨とずれています。該当箇所を読み直しましょう。",
+    "KUHOU": "句法の理解に誤りがあります。頻出句法を確認しましょう。",
+    "GOGI": "古語・語句の語義を取り違えています。",
+    "BLANK": "無答です。部分点を狙って一部でも書きましょう。",
+    "NIHONGO": "日本語表現が不自然です。文を整えましょう。",
+}
+
+
+def resolve_comment(code: Optional[str], free_text: Optional[str]) -> str:
+    """自由記述があればそれを、無ければ定型講評コードを本文に展開して返す。"""
+    if free_text and free_text.strip():
+        return free_text.strip()
+    if code:
+        return COMMENT_TEMPLATES.get(code.strip().upper(), "")
+    return ""
+
 _REFERENCE_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "reference", "rubric_examples.txt"
 )
