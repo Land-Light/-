@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}採点記号の手動修正 — 国語 過去問添削AI{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 class="section" style="margin-top:0;">採点記号の手動修正 — {{ filename }}</h2>
+  <p class="notice">
+    赤い記号を<strong>ドラッグ</strong>して位置を調整してください。
+    <strong>ダブルクリックで削除</strong>できます。調整が終わったら「確定してPDFを作成」を押します。
+  </p>
+  <div class="actions" style="position:sticky; top:0; z-index:50; background:var(--bg,#fff); padding:0.5rem 0;">
+    <button id="save" class="btn-pdf" type="button">確定してPDFを作成(ダウンロード)</button>
+    <a class="btn-back" href="/">戻る</a>
+    <span id="status" style="margin-left:1rem; color:var(--muted);"></span>
+  </div>
+  <div id="pages"></div>
+</div>
+
+<style>
+  .pg { position: relative; margin: 0 auto 1.4rem; max-width: 1000px; border: 1px solid var(--border,#ccc); }
+  .pg img { display:block; width:100%; height:auto; user-select:none; -webkit-user-drag:none; }
+  .mk {
+    position:absolute; color:#d0342c; font-weight:700; cursor:grab;
+    user-select:none; white-space:nowrap; line-height:1;
+    background:rgba(255,255,255,0.55); border:1px dashed rgba(208,52,44,0.5);
+    padding:0 2px; border-radius:3px; touch-action:none;
+  }
+  .mk.sym { font-size:1.6rem; }
+  .mk.txt { font-size:1.2rem; }
+  .mk.cmt { font-size:0.72rem; max-width:140px; white-space:normal; }
+  .mk:active { cursor:grabbing; }
+</style>
+
+<script>
+const RESULT_ID = "{{ result_id }}";
+const PAGE_COUNT = {{ page_count }};
+let MARKS = {{ marks|tojson }};
+
+function symbolFor(m){
+  switch(m.kind){
+    case 'circle': return '○';
+    case 'tri': return '△';
+    case 'check': return '✔';
+    case 'cross': return '✗';
+    case 'line': return '│';
+    case 'vtext': { const t=(m.text||''); return t.slice(0,8)+(t.length>8?'…':''); }
+    default: return m.text || '';
+  }
+}
+function classFor(m){
+  if(m.kind==='vtext') return 'mk cmt';
+  if(m.kind==='text') return 'mk txt';
+  return 'mk sym';
+}
+function anchorFor(m){
+  if(m.kind==='text') return 'translate(0,-100%)';   // 左下を基準
+  if(m.kind==='vtext') return 'translate(-100%,0)';   // 右上を基準
+  return 'translate(-50%,-50%)';                       // 中央
+}
+
+const pagesEl = document.getElementById('pages');
+const pageDivs = [];
+for(let p=1; p<=PAGE_COUNT; p++){
+  const d = document.createElement('div');
+  d.className = 'pg'; d.dataset.page = p;
+  const img = document.createElement('img');
+  img.src = `/page-image/${RESULT_ID}/${p}`;
+  d.appendChild(img);
+  pagesEl.appendChild(d);
+  pageDivs[p] = d;
+}
+
+function placeMark(m){
+  const d = pageDivs[m.page];
+  if(!d) return;
+  const el = document.createElement('div');
+  el.className = classFor(m);
+  el.textContent = symbolFor(m);
+  el.style.left = (m.x*100) + '%';
+  el.style.top = (m.y*100) + '%';
+  el.style.transform = anchorFor(m);
+  el._mark = m;
+  d.appendChild(el);
+  enableDrag(el, d);
+  el.addEventListener('dblclick', (e)=>{
+    e.preventDefault();
+    MARKS = MARKS.filter(x => x !== m);
+    el.remove();
+    setStatus('1件削除しました(未保存)');
+  });
+}
+
+function enableDrag(el, pageDiv){
+  let dragging=false;
+  el.addEventListener('pointerdown', (e)=>{
+    dragging=true; el.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  el.addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    const r = pageDiv.getBoundingClientRect();
+    let x = (e.clientX - r.left)/r.width;
+    let y = (e.clientY - r.top)/r.height;
+    x = Math.max(0, Math.min(1, x));
+    y = Math.max(0, Math.min(1, y));
+    el._mark.x = x; el._mark.y = y;
+    el.style.left = (x*100)+'%';
+    el.style.top = (y*100)+'%';
+  });
+  el.addEventListener('pointerup', (e)=>{
+    if(dragging){ dragging=false; setStatus('位置を調整しました(未保存)'); }
+  });
+}
+
+function setStatus(t){ document.getElementById('status').textContent = t; }
+
+// 画像の読み込みを待ってからマークを配置(割合配置なのでサイズに依存しないが、
+// 見た目のズレ防止のため最初の画像ロード後に配置する)
+let loaded = 0;
+const imgs = pagesEl.querySelectorAll('img');
+function tryPlace(){
+  loaded++;
+  if(loaded >= imgs.length){ MARKS.forEach(placeMark); }
+}
+imgs.forEach(im => { if(im.complete) tryPlace(); else { im.onload=tryPlace; im.onerror=tryPlace; } });
+
+document.getElementById('save').addEventListener('click', async ()=>{
+  setStatus('保存中…');
+  try{
+    const res = await fetch(`/save-marks/${RESULT_ID}`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({marks: MARKS})
+    });
+    if(!res.ok){ setStatus('保存に失敗しました'); return; }
+    setStatus('保存しました。PDFをダウンロードします…');
+    window.location = `/annotated/${RESULT_ID}`;
+  }catch(err){ setStatus('保存に失敗しました: '+err); }
+});
+</script>
+{% endblock %}

@@ -7,9 +7,10 @@ import uuid
 
 from flask import Flask, Response, abort, render_template, request, send_file
 
+from annotator import Mark, annotate_pdf
 from grader import GENRE_LABELS, GRADER_NAME, QuestionInput, grade_answers
 from pdf_generator import build_pdf
-from scan_grader import grade_and_annotate
+from scan_grader import build_marks, grade_scanned_pdf, render_pages_png
 from toshin_fetcher import ToshinFetchError, fetch_answers
 
 app = Flask(__name__)
@@ -35,13 +36,15 @@ def _grade_batch(items: list, rubric):
             entry.update({"ok": False, "error": item.get("error", "ダウンロード失敗")})
             return idx, entry
         try:
-            result, annotated = grade_and_annotate(pdf_bytes, rubric=rubric)
+            result = grade_scanned_pdf(pdf_bytes, rubric=rubric)
+            marks = build_marks(result)
             result_id = uuid.uuid4().hex
             _results[result_id] = {
                 "result": result,
                 "genre_label": GENRE_LABELS.get("auto", "自動判別"),
                 "questions": result.transcriptions,
-                "annotated": annotated,
+                "pdf_bytes": pdf_bytes,
+                "marks": [m.model_dump() for m in marks],  # 編集可能な書き込み位置
                 "filename": item["filename"],
                 "source_meta": item.get("source_meta"),
             }
@@ -243,15 +246,21 @@ def toshin_debug_html():
         return Response(fh.read(), mimetype="text/plain; charset=utf-8")
 
 
+def _build_annotated(data: dict) -> bytes:
+    """保存されている(手動修正後の)書き込み位置から添削済みPDFを生成する。"""
+    marks = [Mark(**m) for m in data.get("marks", [])]
+    return annotate_pdf(data["pdf_bytes"], marks)
+
+
 @app.route("/annotated/<result_id>")
 def download_annotated(result_id: str):
-    """赤ペン書き込み済み答案PDFのダウンロード。"""
+    """赤ペン書き込み済み答案PDFのダウンロード(現在の書き込み位置で生成)。"""
     data = _results.get(result_id)
-    if data is None or "annotated" not in data:
+    if data is None or "pdf_bytes" not in data:
         abort(404)
     name = data.get("filename", "答案.pdf").rsplit(".", 1)[0]
     return send_file(
-        io.BytesIO(data["annotated"]),
+        io.BytesIO(_build_annotated(data)),
         mimetype="application/pdf",
         as_attachment=True,
         download_name=f"{name}_添削済み.pdf",
@@ -270,14 +279,63 @@ def download_annotated_zip(batch_id: str):
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for rid in ids:
             data = _results.get(rid)
-            if data and "annotated" in data:
+            if data and "pdf_bytes" in data:
                 name = data.get("filename", f"{rid}.pdf").rsplit(".", 1)[0]
-                zf.writestr(f"{name}_添削済み.pdf", data["annotated"])
+                zf.writestr(f"{name}_添削済み.pdf", _build_annotated(data))
     buf.seek(0)
     return send_file(
         buf, mimetype="application/zip",
         as_attachment=True, download_name="添削済み答案.zip",
     )
+
+
+@app.route("/edit/<result_id>")
+def edit_marks(result_id: str):
+    """採点記号を手動修正するプレビュー編集画面。"""
+    data = _results.get(result_id)
+    if data is None or "pdf_bytes" not in data:
+        abort(404)
+    if "page_pngs" not in data:
+        data["page_pngs"] = render_pages_png(data["pdf_bytes"], scale=1.5)
+    return render_template(
+        "editor.html",
+        result_id=result_id,
+        filename=data.get("filename", "答案"),
+        marks=data.get("marks", []),
+        page_count=len(data["page_pngs"]),
+    )
+
+
+@app.route("/page-image/<result_id>/<int:page>")
+def page_image(result_id: str, page: int):
+    """編集画面用の答案ページ画像(PNG)。"""
+    data = _results.get(result_id)
+    if data is None or "pdf_bytes" not in data:
+        abort(404)
+    if "page_pngs" not in data:
+        data["page_pngs"] = render_pages_png(data["pdf_bytes"], scale=1.5)
+    pngs = data["page_pngs"]
+    if page < 1 or page > len(pngs):
+        abort(404)
+    return send_file(io.BytesIO(pngs[page - 1]), mimetype="image/png")
+
+
+@app.route("/save-marks/<result_id>", methods=["POST"])
+def save_marks(result_id: str):
+    """手動修正した書き込み位置を保存する。"""
+    data = _results.get(result_id)
+    if data is None or "pdf_bytes" not in data:
+        abort(404)
+    payload = request.get_json(force=True, silent=True) or {}
+    raw = payload.get("marks", [])
+    marks = []
+    for m in raw:
+        try:
+            marks.append(Mark(**m).model_dump())
+        except Exception:
+            continue
+    data["marks"] = marks
+    return {"ok": True, "count": len(marks)}
 
 
 @app.route("/result/<result_id>")

@@ -19,6 +19,7 @@
       <td class="score">{{ e.result.total_score }} / {{ e.result.max_score }}</td>
       <td>{{ e.result.grade_label }}</td>
       <td>
+        <a href="/edit/{{ e.result_id }}">✎ 記号の位置を修正</a><br>
         <a href="/annotated/{{ e.result_id }}">書き込み済み答案PDF</a>
       </td>
       {% else %}

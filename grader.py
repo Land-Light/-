@@ -296,6 +296,7 @@ def grade_answers(
         model=MODEL,
         max_tokens=32000,
         thinking={"type": "adaptive"},
+        output_config={"effort": "medium"},  # 思考量を抑え高速化・低コスト化
         system=system_blocks,
         messages=[{"role": "user", "content": "\n\n".join(parts)}],
         output_format=GradingResult,
