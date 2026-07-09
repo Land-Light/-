@@ -70,6 +70,9 @@ function render(data){
     if(it.status === 'done'){
       anyDone = true;
       statusCell = `<a href="/edit/${it.result_id}">✎ 記号の位置を修正</a><br><a href="/annotated/${it.result_id}">書き込み済みPDF</a>`;
+      if(it.tensakit_url){
+        statusCell += `<br><a href="${esc(it.tensakit_url)}" target="_blank" rel="noopener">→ Tensakitで採点する</a>`;
+      }
     } else if(it.status === 'error'){
       statusCell = `<span class="st-error">エラー: ${esc(it.error)}</span>`;
     } else if(it.status === 'grading'){

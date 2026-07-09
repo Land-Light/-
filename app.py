@@ -14,7 +14,7 @@ from annotator import Mark, annotate_pdf
 from grader import GENRE_LABELS, GRADER_NAME, QuestionInput, grade_answers
 from pdf_generator import build_pdf
 from scan_grader import build_marks, grade_scanned_pdf, render_pages_png
-from toshin_fetcher import ToshinFetchError, fetch_answers
+from toshin_fetcher import ToshinFetchError, fetch_answers, inspect_tensakit
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 256 * 1024 * 1024  # アップロード上限 256MB(大量枚数対応)
@@ -53,6 +53,7 @@ def _grade_one_into(slot: dict, item: dict, rubric):
             status="done", result_id=result_id,
             exam=result.matched_exam, score=result.total_score,
             max_score=result.max_score, grade=result.grade_label,
+            tensakit_url=(item.get("source_meta") or {}).get("tensakit_url"),
         )
     except Exception as e:  # 1枚の失敗で全体を止めない
         slot.update(status="error", error=str(e))
@@ -309,6 +310,48 @@ def toshin_debug_html():
     path = os.path.join(debug_dir, "debug_toshin_error.html")
     if not os.path.exists(path):
         return ("デバッグ用HTMLがありません。", 404)
+    with open(path, encoding="utf-8") as fh:
+        return Response(fh.read(), mimetype="text/plain; charset=utf-8")
+
+
+@app.route("/tensakit-inspect", methods=["POST", "GET"])
+def tensakit_inspect():
+    """Tensakit(東進オンライン採点)画面の構造を取得する(採点入力自動化の設計用)。"""
+    try:
+        info = inspect_tensakit()
+    except ToshinFetchError as e:
+        return render_template(
+            "index.html", genres=GENRE_LABELS,
+            error=f"Tensakit画面の取得に失敗しました: {e}(/toshin-debug で失敗画面を確認できます)",
+            form={},
+        ), 502
+    return (
+        "<h3>Tensakit採点画面を取得しました</h3>"
+        f"<p>URL: {info.get('url')}<br>タイトル: {info.get('title')}</p>"
+        "<p><a href='/tensakit-page'>スクリーンショットを見る</a> / "
+        "<a href='/tensakit-html'>HTMLを見る</a></p>"
+        "<p>この2つを開発者に共有すると、採点入力の自動化を作成できます。</p>"
+        "<p><a href='/'>戻る</a></p>"
+    )
+
+
+@app.route("/tensakit-page")
+def tensakit_page():
+    """取得済みTensakit採点画面のスクリーンショット。"""
+    debug_dir = os.environ.get("TOSHIN_DEBUG_DIR", "/tmp")
+    path = os.path.join(debug_dir, "tensakit_page.png")
+    if not os.path.exists(path):
+        return ("まだ取得していません。先に「Tensakit画面を取得」を実行してください。", 404)
+    return send_file(path, mimetype="image/png")
+
+
+@app.route("/tensakit-html")
+def tensakit_html():
+    """取得済みTensakit採点画面のHTML。"""
+    debug_dir = os.environ.get("TOSHIN_DEBUG_DIR", "/tmp")
+    path = os.path.join(debug_dir, "tensakit_page.html")
+    if not os.path.exists(path):
+        return ("まだ取得していません。", 404)
     with open(path, encoding="utf-8") as fh:
         return Response(fh.read(), mimetype="text/plain; charset=utf-8")
 

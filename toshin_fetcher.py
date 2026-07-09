@@ -339,7 +339,80 @@ def _row_meta(row) -> dict:
     m = re.search(r"(\S*大学\S*)", joined)
     if m:
         meta["exam"] = m.group(1)
+    # Tensakit(オンライン採点サイト)へのリンク
+    try:
+        link = row.locator('a[href*="tensakit"]')
+        if link.count() > 0:
+            href = link.first.get_attribute("href")
+            if href:
+                meta["tensakit_url"] = href
+    except Exception:
+        pass
     return meta
+
+
+def inspect_tensakit(headless: bool = True) -> dict:
+    """ログインして一覧の最初の行の Tensakit リンクを開き、
+    採点画面の HTML とスクリーンショットを保存する(採点入力自動化の設計用・偵察)。"""
+    from playwright.sync_api import sync_playwright
+
+    user, password = _creds()
+    url = os.environ.get("TOSHIN_URL", DEFAULT_URL)
+    with sync_playwright() as p:
+        exe = os.environ.get("PLAYWRIGHT_CHROMIUM_PATH")
+        browser = p.chromium.launch(headless=headless, executable_path=exe if exe else None)
+        context = browser.new_context(accept_downloads=True)
+        page = context.new_page()
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            try:
+                page.wait_for_selector('input[type="password"], table tbody tr', timeout=30000)
+            except Exception:
+                pass
+            _try_login(page, user, password)
+            if not _has_answer_table(page):
+                if "/correction" not in page.url:
+                    try:
+                        page.goto(url, wait_until="networkidle", timeout=60000)
+                    except Exception:
+                        pass
+                if not _has_answer_table(page):
+                    _follow_grading_app_link(page)
+            page.wait_for_selector("table tbody tr", timeout=30000)
+            rows = page.locator("table tbody tr")
+            if rows.count() == 0:
+                raise ToshinFetchError("答案一覧に行がありません。")
+            link = rows.first.locator('a[href*="tensakit"]')
+            if link.count() == 0:
+                raise ToshinFetchError("Tensakit リンクが見つかりません。")
+            href = link.first.get_attribute("href")
+            # target=_blank のため新規タブで開く。ポップアップを待つ。
+            tpage = None
+            try:
+                with context.expect_page(timeout=30000) as pg_info:
+                    link.first.click()
+                tpage = pg_info.value
+            except Exception:
+                tpage = context.new_page()
+                tpage.goto(href, wait_until="domcontentloaded", timeout=60000)
+            try:
+                tpage.wait_for_load_state("networkidle", timeout=30000)
+            except Exception:
+                pass
+            tpage.wait_for_timeout(2500)
+            tpage.screenshot(path=os.path.join(_DEBUG_DIR, "tensakit_page.png"), full_page=True)
+            with open(os.path.join(_DEBUG_DIR, "tensakit_page.html"), "w", encoding="utf-8") as fh:
+                fh.write(tpage.content())
+            return {"ok": True, "url": tpage.url, "title": tpage.title(), "tensakit_url": href}
+        except ToshinFetchError:
+            _save_debug(page)
+            raise
+        except Exception as e:
+            _save_debug(page)
+            raise ToshinFetchError(f"Tensakit 画面の取得に失敗しました: {e}") from e
+        finally:
+            context.close()
+            browser.close()
 
 
 def _save_debug(page) -> str:
