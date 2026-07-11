@@ -351,6 +351,36 @@ def _row_meta(row) -> dict:
     return meta
 
 
+def _try_tensakit_login(tpage, user: str, password: str) -> None:
+    """Tensakit(AWS Amplify製)のサインイン画面が出ていればログインする。
+
+    フォーム: input[name="username"] / input[name="password"] / button[type="submit"](サインイン)
+    認証情報は TENSAKIT_USER/TENSAKIT_PASSWORD があればそれを、無ければ東進と同じものを使う。
+    """
+    u = os.environ.get("TENSAKIT_USER", user)
+    pw = os.environ.get("TENSAKIT_PASSWORD", password)
+    try:
+        tpage.wait_for_selector('input[name="username"], canvas, [class*="Board"]', timeout=20000)
+    except Exception:
+        pass
+    uname = tpage.locator('input[name="username"]')
+    if uname.count() == 0:
+        return  # サインイン画面ではない(ログイン済み等)
+    uname.first.fill(u)
+    tpage.locator('input[name="password"]').first.fill(pw)
+    tpage.locator('button[type="submit"]').first.click()
+    try:
+        tpage.wait_for_load_state("networkidle", timeout=30000)
+    except Exception:
+        pass
+    tpage.wait_for_timeout(3000)
+    if tpage.locator('input[name="username"]').count() > 0:
+        raise ToshinFetchError(
+            "Tensakit へのサインインに失敗しました。東進と同じ ID/パスワードで入れない場合は、"
+            "環境変数 TENSAKIT_USER / TENSAKIT_PASSWORD に Tensakit 用の認証情報を設定してください。"
+        )
+
+
 def inspect_tensakit(headless: bool = True) -> dict:
     """ログインして一覧の最初の行の Tensakit リンクを開き、
     採点画面の HTML とスクリーンショットを保存する(採点入力自動化の設計用・偵察)。"""
@@ -399,7 +429,13 @@ def inspect_tensakit(headless: bool = True) -> dict:
                 tpage.wait_for_load_state("networkidle", timeout=30000)
             except Exception:
                 pass
-            tpage.wait_for_timeout(2500)
+            # Tensakit は独自のサインイン画面(AWS Amplify)を持つため、必要ならログインする
+            _try_tensakit_login(tpage, user, password)
+            try:
+                tpage.wait_for_load_state("networkidle", timeout=30000)
+            except Exception:
+                pass
+            tpage.wait_for_timeout(3000)
             tpage.screenshot(path=os.path.join(_DEBUG_DIR, "tensakit_page.png"), full_page=True)
             with open(os.path.join(_DEBUG_DIR, "tensakit_page.html"), "w", encoding="utf-8") as fh:
                 fh.write(tpage.content())
