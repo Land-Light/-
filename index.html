@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ネームメーカー — 漫画ネーム制作ブラウザ</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #f0f1f4;
+    --panel-bg: #ffffff;
+    --ink: #222;
+    --accent: #3b6ef5;
+    --border: #d5d8de;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Meiryo",
+                 "Noto Sans CJK JP", "Noto Sans JP", "Unifont-JP", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    background: #1e2430;
+    color: #fff;
+    padding: 10px 18px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 17px; font-weight: 700; }
+  header .sub { font-size: 12px; color: #aab3c5; }
+
+  .main { display: flex; flex: 1; min-height: 0; }
+
+  /* ---- 左ペイン ---- */
+  .left {
+    width: 380px;
+    min-width: 300px;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .left section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .left h2 {
+    font-size: 13px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  textarea#plot {
+    width: 100%;
+    height: 260px;
+    font-family: "SF Mono", Consolas, Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    resize: vertical;
+  }
+  textarea#plot:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    padding: 10px 0;
+    width: 100%;
+    font-size: 15px;
+    font-weight: 700;
+    margin-top: 10px;
+  }
+  .btn-primary:hover { background: #2d5be0; }
+  .btn-small {
+    background: #e8ebf1;
+    color: #333;
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+  .btn-small:hover { background: #dbe0ea; }
+  pre#template {
+    background: #f6f7f9;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 12.5px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    user-select: all;
+    font-family: "SF Mono", Consolas, Menlo, monospace;
+  }
+  .rules { font-size: 12px; color: #555; line-height: 1.8; margin-top: 8px; }
+  .rules code {
+    background: #eef0f4;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 11.5px;
+  }
+  .hint { font-size: 11.5px; color: #888; margin-top: 8px; line-height: 1.6; }
+
+  /* ---- 右ペイン ---- */
+  .right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .toolbar {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+  .toolbar .pages { display: flex; gap: 6px; flex-wrap: wrap; }
+  .page-tab {
+    background: #e8ebf1;
+    padding: 5px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .page-tab.active { background: var(--accent); color: #fff; font-weight: 700; }
+  .toolbar .spacer { flex: 1; }
+  .toolbar select { font-size: 13px; padding: 4px; border-radius: 4px; border: 1px solid var(--border); }
+  .toolbar .tip { font-size: 11.5px; color: #888; }
+
+  .canvas-wrap {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    justify-content: center;
+    padding: 24px;
+  }
+  .page-scale { transform-origin: top center; }
+  .page {
+    position: relative;
+    width: 700px;
+    height: 990px;
+    background: #fff;
+    box-shadow: 0 2px 14px rgba(0,0,0,.18);
+    flex-shrink: 0;
+  }
+  .empty-msg {
+    color: #999;
+    font-size: 14px;
+    align-self: center;
+    text-align: center;
+    line-height: 2;
+  }
+
+  /* ---- コマ ---- */
+  .panel {
+    position: absolute;
+    border: 2.5px solid #111;
+    background: #fff;
+    overflow: hidden;
+    touch-action: none;
+  }
+  .panel.selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .panel .resize-handle {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 18px;
+    height: 18px;
+    cursor: nwse-resize;
+    background:
+      linear-gradient(135deg, transparent 50%, rgba(59,110,245,.75) 50%);
+    z-index: 20;
+  }
+  .panel-num {
+    position: absolute;
+    left: 3px;
+    top: 2px;
+    font-size: 10px;
+    color: #b7bcc7;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  /* ---- 吹き出し ---- */
+  .bubble {
+    position: absolute;
+    background: #fff;
+    border: 1.8px solid #111;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 14px;
+    cursor: grab;
+    touch-action: none;
+    z-index: 10;
+  }
+  .bubble.selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .bubble .bname {
+    font-size: 9px;
+    color: #999;
+    pointer-events: none;
+    margin-bottom: 2px;
+    white-space: nowrap;
+  }
+  .bubble .btext {
+    writing-mode: vertical-rl;
+    font-size: 13px;
+    line-height: 19px;
+    cursor: text;
+    outline: none;
+    white-space: pre-wrap;
+  }
+
+  /* ---- ナレーション ---- */
+  .narration {
+    position: absolute;
+    background: #fff;
+    border: 1.8px solid #111;
+    padding: 8px 6px;
+    writing-mode: vertical-rl;
+    font-size: 12.5px;
+    line-height: 18px;
+    cursor: grab;
+    touch-action: none;
+    z-index: 9;
+  }
+  .narration.selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---- 棒人間 ---- */
+  .figure {
+    position: absolute;
+    cursor: grab;
+    touch-action: none;
+    z-index: 8;
+  }
+  .figure.selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .figure svg { display: block; }
+  .figure .fname {
+    text-align: center;
+    font-size: 10px;
+    color: #777;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ネームメーカー</h1>
+  <span class="sub">プロットを貼り付けて「ネーム生成」— コマ・吹き出し・棒人間は後からドラッグで調整できます</span>
+</header>
+
+<div class="main">
+  <!-- ============ 左ペイン ============ -->
+  <div class="left">
+    <section>
+      <h2>プロット入力</h2>
+      <textarea id="plot" placeholder="ここにテンプレート形式でプロットを貼り付け…" spellcheck="false"></textarea>
+      <button class="btn-primary" id="generate">ネーム生成</button>
+      <div class="hint">※ 生成すると現在の手動調整はリセットされます</div>
+    </section>
+
+    <section>
+      <h2>
+        プロット用テンプレート
+        <button class="btn-small" id="copyTemplate">コピー</button>
+      </h2>
+      <pre id="template"># 1ページ目
+## コマ1
+太郎：おはよう！
+花子：おはよう、今日も暑いね
+## コマ2
+太郎：そういえば宿題やった？
+## コマ3
+花子：……忘れてた
+（放課後の教室）
+
+# 2ページ目
+## コマ1
+太郎：しょうがないな、見せてやるよ
+## コマ2
+花子：ありがとう！
+太郎：今回だけだからな
+先生：こら、そこ！何の話だ</pre>
+      <div class="rules">
+        <div><code># 〜</code> で始まる行 … <b>新しいページ</b>の区切り</div>
+        <div><code>## 〜</code> で始まる行 … <b>新しいコマ</b>の区切り</div>
+        <div><code>名前：セリフ</code> … 吹き出しになる（<code>:</code> / <code>：</code> どちらも可）</div>
+        <div>それ以外の行 … ナレーション・状況説明の枠になる</div>
+        <div>コマ内の発話者の人数分、棒人間が配置されます</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>操作方法</h2>
+      <div class="rules">
+        <div>・コマ／吹き出し／棒人間：<b>ドラッグで移動</b></div>
+        <div>・コマ右下の青い角：<b>ドラッグでサイズ変更</b></div>
+        <div>・吹き出しの文字：<b>クリックで編集</b></div>
+        <div>・選択して <code>Delete</code>：要素を削除</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ 右ペイン ============ -->
+  <div class="right">
+    <div class="toolbar">
+      <div class="pages" id="pageTabs"></div>
+      <div class="spacer"></div>
+      <label class="tip">表示倍率
+        <select id="zoom">
+          <option value="0.5">50%</option>
+          <option value="0.7" selected>70%</option>
+          <option value="0.85">85%</option>
+          <option value="1">100%</option>
+        </select>
+      </label>
+    </div>
+    <div class="canvas-wrap" id="canvasWrap">
+      <div class="empty-msg" id="emptyMsg">
+        左のテンプレートをコピーしてプロットを書き、<br>「ネーム生成」を押してください
+      </div>
+      <div class="page-scale" id="pageScale" style="display:none">
+        <div class="page" id="page"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const PAGE_W = 700, PAGE_H = 990;
+  const MARGIN = 22, GUTTER = 14;
+  const PANELS_PER_ROW = 2;
+
+  let pages = [];        // [{ panels: [{dialogues:[{speaker,text}], narrations:[text]}] }]
+  let currentPage = 0;
+  let scale = 0.7;
+  let selected = null;
+
+  const $ = id => document.getElementById(id);
+  const pageEl = $('page');
+
+  /* ================= パース ================= */
+  function parsePlot(src) {
+    const result = [];
+    let page = null, panel = null;
+
+    const ensurePage = () => { if (!page) { page = { panels: [] }; result.push(page); } };
+    const ensurePanel = () => {
+      ensurePage();
+      if (!panel) { panel = { dialogues: [], narrations: [] }; page.panels.push(panel); }
+    };
+
+    for (const raw of src.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) continue;
+
+      if (/^##/.test(line)) {            // 新しいコマ
+        ensurePage();
+        panel = { dialogues: [], narrations: [] };
+        page.panels.push(panel);
+        continue;
+      }
+      if (/^#/.test(line)) {             // 新しいページ
+        page = { panels: [] };
+        result.push(page);
+        panel = null;
+        continue;
+      }
+
+      const m = line.match(/^([^:：]{1,12})[:：](.+)$/);
+      if (m) {
+        ensurePanel();
+        panel.dialogues.push({ speaker: m[1].trim(), text: m[2].trim() });
+      } else {
+        ensurePanel();
+        panel.narrations.push(line.replace(/^[（(]|[）)]$/g, ''));
+      }
+    }
+    // 空ページ・空コマを除去
+    for (const p of result) p.panels = p.panels.filter(pl => pl.dialogues.length || pl.narrations.length);
+    return result.filter(p => p.panels.length);
+  }
+
+  /* ================= レイアウト計算 ================= */
+  function defaultLayout(panelCount) {
+    // 右→左・上→下の読み順でコマ枠のデフォルト配置を返す
+    const rects = [];
+    const rows = Math.ceil(panelCount / PANELS_PER_ROW);
+    const rowH = (PAGE_H - MARGIN * 2 - GUTTER * (rows - 1)) / rows;
+    let idx = 0;
+    for (let r = 0; r < rows; r++) {
+      const cols = Math.min(PANELS_PER_ROW, panelCount - idx);
+      const w = (PAGE_W - MARGIN * 2 - GUTTER * (cols - 1)) / cols;
+      for (let c = 0; c < cols; c++) {
+        // c=0 が右端(先に読むコマ)
+        rects.push({
+          x: MARGIN + (cols - 1 - c) * (w + GUTTER),
+          y: MARGIN + r * (rowH + GUTTER),
+          w, h: rowH
+        });
+        idx++;
+      }
+    }
+    return rects;
+  }
+
+  /* ================= 描画 ================= */
+  const CHARS_PER_COL = 8;
+  // 縦書き(orthogonal flow)は幅の自動計算が効かないため、
+  // 文字数から高さ・幅とも明示的に算出する
+  function bubbleTextSize(text) {
+    const len = Math.max(text.length, 1);
+    const rows = Math.min(Math.max(len, 2), CHARS_PER_COL);
+    const cols = Math.ceil(len / CHARS_PER_COL);
+    return { w: cols * 19, h: rows * 13.5 + 4 };
+  }
+
+  function stickFigureSVG() {
+    return `<svg width="52" height="86" viewBox="0 0 52 86">
+      <g stroke="#111" stroke-width="2.4" fill="none" stroke-linecap="round">
+        <circle cx="26" cy="13" r="10"/>
+        <line x1="26" y1="23" x2="26" y2="54"/>
+        <line x1="26" y1="32" x2="9"  y2="46"/>
+        <line x1="26" y1="32" x2="43" y2="46"/>
+        <line x1="26" y1="54" x2="12" y2="80"/>
+        <line x1="26" y1="54" x2="40" y2="80"/>
+      </g>
+    </svg>`;
+  }
+
+  function renderPage() {
+    pageEl.innerHTML = '';
+    selected = null;
+    const page = pages[currentPage];
+    if (!page) return;
+
+    const rects = defaultLayout(page.panels.length);
+
+    page.panels.forEach((panelData, i) => {
+      const r = panelData.rect || (panelData.rect = { ...rects[i] });
+      const panelEl = document.createElement('div');
+      panelEl.className = 'panel';
+      panelEl.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`;
+
+      const num = document.createElement('div');
+      num.className = 'panel-num';
+      num.textContent = i + 1;
+      panelEl.appendChild(num);
+
+      /* --- 吹き出し（右から左へ並べる） --- */
+      let bx = r.w - 12;
+      panelData.dialogues.forEach((d, j) => {
+        const ts = bubbleTextSize(d.text);
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        if (!d.pos) d.pos = { x: Math.max(4, bx - (ts.w + 30)), y: 10 + (j % 2) * 14 };
+        bubble.style.cssText = `left:${d.pos.x}px;top:${d.pos.y}px`;
+        bx = d.pos.x - 8;
+
+        const bname = document.createElement('div');
+        bname.className = 'bname';
+        bname.textContent = d.speaker;
+        const btext = document.createElement('div');
+        btext.className = 'btext';
+        btext.contentEditable = 'true';
+        btext.textContent = d.text;
+        const applySize = () => {
+          const s = bubbleTextSize(d.text);
+          btext.style.width = s.w + 'px';
+          btext.style.height = s.h + 'px';
+        };
+        applySize();
+        btext.addEventListener('pointerdown', e => e.stopPropagation());
+        btext.addEventListener('input', () => {
+          d.text = btext.textContent;
+          applySize();
+        });
+
+        bubble.append(bname, btext);
+        makeDraggable(bubble, d.pos);
+        panelEl.appendChild(bubble);
+      });
+
+      /* --- ナレーション枠（左上から） --- */
+      panelData.narrations.forEach((n, j) => {
+        const box = document.createElement('div');
+        box.className = 'narration';
+        const obj = typeof n === 'string' ? (panelData.narrations[j] = { text: n }) : n;
+        if (!obj.pos) obj.pos = { x: 8 + j * 40, y: 8 };
+        const nLen = Math.max(obj.text.length, 1);
+        const nRows = Math.min(Math.max(nLen, 2), 12);
+        const nCols = Math.ceil(nLen / 12);
+        box.style.cssText = `left:${obj.pos.x}px;top:${obj.pos.y}px;` +
+          `height:${nRows * 13 + 18}px;width:${nCols * 18 + 14}px`;
+        box.textContent = obj.text;
+        makeDraggable(box, obj.pos);
+        panelEl.appendChild(box);
+      });
+
+      /* --- 棒人間：発話者のユニーク数だけ配置 --- */
+      const speakers = [...new Set(panelData.dialogues.map(d => d.speaker))];
+      if (!panelData.figures) {
+        panelData.figures = speakers.map((name, k) => {
+          const gap = Math.min(90, (r.w - 40) / Math.max(speakers.length, 1));
+          const startX = r.w / 2 - (gap * (speakers.length - 1)) / 2 - 26;
+          return { name, pos: { x: Math.max(4, startX + k * gap), y: r.h - 112 } };
+        });
+      }
+      panelData.figures.forEach(f => {
+        const fig = document.createElement('div');
+        fig.className = 'figure';
+        fig.style.cssText = `left:${f.pos.x}px;top:${f.pos.y}px`;
+        fig.innerHTML = stickFigureSVG() + `<div class="fname">${escapeHtml(f.name)}</div>`;
+        makeDraggable(fig, f.pos);
+        panelEl.appendChild(fig);
+      });
+
+      /* --- リサイズハンドル --- */
+      const handle = document.createElement('div');
+      handle.className = 'resize-handle';
+      handle.addEventListener('pointerdown', e => startResize(e, panelEl, r));
+      panelEl.appendChild(handle);
+
+      makeDraggable(panelEl, r, true);
+      pageEl.appendChild(panelEl);
+    });
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  /* ================= ドラッグ／リサイズ／選択 ================= */
+  function select(el) {
+    if (selected) selected.classList.remove('selected');
+    selected = el;
+    if (el) el.classList.add('selected');
+  }
+
+  function makeDraggable(el, pos, isPanel = false) {
+    el.addEventListener('pointerdown', e => {
+      if (e.target.classList.contains('resize-handle')) return;
+      e.stopPropagation();
+      select(el);
+      const startX = e.clientX, startY = e.clientY;
+      const ox = isPanel ? pos.x : pos.x, oy = isPanel ? pos.y : pos.y;
+      el.setPointerCapture(e.pointerId);
+      const move = ev => {
+        pos.x = ox + (ev.clientX - startX) / scale;
+        pos.y = oy + (ev.clientY - startY) / scale;
+        el.style.left = pos.x + 'px';
+        el.style.top = pos.y + 'px';
+      };
+      const up = () => {
+        el.removeEventListener('pointermove', move);
+        el.removeEventListener('pointerup', up);
+      };
+      el.addEventListener('pointermove', move);
+      el.addEventListener('pointerup', up);
+    });
+  }
+
+  function startResize(e, panelEl, rect) {
+    e.stopPropagation();
+    select(panelEl);
+    const startX = e.clientX, startY = e.clientY;
+    const ow = rect.w, oh = rect.h;
+    const handle = e.target;
+    handle.setPointerCapture(e.pointerId);
+    const move = ev => {
+      rect.w = Math.max(70, ow + (ev.clientX - startX) / scale);
+      rect.h = Math.max(70, oh + (ev.clientY - startY) / scale);
+      panelEl.style.width = rect.w + 'px';
+      panelEl.style.height = rect.h + 'px';
+    };
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+  }
+
+  /* Delete キーで選択要素を削除 */
+  document.addEventListener('keydown', e => {
+    if ((e.key !== 'Delete' && e.key !== 'Backspace') || !selected) return;
+    if (document.activeElement && document.activeElement.isContentEditable) return;
+    e.preventDefault();
+    removeSelected();
+  });
+
+  function removeSelected() {
+    const page = pages[currentPage];
+    if (!page || !selected) return;
+    if (selected.classList.contains('panel')) {
+      const idx = [...pageEl.children].indexOf(selected);
+      page.panels.splice(idx, 1);
+    } else {
+      // コマ内要素: データからの完全削除は再走査が必要なため DOM だけ除去し、
+      // 対応するデータに deleted フラグを立てて再描画時に無視する
+      markDeleted(selected);
+    }
+    selected.remove();
+    selected = null;
+  }
+
+  function markDeleted(el) {
+    const page = pages[currentPage];
+    for (const p of page.panels) {
+      const check = (arr, key) => {
+        for (let i = arr.length - 1; i >= 0; i--) {
+          const item = arr[i];
+          if (item.pos && Math.abs(item.pos.x - parseFloat(el.style.left)) < 0.5 &&
+              Math.abs(item.pos.y - parseFloat(el.style.top)) < 0.5) {
+            arr.splice(i, 1);
+            return true;
+          }
+        }
+        return false;
+      };
+      if (el.classList.contains('bubble') && check(p.dialogues)) return;
+      if (el.classList.contains('narration') && check(p.narrations)) return;
+      if (el.classList.contains('figure') && p.figures && check(p.figures)) return;
+    }
+  }
+
+  pageEl.addEventListener('pointerdown', () => select(null));
+
+  /* ================= ページタブ／ズーム ================= */
+  function renderTabs() {
+    const tabs = $('pageTabs');
+    tabs.innerHTML = '';
+    pages.forEach((_, i) => {
+      const b = document.createElement('button');
+      b.className = 'page-tab' + (i === currentPage ? ' active' : '');
+      b.textContent = `P${i + 1}`;
+      b.onclick = () => { currentPage = i; renderTabs(); renderPage(); };
+      tabs.appendChild(b);
+    });
+  }
+
+  $('zoom').addEventListener('change', e => {
+    scale = parseFloat(e.target.value);
+    $('pageScale').style.transform = `scale(${scale})`;
+    $('pageScale').style.width = PAGE_W * scale + 'px';
+    $('pageScale').style.height = PAGE_H * scale + 'px';
+  });
+
+  /* ================= 生成／テンプレコピー ================= */
+  $('generate').addEventListener('click', () => {
+    const src = $('plot').value;
+    const parsed = parsePlot(src);
+    if (!parsed.length) {
+      alert('プロットが読み取れませんでした。テンプレートの形式（# ページ / ## コマ / 名前：セリフ）を確認してください。');
+      return;
+    }
+    pages = parsed;
+    currentPage = 0;
+    $('emptyMsg').style.display = 'none';
+    $('pageScale').style.display = 'block';
+    $('zoom').dispatchEvent(new Event('change'));
+    renderTabs();
+    renderPage();
+  });
+
+  $('copyTemplate').addEventListener('click', async () => {
+    const text = $('template').textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    const btn = $('copyTemplate');
+    btn.textContent = 'コピーしました！';
+    setTimeout(() => (btn.textContent = 'コピー'), 1500);
+  });
+
+  /* 初期表示: テンプレートを入力欄にセット */
+  $('plot').value = $('template').textContent;
+})();
+</script>
+</body>
+</html>
