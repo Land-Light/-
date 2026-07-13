@@ -1,0 +1,58 @@
+rules_version = '2';
+
+// 部屋コードを知っている人だけがデータに到達できる「合言葉」方式。
+// 旧Supabase版のanonポリシーと同等の公開度で、書き込める形を検証して乱用を防ぐ。
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /rooms/{roomId} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if roomId.size() >= 4 && roomId.size() <= 12
+        && request.resource.data.keys().hasOnly(['createdAt', 'expiresAt'])
+        && request.resource.data.createdAt is string
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt < timestamp.date(2100, 1, 1);
+      allow update: if false;
+      allow delete: if true;
+
+      match /products/{productId} {
+        allow read: if true;
+        allow create, update: if request.resource.data.keys().hasOnly(['jan', 'name', 'expected', 'updatedAt', 'expiresAt'])
+          && request.resource.data.jan is string
+          && request.resource.data.jan.size() >= 1
+          && request.resource.data.jan.size() <= 64
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 1
+          && request.resource.data.name.size() <= 200
+          && request.resource.data.expected is int
+          && request.resource.data.expected >= 0
+          && request.resource.data.expected <= 100000000
+          && request.resource.data.updatedAt is string
+          && request.resource.data.expiresAt is timestamp;
+        allow delete: if true;
+      }
+
+      match /entries/{entryId} {
+        allow read: if true;
+        allow create, update: if request.resource.data.keys().hasOnly(['deviceId', 'userName', 'jan', 'shelfNo', 'qty', 'createdAt', 'updatedAt', 'expiresAt'])
+          && request.resource.data.deviceId is string
+          && request.resource.data.deviceId.size() <= 64
+          && request.resource.data.userName is string
+          && request.resource.data.userName.size() <= 40
+          && request.resource.data.jan is string
+          && request.resource.data.jan.size() >= 1
+          && request.resource.data.jan.size() <= 64
+          && request.resource.data.shelfNo is string
+          && request.resource.data.shelfNo.size() >= 1
+          && request.resource.data.shelfNo.size() <= 20
+          && request.resource.data.qty is int
+          && request.resource.data.qty > 0
+          && request.resource.data.qty <= 100000000
+          && request.resource.data.createdAt is string
+          && request.resource.data.updatedAt is string
+          && request.resource.data.expiresAt is timestamp;
+        allow delete: if true;
+      }
+    }
+  }
+}

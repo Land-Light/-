@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="description" content="部屋コードで複数端末からリアルタイム共有できる棚卸Webアプリ">
+    <meta name="theme-color" content="#1f7a5b">
+    <title>棚卸アプリ</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%231f7a5b'/%3E%3Cg fill='%23fff'%3E%3Crect x='22' y='25' width='8' height='50'/%3E%3Crect x='36' y='25' width='5' height='50'/%3E%3Crect x='47' y='25' width='10' height='50'/%3E%3Crect x='63' y='25' width='5' height='50'/%3E%3Crect x='73' y='25' width='8' height='50'/%3E%3C/g%3E%3C/svg%3E">
+    <link rel="stylesheet" href="styles.css?v=20260713-1">
+  </head>
+  <body>
+    <div id="lockScreen" class="lock-screen">
+      <main class="login-panel" aria-labelledby="loginTitle">
+        <p class="eyebrow">Inventory Count</p>
+        <h1 id="loginTitle">棚卸アプリ</h1>
+        <p class="lead">部屋を作って、コードかリンクを共有すると複数端末で同じ棚卸をリアルタイムに入力できます。</p>
+
+        <div id="cloudSetupNotice" class="notice warning" hidden>
+          端末間同期を使うには、firebase-config.js に Firebase の設定を貼り付けてください。設定するまではこの端末だけで動きます。
+        </div>
+
+        <form id="joinForm" class="login-form">
+          <label for="userName">担当者名</label>
+          <input id="userName" name="userName" autocomplete="name" placeholder="例: 佐藤" required>
+
+          <div class="room-actions">
+            <button id="createRoom" type="button">部屋を作る</button>
+          </div>
+
+          <label for="roomCode">部屋コード</label>
+          <div class="inline-field">
+            <input id="roomCode" name="roomCode" inputmode="latin" autocomplete="off" placeholder="例: A7KQ2M" required>
+            <button type="submit">参加</button>
+          </div>
+        </form>
+      </main>
+    </div>
+
+    <div id="appShell" class="app-shell" hidden>
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">Inventory Count</p>
+          <h1>棚卸</h1>
+          <div class="room-meta">
+            <span id="activeRoomCode" class="pill">部屋 -</span>
+            <span id="activeUserName" class="pill muted">担当 -</span>
+            <span id="syncStatus" class="pill muted">未接続</span>
+            <span id="roomExpiry" class="pill muted" hidden>期限 -</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button id="copyInvite" class="secondary" type="button">リンクコピー</button>
+          <button id="exportCsv" class="secondary" type="button">CSV出力</button>
+          <button id="logout" class="ghost" type="button">部屋を出る</button>
+        </div>
+      </header>
+
+      <nav class="tabs" aria-label="棚卸メニュー">
+        <button class="tab active" type="button" data-tab="setup">設定</button>
+        <button class="tab" type="button" data-tab="count">入力</button>
+        <button class="tab" type="button" data-tab="review">確認</button>
+      </nav>
+
+      <main>
+        <section id="setup" class="tab-panel active" aria-labelledby="setupTitle">
+          <div class="section-heading">
+            <h2 id="setupTitle">商品マスタ</h2>
+            <span id="productTotal" class="pill">0件</span>
+          </div>
+
+          <div class="setup-lock">
+            <div>
+              <strong id="setupLockStatus">設定ロック中</strong>
+              <p>商品マスタの登録・編集・削除・CSV取込を止めています。</p>
+            </div>
+            <button id="setupLockToggle" type="button" class="secondary">ロック解除</button>
+          </div>
+
+          <form id="productForm" class="form-grid">
+            <label>
+              JAN
+              <input id="productJan" inputmode="numeric" required placeholder="例: 4900000000000">
+            </label>
+            <label>
+              商品名
+              <input id="productName" required placeholder="例: 緑茶 500ml">
+            </label>
+            <label>
+              予定数
+              <input id="expectedQty" type="number" min="0" step="1" value="0" required>
+            </label>
+            <button type="button" id="productScanButton" class="secondary">カメラ読取</button>
+            <button type="submit">登録</button>
+          </form>
+
+          <p id="productMessage" class="notice" hidden></p>
+
+          <div class="import-row">
+            <label id="csvImportButton" for="csvImport" class="file-button">CSV取込</label>
+            <input id="csvImport" type="file" accept=".csv,text/csv">
+            <p>列名は <code>jan</code>, <code>name</code>, <code>expected</code>(日本語列名にも対応)。</p>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>JAN</th>
+                  <th>商品名</th>
+                  <th class="num">予定</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="productRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="count" class="tab-panel" aria-labelledby="countTitle">
+          <div class="section-heading">
+            <h2 id="countTitle">数量入力</h2>
+            <div class="heading-actions">
+              <button id="undoButton" type="button" class="ghost" disabled>直前取消</button>
+              <span id="countTotal" class="pill">0点</span>
+            </div>
+          </div>
+
+          <form id="countForm" class="count-panel">
+            <label>
+              JAN / 商品名
+              <input id="countSearch" list="productHints" placeholder="JANを読み取り、または商品名検索" autocomplete="off" required>
+              <datalist id="productHints"></datalist>
+            </label>
+            <label>
+              棚番
+              <input id="shelfNo" maxlength="20" placeholder="001 / A-1" required>
+            </label>
+            <label>
+              数量
+              <input id="countQty" type="number" min="1" step="1" value="1" required>
+            </label>
+            <button type="button" id="scanButton" class="secondary">カメラ読取</button>
+            <button type="button" id="autoScanButton" class="scan-cta">連続スキャン</button>
+            <button type="button" id="takeoverEntryButton" class="ghost">引継ぎ</button>
+            <button id="countSubmit" type="submit">加算</button>
+          </form>
+
+          <p id="scanMessage" class="notice" hidden></p>
+
+          <div id="selectedProduct" class="selected-product" hidden></div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>棚番</th>
+                  <th>JAN</th>
+                  <th>商品名</th>
+                  <th class="num">入力</th>
+                  <th>担当</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="countRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="review" class="tab-panel" aria-labelledby="reviewTitle">
+          <div class="section-heading">
+            <h2 id="reviewTitle">差異確認</h2>
+            <div class="summary-strip">
+              <span id="matchTotal">一致 0</span>
+              <span id="shortTotal">不足 0</span>
+              <span id="overTotal">過剰 0</span>
+            </div>
+          </div>
+
+          <div class="progress-card">
+            <div class="progress-row">
+              <span id="progressText">進捗 0 / 0 SKU (0%)</span>
+              <span id="progressQty">入力 0点 / 予定 0点</span>
+            </div>
+            <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+          </div>
+
+          <div class="review-tools">
+            <label>
+              JAN / 商品名 / 担当者検索
+              <input id="reviewSearch" placeholder="JAN・商品名・担当者で絞り込み" autocomplete="off">
+            </label>
+            <label class="check-row">
+              <input id="diffOnly" type="checkbox">
+              差異ありだけ表示
+            </label>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>JAN</th>
+                  <th>商品名</th>
+                  <th class="num">予定</th>
+                  <th class="num">入力</th>
+                  <th class="num">差異</th>
+                  <th>棚番内訳</th>
+                </tr>
+              </thead>
+              <tbody id="reviewRows"></tbody>
+            </table>
+          </div>
+
+          <div class="export-preview">
+            <div class="section-heading compact">
+              <h2>出力用</h2>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>商品コード</th>
+                    <th class="num">棚卸数量</th>
+                    <th>明細メモ</th>
+                  </tr>
+                </thead>
+                <tbody id="exportRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="scanStage" class="scan-stage" hidden>
+      <div class="scan-topbar">
+        <span id="scanModeLabel" class="scan-mode">連続スキャン</span>
+        <span id="scanEngine" class="scan-engine"></span>
+        <button id="scanStop" type="button" class="scan-close">終了</button>
+      </div>
+      <div class="scan-viewport">
+        <video id="scanVideo" muted playsinline></video>
+        <div class="scan-mask" aria-hidden="true">
+          <div class="scan-window"><div class="scan-line"></div></div>
+        </div>
+        <div id="scanFlash" class="scan-flash" aria-hidden="true"></div>
+        <div id="scanLast" class="scan-last" hidden></div>
+      </div>
+      <p id="scanStageMessage" class="scan-message">カメラを起動しています…</p>
+      <div class="scan-bottom">
+        <label class="scan-shelf" id="scanShelfField">
+          棚番
+          <input id="scanShelf" maxlength="20" placeholder="001 / A-1" autocomplete="off">
+        </label>
+        <div class="scan-buttons">
+          <button id="torchButton" type="button" class="ghost-dark" hidden>ライト</button>
+          <button id="scanUndo" type="button" class="ghost-dark" hidden>直前取消</button>
+        </div>
+        <label class="scan-zoom" id="zoomControl" hidden>
+          ズーム
+          <input id="zoomRange" type="range">
+        </label>
+      </div>
+    </div>
+
+    <script src="firebase-config.js"></script>
+    <script type="module" src="js/app.js?v=20260713-1"></script>
+  </body>
+</html>
