@@ -131,7 +131,7 @@ const SLIDES = [
     points: [
       "何台で入力しても自動で合算されます。同時に入力してもデータは壊れません。",
       "「入力」タブには自分の入力だけが表示され、全員分は「確認」タブで見られます。",
-      "担当を交代するときは「引継ぎ」ボタンで、他の人の入力明細を自分に引き取れます。",
+      "途中で帰る人がいるときは「引継ぎ」機能が使えます(詳しくは次のページ)。",
       "電波が切れても端末に保存され、つながったときに自動送信されます。"
     ],
     art: `<svg viewBox="0 0 320 150" role="img" aria-label="複数のスマホが同期するイラスト">
@@ -143,6 +143,29 @@ const SLIDES = [
       <text x="57" y="142" text-anchor="middle" fill="${INK}" font-size="11">佐藤</text>
       <text x="160" y="142" text-anchor="middle" fill="${INK}" font-size="11">鈴木</text>
       <text x="263" y="142" text-anchor="middle" fill="${INK}" font-size="11">田中</text>
+    </svg>`
+  },
+  {
+    title: "引継ぎ(途中で退室する人がいるとき)",
+    points: [
+      "数えている途中で帰る人・抜ける人がいても大丈夫。残った入力は消えずに全体の合計に残ります。",
+      "続きを自分が直したいときは、「入力」タブの「引継ぎ」ボタンを押します。",
+      "他の担当者の入力一覧から番号を選ぶと、その明細が自分のものになり、自分の「入力」タブで編集・修正できるようになります。",
+      "たとえば「田中さんが棚005を数えかけで帰った」ときに、続きを引き取って仕上げる、という使い方ができます。"
+    ],
+    art: `<svg viewBox="0 0 320 150" role="img" aria-label="入力明細を別の担当者へ引き継ぐイラスト">
+      <circle cx="70" cy="42" r="16" fill="#c9d6cd"/>
+      <path d="M42 96 a28 20 0 0 1 56 0" fill="#c9d6cd"/>
+      <path d="M92 24 l14 -10 M99 30 l16 -4" stroke="#c9d6cd" stroke-width="3" stroke-linecap="round"/>
+      <text x="70" y="122" text-anchor="middle" fill="#8aa295" font-size="11">お先に…</text>
+      <circle cx="250" cy="42" r="16" fill="${ACCENT}"/>
+      <path d="M222 96 a28 20 0 0 1 56 0" fill="${ACCENT}"/>
+      <text x="250" y="122" text-anchor="middle" fill="${INK}" font-size="11" font-weight="bold">続きは任せて</text>
+      <rect x="128" y="46" width="66" height="40" rx="6" fill="#fff" stroke="${ACCENT}" stroke-width="2.5"/>
+      <line x1="136" y1="58" x2="186" y2="58" stroke="#c9d6cd" stroke-width="2.5"/>
+      <line x1="136" y1="66" x2="186" y2="66" stroke="#c9d6cd" stroke-width="2.5"/>
+      <line x1="136" y1="74" x2="172" y2="74" stroke="#c9d6cd" stroke-width="2.5"/>
+      <path d="M198 66 h18 m-8 -7 l8 7 l-8 7" stroke="${ACCENT}" stroke-width="3.5" fill="none" stroke-linecap="round"/>
     </svg>`
   },
   {
@@ -168,12 +191,12 @@ const SLIDES = [
     </svg>`
   },
   {
-    title: "CSV出力と便利メモ",
+    title: "CSV出力(スマレジへそのまま取込)",
     points: [
-      "「CSV出力」ボタンで、商品コード・棚卸数量・棚番内訳メモのCSVをダウンロードできます。",
-      "レジ・在庫システムへの取り込みにそのまま使えます。",
-      "部屋は7日で自動削除されるので、棚卸が終わったらCSVを保存しておきましょう。",
-      "この説明は、入室画面の「使い方」ボタンからいつでも見られます。"
+      "「CSV出力」ボタンで、左から「商品コード・棚卸数量・明細メモ」の3列のCSVをダウンロードできます。",
+      "スマレジの棚卸のCSV取込に、このファイルをそのまま使えます。商品コード(JAN)と棚卸数量の列を指定して取り込んでください。",
+      "明細メモには棚番ごとの数量内訳が入っているので、あとから「どの棚に何個あったか」を確認できます。",
+      "部屋は7日で自動削除されるので、棚卸が終わったらCSVを保存しておきましょう。"
     ],
     art: `<svg viewBox="0 0 320 150" role="img" aria-label="CSVをダウンロードするイラスト">
       ${phoneArt(46, 21)}

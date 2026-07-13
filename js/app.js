@@ -7,7 +7,7 @@ import {
 import { parseCsv, buildCsv } from "./csv.js";
 import { createStore } from "./store.js";
 import { createScanner, playBeep } from "./scanner.js";
-import { initHelp } from "./help.js";
+import { initHelp } from "./help.js?v=20260713-3";
 
 const USER_KEY = "inventory-user-name";
 const UNDO_LIMIT = 30;
