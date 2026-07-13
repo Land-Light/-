@@ -660,6 +660,127 @@ body.scan-active {
   accent-color: #7ee8bb;
 }
 
+/* ---------- 使い方モーダル ---------- */
+
+body.help-open {
+  overflow: hidden;
+}
+
+.help-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 26, 20, 0.55);
+  backdrop-filter: blur(3px);
+}
+
+.help-card {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 36px);
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 22px 20px;
+  box-shadow: 0 24px 80px rgba(21, 39, 32, 0.35);
+}
+
+.help-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.help-count {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.help-close {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0;
+  border-radius: 999px;
+  background: #edf0ed;
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.help-close:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.help-art {
+  border-radius: 10px;
+  background: #eef4f1;
+  padding: 10px;
+  margin-bottom: 14px;
+}
+
+.help-art svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.help-title {
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+}
+
+.help-points {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+.help-points li::marker {
+  color: var(--accent);
+}
+
+.help-nav {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.help-dots {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+}
+
+.help-dot {
+  min-height: 0;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border-radius: 999px;
+  background: #cfdcd2;
+}
+
+.help-dot.active {
+  background: var(--accent);
+  transform: scale(1.25);
+}
+
+.help-nav .help-prev:disabled {
+  background: transparent;
+  border-color: transparent;
+}
+
 @media (max-width: 780px) {
   .app-header,
   .section-heading {

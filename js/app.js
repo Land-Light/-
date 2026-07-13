@@ -7,6 +7,7 @@ import {
 import { parseCsv, buildCsv } from "./csv.js";
 import { createStore } from "./store.js";
 import { createScanner, playBeep } from "./scanner.js";
+import { initHelp } from "./help.js";
 
 const USER_KEY = "inventory-user-name";
 const UNDO_LIMIT = 30;
@@ -867,7 +868,7 @@ elements.csvImport.addEventListener("change", async (event) => {
   }
   const file = event.target.files[0];
   if (!file) return;
-  const products = parseCsv(await file.text(), state.products, fallbackJanFromName);
+  const products = parseCsv(await readCsvFileText(file), state.products, fallbackJanFromName);
   if (!products.length) {
     event.target.value = "";
     setSyncStatus("取り込める商品がありません", "danger");
@@ -880,6 +881,16 @@ elements.csvImport.addEventListener("change", async (event) => {
   render();
   setSyncStatus(`CSV取込 ${products.length}件`, "ok");
 });
+
+// スマレジやExcelが出力するCSVはShift-JISのことが多いので、文字コードを自動判別する。
+async function readCsvFileText(file) {
+  const buffer = await file.arrayBuffer();
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch (error) {
+    return new TextDecoder("shift_jis").decode(buffer);
+  }
+}
 
 elements.countSearch.addEventListener("input", () => {
   const product = findProduct(elements.countSearch.value);
@@ -1064,6 +1075,7 @@ elements.zoomRange.addEventListener("input", () => {
 // ---------- 起動 ----------
 
 async function boot() {
+  initHelp(document.querySelector("#helpButton"));
   const config = window.INVENTORY_FIREBASE || {};
   state.mode = await store.init(config);
   elements.cloudSetupNotice.hidden = state.mode === "cloud";
