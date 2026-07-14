@@ -366,19 +366,47 @@ def _try_tensakit_login(tpage, user: str, password: str) -> None:
     uname = tpage.locator('input[name="username"]')
     if uname.count() == 0:
         return  # サインイン画面ではない(ログイン済み等)
-    uname.first.fill(u)
-    tpage.locator('input[name="password"]').first.fill(pw)
-    tpage.locator('button[type="submit"]').first.click()
+
+    # React(Amplify)の制御フォームに確実に反映させるため、クリック→1文字ずつ入力
+    uname.first.click()
+    uname.first.press_sequentially(u, delay=40)
+    pwd = tpage.locator('input[name="password"]').first
+    pwd.click()
+    pwd.press_sequentially(pw, delay=40)
+    tpage.wait_for_timeout(500)
+    tpage.locator('form[data-amplify-authenticator-signin] button[type="submit"], button[type="submit"]').first.click()
+
+    # 最大30秒待ち、ログイン成功(フォーム消滅)かエラー表示かを判定する
+    site_msg = ""
+    for _ in range(30):
+        tpage.wait_for_timeout(1000)
+        if tpage.locator('input[name="username"]').count() == 0:
+            return  # サインイン成功
+        for sel in ['[data-variation="error"]', '.amplify-alert', '[role="alert"]']:
+            loc = tpage.locator(sel)
+            if loc.count() > 0:
+                try:
+                    t = loc.first.inner_text().strip()
+                except Exception:
+                    t = ""
+                if t:
+                    site_msg = t
+                    break
+        if site_msg:
+            break
+
+    # 失敗時の画面を保存(/tensakit-page で確認できる)
     try:
-        tpage.wait_for_load_state("networkidle", timeout=30000)
+        tpage.screenshot(path=os.path.join(_DEBUG_DIR, "tensakit_page.png"), full_page=True)
+        with open(os.path.join(_DEBUG_DIR, "tensakit_page.html"), "w", encoding="utf-8") as fh:
+            fh.write(tpage.content())
     except Exception:
         pass
-    tpage.wait_for_timeout(3000)
-    if tpage.locator('input[name="username"]').count() > 0:
-        raise ToshinFetchError(
-            "Tensakit へのサインインに失敗しました。東進と同じ ID/パスワードで入れない場合は、"
-            "環境変数 TENSAKIT_USER / TENSAKIT_PASSWORD に Tensakit 用の認証情報を設定してください。"
-        )
+    detail = f"(サイトの表示: {site_msg})" if site_msg else "(サイトのエラー表示は検出できず。/tensakit-page で画面を確認)"
+    raise ToshinFetchError(
+        "Tensakit へのサインインに失敗しました。" + detail +
+        " 東進と同じ ID/パスワードで入れない場合は、環境変数 TENSAKIT_USER / TENSAKIT_PASSWORD を設定してください。"
+    )
 
 
 def inspect_tensakit(headless: bool = True) -> dict:
