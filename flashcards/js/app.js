@@ -1153,6 +1153,7 @@
         const msg = {
           upload: '✓ 同期しました (クラウドへアップロード)',
           download: '✓ 同期しました (クラウドからダウンロード)',
+          merge: '✓ 同期しました (両方の端末の内容を統合)',
           same: '✓ すでに最新の状態です',
           busy: '同期処理が実行中です。少し待ってからもう一度お試しください。',
         }[action];
@@ -1252,7 +1253,7 @@
   Sync.setGuard(() => !session);
   // クラウドから取り込んだら表示を更新
   Sync.onStatus(st => {
-    if (st.ok && st.action === 'download' && !session) {
+    if (st.ok && (st.action === 'download' || st.action === 'merge') && !session) {
       const active = document.querySelector('.nav-item.active');
       nav(active ? active.dataset.screen : 'decks');
       const s = $('#sync-status');

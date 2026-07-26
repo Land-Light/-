@@ -214,22 +214,88 @@ const Sync = (() => {
 
   // 同期方向の判定 (純粋関数・テスト用に公開)
   // marker がある場合は「前回同期からどちらが変わったか」で決める
-  // (端末の時計がずれていても正しく動く)。無い場合は時刻比較。
+  // (端末の時計がずれていても正しく動く)。
+  // 初回同期 (marker 無し) と両側変更の競合は 'merge' で両方の内容を統合する。
   function decideDirection(localTime, remoteTime, marker = null) {
     if (!remoteTime) return 'upload';
     if (!localTime) return 'download';
-    if (marker !== null) {
-      const localChanged = localTime !== marker;
-      const remoteChanged = remoteTime !== marker;
-      if (!localChanged && !remoteChanged) return 'same';
-      if (localChanged && !remoteChanged) return 'upload';
-      if (!localChanged && remoteChanged) return 'download';
-      // 両方変更 (競合) → 新しい方を採用
-      return remoteTime > localTime ? 'download' : 'upload';
+    if (marker === null) return 'merge';
+    const localChanged = localTime !== marker;
+    const remoteChanged = remoteTime !== marker;
+    if (!localChanged && !remoteChanged) return 'same';
+    if (localChanged && !remoteChanged) return 'upload';
+    if (!localChanged && remoteChanged) return 'download';
+    return 'merge';
+  }
+
+  // ローカルとリモートのデータ統合 (純粋関数・テスト用に公開)
+  // - デッキ / カードは id で結合。同じ id は更新時刻 (次いで学習回数) の新しい方
+  // - 初回起動のサンプルデッキは端末ごとに id が違うため、重複したら 1 つに寄せる
+  // - 学習履歴は日付ごとに大きい方、設定は lastModified が新しい側
+  function mergeData(local, remote) {
+    const pickCard = (x, y) => {
+      if ((x.updatedAt || 0) !== (y.updatedAt || 0)) {
+        return (x.updatedAt || 0) > (y.updatedAt || 0) ? x : y;
+      }
+      if ((x.reps || 0) !== (y.reps || 0)) return (x.reps || 0) > (y.reps || 0) ? x : y;
+      return (x.due || 0) >= (y.due || 0) ? x : y;
+    };
+
+    const decks = new Map();
+    for (const d of remote.decks || []) decks.set(d.id, d);
+    for (const d of local.decks || []) {
+      const r = decks.get(d.id);
+      if (!r || (d.updatedAt || 0) >= (r.updatedAt || 0)) decks.set(d.id, d);
     }
-    if (remoteTime > localTime + SKEW) return 'download';
-    if (localTime > remoteTime + SKEW) return 'upload';
-    return 'same';
+
+    const cards = new Map();
+    for (const c of remote.cards || []) cards.set(c.id, c);
+    for (const c of local.cards || []) {
+      const r = cards.get(c.id);
+      cards.set(c.id, r ? pickCard(c, r) : c);
+    }
+
+    // サンプルデッキの重複排除 (学習回数が多い方を残す)
+    const samples = [...decks.values()].filter(d => d.name === 'サンプル: 英単語');
+    if (samples.length > 1) {
+      const score = deck => [...cards.values()]
+        .filter(c => c.deckId === deck.id)
+        .reduce((s, c) => s + (c.reps || 0), 0);
+      samples.sort((a, b) => score(b) - score(a));
+      for (const drop of samples.slice(1)) {
+        decks.delete(drop.id);
+        for (const c of [...cards.values()]) {
+          if (c.deckId === drop.id) cards.delete(c.id);
+        }
+      }
+    }
+
+    const dayStats = {};
+    for (const src of [remote.dayStats || {}, local.dayStats || {}]) {
+      for (const [k, v] of Object.entries(src)) {
+        const cur = dayStats[k] || {};
+        dayStats[k] = {
+          newStudied: Math.max(cur.newStudied || 0, v.newStudied || 0),
+          reviews: Math.max(cur.reviews || 0, v.reviews || 0),
+          reviewStudied: Math.max(cur.reviewStudied || 0, v.reviewStudied || 0),
+        };
+      }
+    }
+
+    const newer = (local.lastModified || 0) >= (remote.lastModified || 0) ? local : remote;
+
+    const media = new Map();
+    for (const m of remote.media || []) media.set(m.id, m);
+    for (const m of local.media || []) media.set(m.id, m);
+
+    return {
+      decks: [...decks.values()],
+      cards: [...cards.values()],
+      settings: { ...(newer.settings || {}) },
+      dayStats,
+      lastModified: Math.max(local.lastModified || 0, remote.lastModified || 0) + 1,
+      media: [...media.values()],
+    };
   }
 
   function lastSyncTime() {
@@ -252,7 +318,28 @@ const Sync = (() => {
     try {
       const remote = await remoteRead();
       const remoteTime = remote ? remote.lastModified : 0;
-      const action = force || decideDirection(Store.getLastModified(), remoteTime, getMarker());
+      let action = force || decideDirection(Store.getLastModified(), remoteTime, getMarker());
+      if (action === 'merge') {
+        let remoteData = null;
+        try { remoteData = JSON.parse(remote.json); } catch (e) { remoteData = null; }
+        if (!remoteData) {
+          action = 'upload'; // 壊れたリモートはアップロードで上書き
+        } else {
+          const localData = JSON.parse(await Store.exportJSON());
+          const merged = mergeData(localData, remoteData);
+          const mergedJson = JSON.stringify(merged);
+          applying = true;
+          try {
+            await Store.importJSON(mergedJson, { touch: false });
+          } finally {
+            applying = false;
+          }
+          await remoteWrite(mergedJson, merged.lastModified);
+          setMarker(merged.lastModified);
+          markSynced();
+          return { action: 'merge' };
+        }
+      }
       if (action === 'download') {
         if (!remote) throw new Error('クラウドに同期データがまだありません。');
         applying = true;
@@ -302,7 +389,7 @@ const Sync = (() => {
 
   return {
     isAvailable, init, currentUser, isLoggedIn, login, logout, onAuthChanged,
-    sync, decideDirection, lastSyncTime, isApplying,
+    sync, decideDirection, mergeData, lastSyncTime, isApplying,
     setGuard, onStatus, scheduleSync,
   };
 })();
