@@ -218,7 +218,12 @@ kbd {
 }
 
 .card-text { font-size: 1.3rem; overflow-wrap: anywhere; }
-.card-text.answer { color: var(--primary); }
+.card-text.answer { color: var(--text); }
+.card-text.long {
+  font-size: 1.05rem;
+  text-align: left;
+  line-height: 2;
+}
 
 .card-divider {
   border: none;
