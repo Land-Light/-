@@ -65,10 +65,19 @@ const Store = (() => {
     return migrate(data);
   }
 
+  let onChangeCb = null;
+
+  // データ変更時に呼ばれるフック (自動同期のトリガーに使う)
+  function setOnChange(cb) {
+    onChangeCb = cb;
+  }
+
   // touch=false は同期でのダウンロード時のみ (リモートの更新時刻を保持する)
+  // 端末間で時計がずれていても変更が必ず「新しく」なるよう単調増加させる
   function save(touch = true) {
-    if (touch) data.lastModified = Date.now();
+    if (touch) data.lastModified = Math.max(Date.now(), (data.lastModified || 0) + 1);
     localStorage.setItem(KEY, JSON.stringify(data));
+    if (onChangeCb) onChangeCb();
   }
 
   function getLastModified() {
@@ -229,7 +238,7 @@ const Store = (() => {
   }
 
   return {
-    load, save, getLastModified,
+    load, save, getLastModified, setOnChange,
     addDeck, renameDeck, deleteDeck, getDecks, getDeck,
     addCard, updateCard, deleteCard, getCards, getCard,
     referencedMediaIds,
