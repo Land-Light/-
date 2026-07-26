@@ -1033,9 +1033,8 @@
         <div class="hint" id="backup-status"></div>
 
         <h2>Google 同期</h2>
-        <p class="hint">Google アカウントでログインすると、カードと画像・音声を
-          Google Drive のアプリ専用領域に保存し、複数の端末から同期できます
-          (他のファイルには一切アクセスしません)。</p>
+        <p class="hint">Google アカウントでログインするだけで、カードと画像・音声が
+          クラウドに自動同期され、複数の端末で共有できます。設定は不要です。</p>
         <div id="sync-body"></div>
         <div class="hint" id="sync-status"></div>
 
@@ -1098,93 +1097,64 @@
     const last = Sync.lastSyncTime();
     const lastText = last ? `最終同期: ${new Date(last).toLocaleString('ja-JP')}` : 'まだ同期していません';
 
-    // 1. クライアント ID 未設定 → セットアップ手順
-    if (!Sync.getClientId()) {
-      el.innerHTML = `
-        <details class="sync-setup">
-          <summary>初回セットアップ (Google クライアント ID の取得手順)</summary>
-          <ol class="setup-steps">
-            <li><a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a>
-              で新しいプロジェクトを作成</li>
-            <li>「API とサービス → ライブラリ」で <strong>Google Drive API</strong> を検索して有効化</li>
-            <li>「API とサービス → OAuth 同意画面」でアプリ名を設定
-              (ユーザーの種類: 外部、テストユーザーに自分の Gmail を追加)</li>
-            <li>「API とサービス → 認証情報 → 認証情報を作成 → OAuth クライアント ID」で
-              種類「ウェブ アプリケーション」を選択</li>
-            <li>「承認済みの JavaScript 生成元」にこのアプリの URL
-              (<code id="origin-hint"></code>) を追加</li>
-            <li>発行された「クライアント ID」(〜.apps.googleusercontent.com) を下に貼り付けて保存</li>
-          </ol>
-        </details>
-        <div class="sync-clientid">
-          <input type="text" id="sync-client-id" placeholder="xxxx.apps.googleusercontent.com">
-          <button class="btn primary" id="btn-save-client-id">保存</button>
-        </div>`;
-      $('#origin-hint').textContent = location.origin === 'null' ? location.href : location.origin;
-      $('#btn-save-client-id').onclick = () => {
-        const v = $('#sync-client-id').value.trim();
-        if (!v.endsWith('.apps.googleusercontent.com')) {
-          setStatus('クライアント ID の形式が正しくありません (〜.apps.googleusercontent.com)。');
-          return;
-        }
-        Sync.setClientId(v);
-        setStatus('✓ クライアント ID を保存しました');
-        renderSyncSection();
-      };
+    if (!Sync.isAvailable()) {
+      el.innerHTML = `<p class="hint">Google ログインを読み込めませんでした。
+        ネットワーク接続を確認してページを再読み込みしてください。</p>`;
       return;
     }
 
-    // 2. 未ログイン
-    if (!Sync.isLoggedIn()) {
+    const user = Sync.currentUser();
+
+    // 未ログイン
+    if (!user) {
       el.innerHTML = `
         <div class="settings-actions">
           <button class="btn primary" id="btn-google-login">Google でログイン</button>
-          <button class="btn text" id="btn-change-client-id">クライアント ID を変更</button>
         </div>
         <p class="hint">${lastText}</p>`;
       $('#btn-google-login').onclick = async () => {
         setStatus('ログイン中...');
         try {
           await Sync.login();
-          setStatus('✓ ログインしました');
+          setStatus('✓ ログインしました。自動同期を開始します。');
           renderSyncSection();
+          Sync.scheduleSync(500);
         } catch (err) {
           setStatus(err.message);
         }
       };
-      $('#btn-change-client-id').onclick = () => {
-        Sync.setClientId('');
-        renderSyncSection();
-      };
       return;
     }
 
-    // 3. ログイン済み
+    // ログイン済み — 自動同期が有効
     el.innerHTML = `
+      <p class="sync-account">✓ <strong>${esc(user.email || user.displayName || 'ログイン中')}</strong>
+        として自動同期中</p>
       <div class="settings-actions">
         <button class="btn primary" id="btn-sync-now">今すぐ同期</button>
-        <button class="btn outline" id="btn-sync-up" title="ローカルのデータで Drive を上書き">⬆ 強制アップロード</button>
-        <button class="btn outline" id="btn-sync-down" title="Drive のデータでローカルを上書き">⬇ 強制ダウンロード</button>
+        <button class="btn outline" id="btn-sync-up" title="この端末のデータでクラウドを上書き">⬆ 強制アップロード</button>
+        <button class="btn outline" id="btn-sync-down" title="クラウドのデータでこの端末を上書き">⬇ 強制ダウンロード</button>
         <button class="btn text" id="btn-google-logout">ログアウト</button>
       </div>
-      <p class="hint">${lastText}</p>`;
+      <p class="hint">${lastText} ・ データを変更すると数秒後に自動でアップロードされます。</p>`;
 
     const runSync = async force => {
       setStatus('同期中...');
       try {
         if (force === 'download' &&
-            !confirm('Drive のデータでこの端末のデータを上書きします。よろしいですか？')) {
+            !confirm('クラウドのデータでこの端末のデータを上書きします。よろしいですか？')) {
           setStatus(''); return;
         }
         if (force === 'upload' &&
-            !confirm('この端末のデータで Drive のデータを上書きします。よろしいですか？')) {
+            !confirm('この端末のデータでクラウドのデータを上書きします。よろしいですか？')) {
           setStatus(''); return;
         }
         const { action } = await Sync.sync(force);
         const msg = {
-          upload: '✓ 同期しました (Drive へアップロード)',
-          download: '✓ 同期しました (Drive からダウンロード)',
+          upload: '✓ 同期しました (クラウドへアップロード)',
+          download: '✓ 同期しました (クラウドからダウンロード)',
           same: '✓ すでに最新の状態です',
+          busy: '同期処理が実行中です。少し待ってからもう一度お試しください。',
         }[action];
         renderSettings();
         const s = $('#sync-status');
@@ -1196,10 +1166,10 @@
     $('#btn-sync-now').onclick = () => runSync(null);
     $('#btn-sync-up').onclick = () => runSync('upload');
     $('#btn-sync-down').onclick = () => runSync('download');
-    $('#btn-google-logout').onclick = () => {
-      Sync.logout();
+    $('#btn-google-logout').onclick = async () => {
+      await Sync.logout();
       renderSyncSection();
-      setStatus('ログアウトしました');
+      setStatus('ログアウトしました。この端末のデータはそのまま残ります。');
     };
   }
 
@@ -1272,6 +1242,28 @@
 
   // 参照されていないメディアの掃除 (起動時のみ)
   Media.sweep(Store.referencedMediaIds()).catch(() => {});
+
+  // ---- 自動同期の配線 ----
+  // データが変わったら数秒後に自動アップロード
+  Store.setOnChange(() => {
+    if (!Sync.isApplying()) Sync.scheduleSync();
+  });
+  // 学習セッション中はダウンロード適用を延期 (画面が突然変わるのを防ぐ)
+  Sync.setGuard(() => !session);
+  // クラウドから取り込んだら表示を更新
+  Sync.onStatus(st => {
+    if (st.ok && st.action === 'download' && !session) {
+      const active = document.querySelector('.nav-item.active');
+      nav(active ? active.dataset.screen : 'decks');
+      const s = $('#sync-status');
+      if (s) s.textContent = '✓ クラウドの最新データを取り込みました';
+    }
+  });
+  // ログイン状態が復元されたら起動時同期
+  Sync.onAuthChanged(user => {
+    if (user) Sync.scheduleSync(500);
+    if ($('#sync-body')) renderSyncSection();
+  });
 
   nav('decks');
 })();

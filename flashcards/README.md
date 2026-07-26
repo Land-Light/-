@@ -7,7 +7,7 @@
 
 **ブラウザでそのまま使う (GitHub Pages):**
 
-https://land-light.github.io/-/
+https://land-light.github.io/-/flashcards/
 
 **ローカルで使う:**
 
@@ -23,8 +23,9 @@ python3 -m http.server 8000
 ```
 
 初回起動時にはサンプルデッキ（英単語＋穴埋めの例）が入っています。
-`main` または開発ブランチに push すると GitHub Actions
-(`.github/workflows/pages.yml`) が自動で GitHub Pages にデプロイします。
+`main` に push すると GitHub Actions (`.github/workflows/pages.yml`) が
+`gh-pages` ブランチの `flashcards/` へ自動デプロイします
+（`gh-pages` 上の既存アプリには触れません）。
 
 ## 主な機能
 
@@ -71,28 +72,31 @@ python3 -m http.server 8000
 
 ## Google ログインで同期する
 
-「設定 → Google 同期」から Google アカウントでログインすると、カード・画像・音声を
-**Google Drive のアプリ専用領域 (appDataFolder)** に保存し、複数の端末間で同期できます。
-アプリ専用領域なので、Drive の他のファイルには一切アクセスしません。
-同期はローカルとリモートの更新時刻を比べて新しい方を採用します
-（強制アップロード / 強制ダウンロードも可能）。
+「設定 → Google 同期」で **Google アカウントにログインするだけ**で、
+カード・画像・音声がクラウド (Firestore) に自動同期され、複数の端末で共有できます。
+事前設定は不要です。
 
-### 初回セットアップ (Google クライアント ID の取得)
+- 起動時とデータ変更の数秒後に自動で同期されます（手動の「今すぐ同期」も可能）
+- 同期方向はローカルとクラウドの更新時刻を比べて新しい方を採用
+  （強制アップロード / 強制ダウンロードも可能）
+- 同じ gh-pages 上の既存アプリ（会社法クイズなど）と**同じ Firebase プロジェクト**
+  (`test-a7757`) を使用し、データは Firestore の `users/{uid}` 配下に保存されます
 
-Google の仕様上、OAuth ログインには自分の「クライアント ID」が必要です（無料・約5分）。
+### 保存先の詳細と Firestore ルール
 
-1. [Google Cloud Console](https://console.cloud.google.com/) で新しいプロジェクトを作成
-2. 「API とサービス → ライブラリ」で **Google Drive API** を検索して有効化
-3. 「API とサービス → OAuth 同意画面」でアプリ名を設定
-   （ユーザーの種類: **外部**、テストユーザーに自分の Gmail を追加）
-4. 「API とサービス → 認証情報 → 認証情報を作成 → **OAuth クライアント ID**」で
-   種類「**ウェブ アプリケーション**」を選択
-5. 「承認済みの JavaScript 生成元」にアプリの URL
-   （例: `https://land-light.github.io`）を追加
-6. 発行されたクライアント ID（`〜.apps.googleusercontent.com`）を
-   アプリの「設定 → Google 同期」に貼り付けて保存
+優先的に `users/{uid}/flashcards` サブコレクション（meta + chunk-N、容量制限なし）へ
+保存します。Firestore のセキュリティルールがサブコレクションを許可していない場合は、
+既存クイズアプリと同じ `users/{uid}` ドキュメントのフィールド (`fcData`) に自動で
+フォールバックします（この場合 1MB 制限があるため、メディアが多いと上限に当たります）。
 
-同じ手順は、アプリの設定画面内にも表示されます。
+メディアをたくさん同期したい場合は、Firebase コンソールの Firestore ルールに
+次のようなサブコレクション許可を追加してください:
+
+```
+match /users/{userId}/{document=**} {
+  allow read, write: if request.auth != null && request.auth.uid == userId;
+}
+```
 
 ## データの保存場所
 
