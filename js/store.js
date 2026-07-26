@@ -41,7 +41,11 @@ const Store = (() => {
     for (const k of Object.keys(def.settings)) {
       if (d.settings[k] === undefined) d.settings[k] = def.settings[k];
     }
+    for (const deck of d.decks) {
+      if (!deck.updatedAt) deck.updatedAt = deck.createdAt || 0;
+    }
     for (const c of d.cards) {
+      if (!c.updatedAt) c.updatedAt = c.createdAt || 0;
       if (!c.type) c.type = 'basic';
       if (!c.noteId) c.noteId = c.id;
       if (!Array.isArray(c.tags)) c.tags = [];
@@ -91,7 +95,7 @@ const Store = (() => {
   // ---- デッキ ----
 
   function addDeck(name) {
-    const deck = { id: uid(), name: name.trim(), createdAt: Date.now() };
+    const deck = { id: uid(), name: name.trim(), createdAt: Date.now(), updatedAt: Date.now() };
     load().decks.push(deck);
     save();
     return deck;
@@ -99,7 +103,7 @@ const Store = (() => {
 
   function renameDeck(deckId, name) {
     const deck = load().decks.find(d => d.id === deckId);
-    if (deck) { deck.name = name.trim(); save(); }
+    if (deck) { deck.name = name.trim(); deck.updatedAt = Date.now(); save(); }
   }
 
   function deleteDeck(deckId) {
@@ -132,6 +136,7 @@ const Store = (() => {
       createdAt: Date.now(),
       ...fields,
       ...SRS.newCardState(),
+      updatedAt: Date.now(),
     };
     if (!card.noteId) card.noteId = card.id;
     load().cards.push(card);
@@ -143,7 +148,7 @@ const Store = (() => {
     const d = load();
     const i = d.cards.findIndex(c => c.id === cardId);
     if (i >= 0) {
-      d.cards[i] = { ...d.cards[i], ...patch };
+      d.cards[i] = { ...d.cards[i], ...patch, updatedAt: Date.now() };
       save();
       return d.cards[i];
     }
