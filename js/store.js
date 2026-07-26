@@ -4,10 +4,18 @@
  * データ構造:
  * {
  *   decks: [{ id, name, createdAt }],
- *   cards: [{ id, deckId, front, back, createdAt, ...SRS状態 }],
- *   settings: { newPerDay },
- *   dayStats: { 'YYYY-MM-DD': { newStudied, reviews } },
+ *   cards: [{
+ *     id, noteId, deckId, type ('basic'|'cloze'),
+ *     front, back,                  // basic: 表/裏。cloze: back は「補足」
+ *     clozeText, clozeIndex,        // cloze のみ
+ *     tags: [string],
+ *     frontMedia: [{id, kind}], backMedia: [{id, kind}],
+ *     createdAt, ...SRS状態
+ *   }],
+ *   settings: { newPerDay, reviewsPerDay, autoPlayAudio },
+ *   dayStats: { 'YYYY-MM-DD': { newStudied, reviews, reviewStudied } },
  * }
+ * メディア本体は IndexedDB (media.js) に保存し、ここでは参照のみ持つ。
  */
 
 const Store = (() => {
@@ -19,9 +27,29 @@ const Store = (() => {
     return {
       decks: [],
       cards: [],
-      settings: { newPerDay: 20 },
+      settings: { newPerDay: 20, reviewsPerDay: 200, autoPlayAudio: true },
       dayStats: {},
     };
+  }
+
+  function migrate(d) {
+    const def = defaultData();
+    for (const k of Object.keys(def)) {
+      if (d[k] === undefined) d[k] = def[k];
+    }
+    for (const k of Object.keys(def.settings)) {
+      if (d.settings[k] === undefined) d.settings[k] = def.settings[k];
+    }
+    for (const c of d.cards) {
+      if (!c.type) c.type = 'basic';
+      if (!c.noteId) c.noteId = c.id;
+      if (!Array.isArray(c.tags)) c.tags = [];
+      if (!Array.isArray(c.frontMedia)) c.frontMedia = [];
+      if (!Array.isArray(c.backMedia)) c.backMedia = [];
+      if (c.clozeText === undefined) c.clozeText = '';
+      if (c.clozeIndex === undefined) c.clozeIndex = 0;
+    }
+    return d;
   }
 
   function load() {
@@ -33,13 +61,7 @@ const Store = (() => {
       console.error('データの読み込みに失敗しました', e);
       data = defaultData();
     }
-    // 欠けているキーを補完 (バージョンアップ時の互換)
-    const d = defaultData();
-    for (const k of Object.keys(d)) {
-      if (data[k] === undefined) data[k] = d[k];
-    }
-    if (data.settings.newPerDay === undefined) data.settings.newPerDay = 20;
-    return data;
+    return migrate(data);
   }
 
   function save() {
@@ -81,15 +103,21 @@ const Store = (() => {
 
   // ---- カード ----
 
-  function addCard(deckId, front, back) {
+  function addCard(deckId, fields) {
     const card = {
       id: uid(),
+      noteId: '',
       deckId,
-      front: front.trim(),
-      back: back.trim(),
+      type: 'basic',
+      front: '', back: '',
+      clozeText: '', clozeIndex: 0,
+      tags: [],
+      frontMedia: [], backMedia: [],
       createdAt: Date.now(),
+      ...fields,
       ...SRS.newCardState(),
     };
+    if (!card.noteId) card.noteId = card.id;
     load().cards.push(card);
     save();
     return card;
@@ -121,19 +149,41 @@ const Store = (() => {
     return load().cards.find(c => c.id === cardId) || null;
   }
 
+  // 全カードが参照しているメディア id の集合
+  function referencedMediaIds() {
+    const ids = new Set();
+    for (const c of load().cards) {
+      for (const m of c.frontMedia) ids.add(m.id);
+      for (const m of c.backMedia) ids.add(m.id);
+    }
+    return ids;
+  }
+
   // ---- 日次統計 ----
 
   function todayStats() {
     const key = SRS.dayKey();
     const d = load();
-    if (!d.dayStats[key]) d.dayStats[key] = { newStudied: 0, reviews: 0 };
-    return d.dayStats[key];
+    if (!d.dayStats[key]) d.dayStats[key] = { newStudied: 0, reviews: 0, reviewStudied: 0 };
+    const s = d.dayStats[key];
+    if (s.reviewStudied === undefined) s.reviewStudied = 0;
+    return s;
   }
 
-  function recordAnswer(wasNew) {
+  function recordAnswer(wasNew, wasReview) {
     const s = todayStats();
     s.reviews += 1;
     if (wasNew) s.newStudied += 1;
+    if (wasReview) s.reviewStudied += 1;
+    save();
+  }
+
+  // 回答の取り消し (Undo) 用
+  function unrecordAnswer(wasNew, wasReview) {
+    const s = todayStats();
+    s.reviews = Math.max(0, s.reviews - 1);
+    if (wasNew) s.newStudied = Math.max(0, s.newStudied - 1);
+    if (wasReview) s.reviewStudied = Math.max(0, s.reviewStudied - 1);
     save();
   }
 
@@ -152,30 +202,31 @@ const Store = (() => {
     save();
   }
 
-  // ---- バックアップ ----
+  // ---- バックアップ (メディア込み) ----
 
-  function exportJSON() {
-    return JSON.stringify(load(), null, 2);
+  async function exportJSON() {
+    const media = await Media.exportAll();
+    return JSON.stringify({ ...load(), media }, null, 2);
   }
 
-  function importJSON(json) {
+  async function importJSON(json) {
     const parsed = JSON.parse(json);
     if (!Array.isArray(parsed.decks) || !Array.isArray(parsed.cards)) {
       throw new Error('デッキまたはカードのデータが見つかりません');
     }
-    data = parsed;
-    const d = defaultData();
-    for (const k of Object.keys(d)) {
-      if (data[k] === undefined) data[k] = d[k];
-    }
+    const media = parsed.media || [];
+    delete parsed.media;
+    data = migrate(parsed);
     save();
+    await Media.importAll(media);
   }
 
   return {
     load, save,
     addDeck, renameDeck, deleteDeck, getDecks, getDeck,
     addCard, updateCard, deleteCard, getCards, getCard,
-    todayStats, recordAnswer, getDayStats,
+    referencedMediaIds,
+    todayStats, recordAnswer, unrecordAnswer, getDayStats,
     getSettings, updateSettings,
     exportJSON, importJSON,
   };

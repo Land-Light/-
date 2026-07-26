@@ -375,6 +375,156 @@ input:focus, select:focus, textarea:focus {
   white-space: nowrap;
 }
 
+/* ---- メディア ---- */
+
+.media-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.card-img {
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+.audio-chip {
+  font: inherit;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.audio-chip:hover { border-color: var(--primary); color: var(--primary); }
+
+.media-controls { margin: -6px 0 14px; }
+
+.media-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+
+.media-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px 6px;
+  background: var(--surface);
+  font-size: 0.82rem;
+}
+.media-chip img { height: 42px; border-radius: 5px; }
+.media-chip.audio { cursor: pointer; }
+.chip-del {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 2px;
+}
+.chip-del:hover { color: var(--again); }
+
+.media-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn.small { padding: 6px 12px; font-size: 0.85rem; }
+.btn.small input { display: none; }
+.btn-record.recording {
+  border-color: var(--again);
+  color: var(--again);
+  animation: pulse 1.2s infinite;
+}
+@keyframes pulse { 50% { opacity: 0.55; } }
+
+/* ---- 穴埋め (Cloze) ---- */
+
+.cloze { color: var(--primary); font-weight: 700; }
+.cloze.revealed {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.cloze-tools { display: flex; gap: 8px; flex-wrap: wrap; margin: -6px 0 14px; }
+.card-text.extra { font-size: 1rem; color: var(--text-dim); }
+
+.field-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 14px;
+  cursor: pointer;
+}
+
+/* ---- タグ ---- */
+
+.tag-chip {
+  display: inline-block;
+  font-size: 0.72rem;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-right: 4px;
+}
+.browse-tags { margin-top: 3px; }
+
+/* ---- 編集モーダル ---- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+
+.modal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.modal h3 { margin: 0 0 14px; }
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* ---- 学習画面の補助 ---- */
+
+.meta-right { display: inline-flex; align-items: center; gap: 6px; }
+
+.kbd-table { border-collapse: collapse; font-size: 0.9rem; }
+.kbd-table td { padding: 4px 14px 4px 0; color: var(--text-dim); }
+.kbd-table td:first-child { color: var(--text); white-space: nowrap; }
+
 /* ---- 設定 ---- */
 
 .settings-actions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -382,6 +532,7 @@ input:focus, select:focus, textarea:focus {
 /* ---- モバイル ---- */
 
 @media (max-width: 520px) {
+  .field-row { grid-template-columns: 1fr; gap: 0; }
   .card-face { min-height: 160px; padding: 26px 16px; }
   .card-text { font-size: 1.1rem; }
   .btn.rate kbd { display: none; }
