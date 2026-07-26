@@ -527,7 +527,29 @@ input:focus, select:focus, textarea:focus {
 
 /* ---- 設定 ---- */
 
-.settings-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.settings-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ---- Google 同期 ---- */
+
+.sync-setup {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.sync-setup summary { cursor: pointer; color: var(--text-dim); }
+.setup-steps { margin: 10px 0 4px; padding-left: 20px; font-size: 0.9rem; }
+.setup-steps li { margin-bottom: 6px; }
+.setup-steps code {
+  background: rgba(128, 128, 128, 0.15);
+  border-radius: 4px;
+  padding: 1px 6px;
+  overflow-wrap: anywhere;
+}
+.setup-steps a { color: var(--primary); }
+
+.sync-clientid { display: flex; gap: 8px; }
+.sync-clientid input { flex: 1; }
 
 /* ---- モバイル ---- */
 

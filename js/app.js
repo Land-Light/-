@@ -1032,6 +1032,13 @@
         </div>
         <div class="hint" id="backup-status"></div>
 
+        <h2>Google 同期</h2>
+        <p class="hint">Google アカウントでログインすると、カードと画像・音声を
+          Google Drive のアプリ専用領域に保存し、複数の端末から同期できます
+          (他のファイルには一切アクセスしません)。</p>
+        <div id="sync-body"></div>
+        <div class="hint" id="sync-status"></div>
+
         <h2>キーボードショートカット</h2>
         <table class="kbd-table">
           <tr><td><kbd>Space</kbd> / <kbd>Enter</kbd></td><td>答えを表示 (表示中は「普通」で回答)</td></tr>
@@ -1078,6 +1085,121 @@
       } catch (err) {
         $('#backup-status').textContent = `インポートに失敗しました: ${err.message}`;
       }
+    };
+
+    renderSyncSection();
+  }
+
+  // Google 同期セクション (設定画面内)
+  function renderSyncSection() {
+    const el = $('#sync-body');
+    if (!el) return;
+    const setStatus = msg => { const s = $('#sync-status'); if (s) s.textContent = msg; };
+    const last = Sync.lastSyncTime();
+    const lastText = last ? `最終同期: ${new Date(last).toLocaleString('ja-JP')}` : 'まだ同期していません';
+
+    // 1. クライアント ID 未設定 → セットアップ手順
+    if (!Sync.getClientId()) {
+      el.innerHTML = `
+        <details class="sync-setup">
+          <summary>初回セットアップ (Google クライアント ID の取得手順)</summary>
+          <ol class="setup-steps">
+            <li><a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a>
+              で新しいプロジェクトを作成</li>
+            <li>「API とサービス → ライブラリ」で <strong>Google Drive API</strong> を検索して有効化</li>
+            <li>「API とサービス → OAuth 同意画面」でアプリ名を設定
+              (ユーザーの種類: 外部、テストユーザーに自分の Gmail を追加)</li>
+            <li>「API とサービス → 認証情報 → 認証情報を作成 → OAuth クライアント ID」で
+              種類「ウェブ アプリケーション」を選択</li>
+            <li>「承認済みの JavaScript 生成元」にこのアプリの URL
+              (<code id="origin-hint"></code>) を追加</li>
+            <li>発行された「クライアント ID」(〜.apps.googleusercontent.com) を下に貼り付けて保存</li>
+          </ol>
+        </details>
+        <div class="sync-clientid">
+          <input type="text" id="sync-client-id" placeholder="xxxx.apps.googleusercontent.com">
+          <button class="btn primary" id="btn-save-client-id">保存</button>
+        </div>`;
+      $('#origin-hint').textContent = location.origin === 'null' ? location.href : location.origin;
+      $('#btn-save-client-id').onclick = () => {
+        const v = $('#sync-client-id').value.trim();
+        if (!v.endsWith('.apps.googleusercontent.com')) {
+          setStatus('クライアント ID の形式が正しくありません (〜.apps.googleusercontent.com)。');
+          return;
+        }
+        Sync.setClientId(v);
+        setStatus('✓ クライアント ID を保存しました');
+        renderSyncSection();
+      };
+      return;
+    }
+
+    // 2. 未ログイン
+    if (!Sync.isLoggedIn()) {
+      el.innerHTML = `
+        <div class="settings-actions">
+          <button class="btn primary" id="btn-google-login">Google でログイン</button>
+          <button class="btn text" id="btn-change-client-id">クライアント ID を変更</button>
+        </div>
+        <p class="hint">${lastText}</p>`;
+      $('#btn-google-login').onclick = async () => {
+        setStatus('ログイン中...');
+        try {
+          await Sync.login();
+          setStatus('✓ ログインしました');
+          renderSyncSection();
+        } catch (err) {
+          setStatus(err.message);
+        }
+      };
+      $('#btn-change-client-id').onclick = () => {
+        Sync.setClientId('');
+        renderSyncSection();
+      };
+      return;
+    }
+
+    // 3. ログイン済み
+    el.innerHTML = `
+      <div class="settings-actions">
+        <button class="btn primary" id="btn-sync-now">今すぐ同期</button>
+        <button class="btn outline" id="btn-sync-up" title="ローカルのデータで Drive を上書き">⬆ 強制アップロード</button>
+        <button class="btn outline" id="btn-sync-down" title="Drive のデータでローカルを上書き">⬇ 強制ダウンロード</button>
+        <button class="btn text" id="btn-google-logout">ログアウト</button>
+      </div>
+      <p class="hint">${lastText}</p>`;
+
+    const runSync = async force => {
+      setStatus('同期中...');
+      try {
+        if (force === 'download' &&
+            !confirm('Drive のデータでこの端末のデータを上書きします。よろしいですか？')) {
+          setStatus(''); return;
+        }
+        if (force === 'upload' &&
+            !confirm('この端末のデータで Drive のデータを上書きします。よろしいですか？')) {
+          setStatus(''); return;
+        }
+        const { action } = await Sync.sync(force);
+        const msg = {
+          upload: '✓ 同期しました (Drive へアップロード)',
+          download: '✓ 同期しました (Drive からダウンロード)',
+          same: '✓ すでに最新の状態です',
+        }[action];
+        renderSettings();
+        const s = $('#sync-status');
+        if (s) s.textContent = msg;
+      } catch (err) {
+        setStatus(err.message);
+      }
+    };
+    $('#btn-sync-now').onclick = () => runSync(null);
+    $('#btn-sync-up').onclick = () => runSync('upload');
+    $('#btn-sync-down').onclick = () => runSync('download');
+    $('#btn-google-logout').onclick = () => {
+      Sync.logout();
+      renderSyncSection();
+      setStatus('ログアウトしました');
     };
   }
 

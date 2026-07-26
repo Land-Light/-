@@ -5,6 +5,12 @@
 
 ## 使い方
 
+**ブラウザでそのまま使う (GitHub Pages):**
+
+https://land-light.github.io/-/
+
+**ローカルで使う:**
+
 ```
 index.html をブラウザで開く
 ```
@@ -17,6 +23,8 @@ python3 -m http.server 8000
 ```
 
 初回起動時にはサンプルデッキ（英単語＋穴埋めの例）が入っています。
+`main` または開発ブランチに push すると GitHub Actions
+(`.github/workflows/pages.yml`) が自動で GitHub Pages にデプロイします。
 
 ## 主な機能
 
@@ -61,10 +69,35 @@ python3 -m http.server 8000
 | `Z` | 直前の回答を取り消す |
 | `Ctrl+Enter` | （追加画面で）カードを保存 |
 
+## Google ログインで同期する
+
+「設定 → Google 同期」から Google アカウントでログインすると、カード・画像・音声を
+**Google Drive のアプリ専用領域 (appDataFolder)** に保存し、複数の端末間で同期できます。
+アプリ専用領域なので、Drive の他のファイルには一切アクセスしません。
+同期はローカルとリモートの更新時刻を比べて新しい方を採用します
+（強制アップロード / 強制ダウンロードも可能）。
+
+### 初回セットアップ (Google クライアント ID の取得)
+
+Google の仕様上、OAuth ログインには自分の「クライアント ID」が必要です（無料・約5分）。
+
+1. [Google Cloud Console](https://console.cloud.google.com/) で新しいプロジェクトを作成
+2. 「API とサービス → ライブラリ」で **Google Drive API** を検索して有効化
+3. 「API とサービス → OAuth 同意画面」でアプリ名を設定
+   （ユーザーの種類: **外部**、テストユーザーに自分の Gmail を追加）
+4. 「API とサービス → 認証情報 → 認証情報を作成 → **OAuth クライアント ID**」で
+   種類「**ウェブ アプリケーション**」を選択
+5. 「承認済みの JavaScript 生成元」にアプリの URL
+   （例: `https://land-light.github.io`）を追加
+6. 発行されたクライアント ID（`〜.apps.googleusercontent.com`）を
+   アプリの「設定 → Google 同期」に貼り付けて保存
+
+同じ手順は、アプリの設定画面内にも表示されます。
+
 ## データの保存場所
 
 カードデータはブラウザの **localStorage**、画像・音声は **IndexedDB** に保存されます。
-サーバーは不要ですが、ブラウザや端末を変えるとデータは引き継がれないため、
+Google 同期を使わない場合、ブラウザや端末を変えるとデータは引き継がれないため、
 「設定 → バックアップ」から定期的に JSON（メディア込み）をエクスポートしてください。
 
 ## ファイル構成
@@ -76,7 +109,9 @@ python3 -m http.server 8000
 | `js/srs.js` | 間隔反復スケジューラ（SM-2 ベース） |
 | `js/media.js` | 画像・音声の保存（IndexedDB） |
 | `js/store.js` | カード・デッキ・設定の永続化（localStorage） |
+| `js/sync.js` | Google ログインと Drive 同期 |
 | `js/app.js` | 画面描画とユーザー操作 |
+| `.github/workflows/pages.yml` | GitHub Pages への自動デプロイ |
 
 ## スケジューリングの仕組み
 

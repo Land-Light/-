@@ -29,6 +29,7 @@ const Store = (() => {
       cards: [],
       settings: { newPerDay: 20, reviewsPerDay: 200, autoPlayAudio: true },
       dayStats: {},
+      lastModified: 0,
     };
   }
 
@@ -64,8 +65,14 @@ const Store = (() => {
     return migrate(data);
   }
 
-  function save() {
+  // touch=false は同期でのダウンロード時のみ (リモートの更新時刻を保持する)
+  function save(touch = true) {
+    if (touch) data.lastModified = Date.now();
     localStorage.setItem(KEY, JSON.stringify(data));
+  }
+
+  function getLastModified() {
+    return load().lastModified || 0;
   }
 
   function uid() {
@@ -209,7 +216,7 @@ const Store = (() => {
     return JSON.stringify({ ...load(), media }, null, 2);
   }
 
-  async function importJSON(json) {
+  async function importJSON(json, { touch = true } = {}) {
     const parsed = JSON.parse(json);
     if (!Array.isArray(parsed.decks) || !Array.isArray(parsed.cards)) {
       throw new Error('デッキまたはカードのデータが見つかりません');
@@ -217,12 +224,12 @@ const Store = (() => {
     const media = parsed.media || [];
     delete parsed.media;
     data = migrate(parsed);
-    save();
+    save(touch);
     await Media.importAll(media);
   }
 
   return {
-    load, save,
+    load, save, getLastModified,
     addDeck, renameDeck, deleteDeck, getDecks, getDeck,
     addCard, updateCard, deleteCard, getCards, getCard,
     referencedMediaIds,
