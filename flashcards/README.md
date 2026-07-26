@@ -91,12 +91,23 @@ python3 -m http.server 8000
 既存クイズアプリと同じ `users/{uid}` ドキュメントのフィールド (`fcData`) に自動で
 フォールバックします（この場合 1MB 制限があるため、メディアが多いと上限に当たります）。
 
-メディアをたくさん同期したい場合は、Firebase コンソールの Firestore ルールに
-次のようなサブコレクション許可を追加してください:
+**同期が「Firestore のセキュリティルールで拒否されています」と表示される場合**は、
+[Firebase コンソール](https://console.firebase.google.com/) → プロジェクト `test-a7757`
+→ Firestore Database → ルール を開き、次の内容に置き換えて「公開」してください
+（自分の `users/{自分のUID}` とその配下だけを読み書き可能にするルールです。
+既存の会社法クイズアプリの同期にも同じルールが必要です）:
 
 ```
-match /users/{userId}/{document=**} {
-  allow read, write: if request.auth != null && request.auth.uid == userId;
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+  }
 }
 ```
 

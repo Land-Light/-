@@ -328,12 +328,42 @@ const Sync = (() => {
     }
   }
 
+  // Firestore のエラーを日本語の対処法つきメッセージに変換
+  function friendlyError(e) {
+    const code = e && e.code;
+    if (code === 'permission-denied') {
+      return new Error('Firestore のセキュリティルールでアクセスが拒否されています。' +
+        'Firebase コンソール (console.firebase.google.com) の Firestore Database → ルール で、' +
+        'README 記載のルールを設定してください。');
+    }
+    if (code === 'not-found' || code === 'failed-precondition') {
+      return new Error('Firestore データベースが見つかりません。' +
+        'Firebase コンソールで Firestore Database を作成してください。');
+    }
+    if (code === 'unauthenticated') {
+      return new Error('ログインの有効期限が切れました。もう一度ログインしてください。');
+    }
+    if (code === 'unavailable') {
+      return new Error('ネットワークに接続できません。接続を確認してください。');
+    }
+    return e;
+  }
+
   // force: 'upload' | 'download' | null (自動判定)
   async function sync(force = null) {
     if (!isLoggedIn()) throw new Error('先に Google でログインしてください。');
     if (syncing) return { action: 'busy' };
     syncing = true;
     try {
+      return await syncInner(force);
+    } catch (e) {
+      throw friendlyError(e);
+    } finally {
+      syncing = false;
+    }
+  }
+
+  async function syncInner(force) {
       const remote = await remoteRead();
       const remoteTime = remote ? remote.lastModified : 0;
       let action = force || decideDirection(Store.getLastModified(), remoteTime, getMarker());
@@ -385,9 +415,6 @@ const Sync = (() => {
       retries = 0;
       watchRemote();
       return result;
-    } finally {
-      syncing = false;
-    }
   }
 
   // ---- リアルタイム監視 (他の端末の更新を数秒で取り込む) ----
