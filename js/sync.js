@@ -38,6 +38,8 @@ const Sync = (() => {
   let guard = () => true; // false の間は自動同期を延期 (学習セッション中など)
   let pushTimer = null;
   let statusCb = null;
+  let lastError = null;
+  let retries = 0;
 
   function isAvailable() {
     return typeof firebase !== 'undefined' && !!firebase.auth && !!firebase.firestore;
@@ -96,6 +98,7 @@ const Sync = (() => {
   }
 
   async function logout() {
+    unwatch();
     clearTimeout(pushTimer);
     if (init()) await firebase.auth().signOut();
   }
@@ -168,8 +171,9 @@ const Sync = (() => {
 
   async function docWrite(json, lastModified) {
     if (json.length > MAX_DOC_FIELD) {
-      throw new Error('データが大きすぎて同期できません (画像・音声の合計が上限を超えています)。' +
-        '不要なメディアを削除するか、README 記載の Firestore ルールを追加すると上限を解除できます。');
+      const err = new Error('データが大きすぎて同期できません (画像・音声の合計が上限を超えています)。');
+      err.sizeError = true;
+      throw err;
     }
     await userDoc().set({
       fcData: json,
@@ -310,6 +314,20 @@ const Sync = (() => {
     return applying;
   }
 
+  // アップロード。単一ドキュメントモードで容量超過の場合は
+  // メディア抜きで再試行する (カード・設定だけでも同期を通す)。
+  async function writeWithFallback(json, lastModified) {
+    try {
+      await remoteWrite(json, lastModified);
+      return { mediaOmitted: false };
+    } catch (e) {
+      if (!e || !e.sizeError) throw e;
+      const slim = await Store.exportJSON(false);
+      await remoteWrite(slim, lastModified);
+      return { mediaOmitted: true };
+    }
+  }
+
   // force: 'upload' | 'download' | null (自動判定)
   async function sync(force = null) {
     if (!isLoggedIn()) throw new Error('先に Google でログインしてください。');
@@ -319,6 +337,8 @@ const Sync = (() => {
       const remote = await remoteRead();
       const remoteTime = remote ? remote.lastModified : 0;
       let action = force || decideDirection(Store.getLastModified(), remoteTime, getMarker());
+      let result = null;
+
       if (action === 'merge') {
         let remoteData = null;
         try { remoteData = JSON.parse(remote.json); } catch (e) { remoteData = null; }
@@ -334,13 +354,13 @@ const Sync = (() => {
           } finally {
             applying = false;
           }
-          await remoteWrite(mergedJson, merged.lastModified);
+          const w = await writeWithFallback(mergedJson, merged.lastModified);
           setMarker(merged.lastModified);
-          markSynced();
-          return { action: 'merge' };
+          result = { action: 'merge', mediaOmitted: w.mediaOmitted };
         }
       }
-      if (action === 'download') {
+
+      if (!result && action === 'download') {
         if (!remote) throw new Error('クラウドに同期データがまだありません。');
         applying = true;
         try {
@@ -349,17 +369,55 @@ const Sync = (() => {
           applying = false;
         }
         setMarker(remoteTime);
-      } else if (action === 'upload') {
+        result = { action: 'download' };
+      } else if (!result && action === 'upload') {
         const json = await Store.exportJSON();
-        await remoteWrite(json, Store.getLastModified());
+        const w = await writeWithFallback(json, Store.getLastModified());
         setMarker(Store.getLastModified());
-      } else {
+        result = { action: 'upload', mediaOmitted: w.mediaOmitted };
+      } else if (!result) {
         setMarker(Store.getLastModified());
+        result = { action: 'same' };
       }
+
       markSynced();
-      return { action };
+      lastError = null;
+      retries = 0;
+      watchRemote();
+      return result;
     } finally {
       syncing = false;
+    }
+  }
+
+  // ---- リアルタイム監視 (他の端末の更新を数秒で取り込む) ----
+
+  let unsubscribe = null;
+  let watchedKey = '';
+
+  function watchRemote() {
+    if (!isLoggedIn()) return;
+    const key = currentUser().uid + ':' + getMode();
+    if (unsubscribe && watchedKey === key) return;
+    unwatch();
+    try {
+      const ref = getMode() === 'doc' ? userDoc() : subCol().doc('meta');
+      if (typeof ref.onSnapshot !== 'function') return;
+      watchedKey = key;
+      unsubscribe = ref.onSnapshot(snap => {
+        const d = (snap && snap.data && snap.data()) || {};
+        const remoteTime = getMode() === 'doc' ? (d.fcModified || 0) : (d.lastModified || 0);
+        // 他の端末の書き込み (自分の書き込みは marker と一致するので反応しない)
+        if (remoteTime && remoteTime !== getMarker()) scheduleSync(1500);
+      }, () => { /* 監視エラーは無視 (次の同期で再接続) */ });
+    } catch (e) { /* リアルタイム監視は任意機能 */ }
+  }
+
+  function unwatch() {
+    if (unsubscribe) {
+      try { unsubscribe(); } catch (e) { /* 解除失敗は無視 */ }
+      unsubscribe = null;
+      watchedKey = '';
     }
   }
 
@@ -380,16 +438,33 @@ const Sync = (() => {
     if (!guard()) { scheduleSync(15000); return; } // 学習中はあとで再試行
     try {
       const r = await sync(null);
-      if (statusCb) statusCb({ ok: true, action: r.action });
+      if (statusCb) statusCb({ ok: true, action: r.action, mediaOmitted: r.mediaOmitted });
     } catch (e) {
       console.warn('自動同期に失敗しました:', e);
+      lastError = e.message;
       if (statusCb) statusCb({ ok: false, error: e.message });
+      // 一時的なエラーに備えて数回だけ自動リトライ
+      if (retries < 3) { retries++; scheduleSync(20000 * retries); }
     }
+  }
+
+  // 診断情報 (設定画面に表示)
+  function diag() {
+    const user = currentUser();
+    return {
+      available: isAvailable(),
+      email: user ? (user.email || '') : '',
+      uid: user ? user.uid : '',
+      mode: getMode(),
+      watching: !!unsubscribe,
+      lastError,
+      lastSync: lastSyncTime(),
+    };
   }
 
   return {
     isAvailable, init, currentUser, isLoggedIn, login, logout, onAuthChanged,
     sync, decideDirection, mergeData, lastSyncTime, isApplying,
-    setGuard, onStatus, scheduleSync,
+    setGuard, onStatus, scheduleSync, diag,
   };
 })();

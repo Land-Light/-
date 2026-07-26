@@ -225,9 +225,14 @@ const Store = (() => {
 
   // ---- バックアップ (メディア込み) ----
 
-  async function exportJSON() {
+  // includeMedia=false は同期の容量制限時の縮退用。mediaOmitted フラグを立て、
+  // 受信側はローカルのメディアをそのまま保持する。
+  async function exportJSON(includeMedia = true) {
+    if (!includeMedia) {
+      return JSON.stringify({ ...load(), media: [], mediaOmitted: true });
+    }
     const media = await Media.exportAll();
-    return JSON.stringify({ ...load(), media }, null, 2);
+    return JSON.stringify({ ...load(), media });
   }
 
   async function importJSON(json, { touch = true } = {}) {
@@ -236,10 +241,13 @@ const Store = (() => {
       throw new Error('デッキまたはカードのデータが見つかりません');
     }
     const media = parsed.media || [];
+    const mediaOmitted = !!parsed.mediaOmitted;
     delete parsed.media;
+    delete parsed.mediaOmitted;
     data = migrate(parsed);
     save(touch);
-    await Media.importAll(media);
+    // メディア省略データの場合はローカルのメディアをそのまま残す
+    if (!mediaOmitted) await Media.importAll(media);
   }
 
   return {

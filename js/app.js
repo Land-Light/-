@@ -440,6 +440,24 @@
   //   attachMediaControls(container, list) — list を直接書き換える
   // ---------------------------------------------------------------
 
+  // 添付画像を縮小して同期容量を抑える (最大1280px・JPEG)
+  async function compressImage(file) {
+    if (!file.type.startsWith('image/') || file.type === 'image/gif') return file;
+    try {
+      const bmp = await createImageBitmap(file);
+      const scale = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+      if (scale === 1 && file.size < 300000) return file;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bmp.width * scale));
+      canvas.height = Math.max(1, Math.round(bmp.height * scale));
+      canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
+      return blob && blob.size < file.size ? blob : file;
+    } catch (e) {
+      return file; // 変換できない形式はそのまま
+    }
+  }
+
   let recorder = null;
   let recorderStream = null;
 
@@ -491,7 +509,8 @@
         const kind = file.type.startsWith('image/') ? 'image'
           : file.type.startsWith('audio/') ? 'audio' : null;
         if (!kind) continue;
-        const ref = await Media.add(file, kind, file.name);
+        const blob = kind === 'image' ? await compressImage(file) : file;
+        const ref = await Media.add(blob, kind, file.name);
         list.push(ref);
       }
       renderChips();
@@ -1127,9 +1146,14 @@
     }
 
     // ログイン済み — 自動同期が有効
+    const d = Sync.diag();
     el.innerHTML = `
       <p class="sync-account">✓ <strong>${esc(user.email || user.displayName || 'ログイン中')}</strong>
         として自動同期中</p>
+      <p class="hint sync-diag">診断: 保存先=${d.mode === 'doc' ? '単一ドキュメント (容量制限あり)' : 'サブコレクション'}
+        ・ リアルタイム監視=${d.watching ? 'オン' : 'オフ'}
+        ・ ID=${esc(d.uid.slice(0, 8))}…
+        ${d.lastError ? `<br>⚠ 直近のエラー: ${esc(d.lastError)}` : ''}</p>
       <div class="settings-actions">
         <button class="btn primary" id="btn-sync-now">今すぐ同期</button>
         <button class="btn outline" id="btn-sync-up" title="この端末のデータでクラウドを上書き">⬆ 強制アップロード</button>
@@ -1245,15 +1269,53 @@
   Media.sweep(Store.referencedMediaIds()).catch(() => {});
 
   // ---- 自動同期の配線 ----
+
+  // ヘッダーの同期インジケーター
+  function updateSyncIndicator(state, detail) {
+    const el = document.getElementById('sync-indicator');
+    if (!el) return;
+    if (!Sync.isAvailable() || !Sync.isLoggedIn()) { el.hidden = true; return; }
+    el.hidden = false;
+    el.classList.remove('ok', 'error', 'warn');
+    if (state === 'error') {
+      el.classList.add('error');
+      el.textContent = '⚠ 同期エラー';
+      el.title = detail || '設定画面で詳細を確認できます';
+    } else if (state === 'warn') {
+      el.classList.add('warn');
+      el.textContent = '⚠ 一部未同期';
+      el.title = detail || '';
+    } else {
+      el.classList.add('ok');
+      const t = new Date();
+      el.textContent = `✓ 同期 ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+      el.title = 'クラウドと同期済み';
+    }
+  }
+  const indicator = document.getElementById('sync-indicator');
+  if (indicator) indicator.onclick = () => nav('settings');
+
   // データが変わったら数秒後に自動アップロード
   Store.setOnChange(() => {
     if (!Sync.isApplying()) Sync.scheduleSync();
   });
   // 学習セッション中はダウンロード適用を延期 (画面が突然変わるのを防ぐ)
   Sync.setGuard(() => !session);
-  // クラウドから取り込んだら表示を更新
+  // 同期結果の反映
   Sync.onStatus(st => {
-    if (st.ok && (st.action === 'download' || st.action === 'merge') && !session) {
+    if (!st.ok) {
+      updateSyncIndicator('error', st.error);
+      const s = $('#sync-status');
+      if (s) s.textContent = `⚠ 自動同期に失敗しました: ${st.error}`;
+      return;
+    }
+    if (st.mediaOmitted) {
+      updateSyncIndicator('warn',
+        '容量制限のためカードのみ同期し、画像・音声は同期されていません。README記載のFirestoreルール追加で解除できます。');
+    } else {
+      updateSyncIndicator('ok');
+    }
+    if ((st.action === 'download' || st.action === 'merge') && !session) {
       const active = document.querySelector('.nav-item.active');
       nav(active ? active.dataset.screen : 'decks');
       const s = $('#sync-status');
@@ -1263,6 +1325,7 @@
   // ログイン状態が復元されたら起動時同期
   Sync.onAuthChanged(user => {
     if (user) Sync.scheduleSync(500);
+    else updateSyncIndicator();
     if ($('#sync-body')) renderSyncSection();
   });
 
