@@ -274,23 +274,30 @@
     renderStudy();
   }
 
+  // 長文は左揃え・行間広めで読みやすくする
+  function textDiv(raw, html, cls = '') {
+    const long = String(raw).length > 60 ? ' long' : '';
+    return `<div class="card-text ${cls}${long}">${html}</div>`;
+  }
+
   // カードの表/裏の本文 HTML (メディア込み)
   async function faceHTML(card, showAnswer) {
     if (card.type === 'cloze') {
-      let html = `<div class="card-text">${clozeHTML(card.clozeText, card.clozeIndex, showAnswer)}</div>`;
+      let html = textDiv(clozePlain(card.clozeText),
+        clozeHTML(card.clozeText, card.clozeIndex, showAnswer));
       html += await mediaHTML(card.frontMedia);
       if (showAnswer && (card.back || (card.backMedia || []).length)) {
         html += `<hr class="card-divider">`;
-        if (card.back) html += `<div class="card-text answer extra">${fmt(card.back)}</div>`;
+        if (card.back) html += textDiv(card.back, fmt(card.back), 'extra');
         html += await mediaHTML(card.backMedia);
       }
       return html;
     }
-    let html = `<div class="card-text">${fmt(card.front)}</div>`;
+    let html = textDiv(card.front, fmt(card.front));
     html += await mediaHTML(card.frontMedia);
     if (showAnswer) {
       html += `<hr class="card-divider">`;
-      html += `<div class="card-text answer">${fmt(card.back)}</div>`;
+      html += textDiv(card.back, fmt(card.back), 'answer');
       html += await mediaHTML(card.backMedia);
     }
     return html;
