@@ -182,14 +182,46 @@ const Sync = (() => {
     }, { merge: true });
   }
 
-  async function remoteRead() {
-    if (getMode() === 'doc') return docRead();
+  // 両方の保存場所を確認する。
+  // 旧バージョンの端末が単一ドキュメント側に書いたデータが残っている場合
+  // (docLeftover=true)、呼び出し側で統合してサブコレクションに一本化する。
+  async function readBoth() {
+    let sub = null;
     try {
-      return await subRead();
+      sub = await subRead();
     } catch (e) {
-      if (isPermissionError(e)) { setMode('doc'); return docRead(); }
-      throw e;
+      if (!isPermissionError(e)) throw e;
+      // サブコレクションが拒否される環境 → 従来どおり単一ドキュメントで運用
+      setMode('doc');
+      return { remote: await docRead(), docLeftover: false };
     }
+    setMode('sub'); // サブコレクションが使えるなら常に正規の保存先に戻す
+    let doc = null;
+    try { doc = await docRead(); } catch (e) { doc = null; }
+    if (!doc) return { remote: sub, docLeftover: false };
+    if (!sub) return { remote: doc, docLeftover: true };
+    // 両方にデータがある (保存先が分裂していた) → 統合したものをリモートとして扱う
+    let subData = null, docData = null;
+    try { subData = JSON.parse(sub.json); } catch (e) { subData = null; }
+    try { docData = JSON.parse(doc.json); } catch (e) { docData = null; }
+    if (!subData) return { remote: doc, docLeftover: true };
+    if (!docData) return { remote: sub, docLeftover: true };
+    const combined = mergeData(subData, docData);
+    return {
+      remote: { json: JSON.stringify(combined), lastModified: combined.lastModified },
+      docLeftover: true,
+    };
+  }
+
+  // 一本化が済んだら単一ドキュメント側の旧データを消す
+  async function clearDocLeftover() {
+    try {
+      await userDoc().set({
+        fcData: firebase.firestore.FieldValue.delete(),
+        fcModified: firebase.firestore.FieldValue.delete(),
+        fcUpdatedAt: firebase.firestore.FieldValue.delete(),
+      }, { merge: true });
+    } catch (e) { /* 失敗しても次回の同期で再統合されるだけなので無視 */ }
   }
 
   async function remoteWrite(json, lastModified) {
@@ -364,9 +396,11 @@ const Sync = (() => {
   }
 
   async function syncInner(force) {
-      const remote = await remoteRead();
+      const { remote, docLeftover } = await readBoth();
       const remoteTime = remote ? remote.lastModified : 0;
       let action = force || decideDirection(Store.getLastModified(), remoteTime, getMarker());
+      // 保存先が分裂していた場合は必ず統合し、正規の保存先へ書き戻す
+      if (docLeftover && getMode() === 'sub' && !force && remote) action = 'merge';
       let result = null;
 
       if (action === 'merge') {
@@ -410,6 +444,7 @@ const Sync = (() => {
         result = { action: 'same' };
       }
 
+      if (docLeftover && getMode() === 'sub') await clearDocLeftover();
       markSynced();
       lastError = null;
       retries = 0;
