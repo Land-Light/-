@@ -7,7 +7,7 @@
 
 **ブラウザでそのまま使う (GitHub Pages):**
 
-https://land-light.github.io/-/
+https://land-light.github.io/-/flashcards/
 
 **ローカルで使う:**
 
@@ -23,8 +23,9 @@ python3 -m http.server 8000
 ```
 
 初回起動時にはサンプルデッキ（英単語＋穴埋めの例）が入っています。
-`main` または開発ブランチに push すると GitHub Actions
-(`.github/workflows/pages.yml`) が自動で GitHub Pages にデプロイします。
+`main` に push すると GitHub Actions (`.github/workflows/pages.yml`) が
+`gh-pages` ブランチの `flashcards/` へ自動デプロイします
+（`gh-pages` 上の既存アプリには触れません）。
 
 ## 主な機能
 
