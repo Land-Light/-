@@ -538,6 +538,22 @@ input:focus, select:focus, textarea:focus {
   overflow-wrap: anywhere;
 }
 
+.sync-diag { overflow-wrap: anywhere; }
+
+.sync-indicator {
+  font: inherit;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: var(--surface);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sync-indicator.ok { color: var(--due); }
+.sync-indicator.warn { color: var(--hard); border-color: var(--hard); }
+.sync-indicator.error { color: var(--again); border-color: var(--again); }
+
 /* ---- モバイル ---- */
 
 @media (max-width: 520px) {
