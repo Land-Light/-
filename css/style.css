@@ -181,6 +181,7 @@ kbd {
 .count.due { color: var(--due); }
 
 .deck-actions { display: flex; gap: 4px; align-items: center; }
+.btn-cram { padding: 10px 12px; font-size: 0.85rem; white-space: nowrap; }
 
 /* ---- 学習画面 ---- */
 
@@ -520,7 +521,26 @@ input:focus, select:focus, textarea:focus {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 10px;
+  flex-wrap: wrap;
 }
+
+/* ---- 確認・入力ダイアログ ---- */
+
+.modal.dialog { max-width: 420px; }
+.dialog-text { margin: 0 0 14px; overflow-wrap: anywhere; }
+.dialog-input {
+  width: 100%;
+  margin-bottom: 6px;
+}
+.dialog-choice { margin-bottom: 8px; text-align: left; }
+.btn.danger { background: var(--again); color: #fff; }
+.btn.danger:hover { filter: brightness(1.08); }
+
+/* ---- 直前モード ---- */
+
+.badge.cram { background: #7c3aed; }
+.rate-row.cram { grid-template-columns: 1fr 1fr; }
+.rate-row.cram .btn.rate { padding: 14px 6px; }
 
 /* ---- 学習画面の補助 ---- */
 
@@ -567,4 +587,8 @@ input:focus, select:focus, textarea:focus {
   .card-text { font-size: 1.1rem; }
   .btn.rate kbd { display: none; }
   .deck-counts-header .count, .deck-counts .count { min-width: 1.8em; }
+  /* デッキ行はボタンを下の行に回して横あふれを防ぐ */
+  .deck-header, .deck-row { grid-template-columns: 1fr auto; }
+  .deck-actions { grid-column: 1 / -1; justify-content: flex-end; }
+  .btn.primary.btn-study, .btn-cram { padding: 8px 14px; }
 }

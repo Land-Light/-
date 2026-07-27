@@ -186,6 +186,81 @@
   }
 
   // ---------------------------------------------------------------
+  // アプリ内ダイアログ
+  // iOS の Brave / Safari はページ内の confirm() や prompt() を
+  // ブロックすることがあるため、自前のモーダルで代替する。
+  // ---------------------------------------------------------------
+
+  function openDialog(bodyHTML, setup) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay dialog-overlay';
+      overlay.innerHTML = `<div class="modal dialog">${bodyHTML}</div>`;
+      document.body.appendChild(overlay);
+      let done = false;
+      const close = value => {
+        if (done) return;
+        done = true;
+        overlay.remove();
+        resolve(value);
+      };
+      overlay.onclick = e => { if (e.target === overlay) close(null); };
+      setup(overlay, close);
+    });
+  }
+
+  // はい / いいえの確認。true か false を返す。
+  function askConfirm(message, { okLabel = 'OK', danger = false } = {}) {
+    return openDialog(`
+      <p class="dialog-text">${fmt(message)}</p>
+      <div class="modal-actions">
+        <button class="btn text" data-act="cancel">キャンセル</button>
+        <button class="btn ${danger ? 'danger' : 'primary'}" data-act="ok">${esc(okLabel)}</button>
+      </div>`, (overlay, close) => {
+      overlay.querySelector('[data-act="cancel"]').onclick = () => close(false);
+      overlay.querySelector('[data-act="ok"]').onclick = () => close(true);
+    }).then(v => v === true);
+  }
+
+  // 1 行テキスト入力。入力値、キャンセル時は null を返す。
+  function askText(message, defaultValue = '', { okLabel = 'OK' } = {}) {
+    return openDialog(`
+      <p class="dialog-text">${fmt(message)}</p>
+      <input type="text" class="dialog-input" value="${esc(defaultValue)}">
+      <div class="modal-actions">
+        <button class="btn text" data-act="cancel">キャンセル</button>
+        <button class="btn primary" data-act="ok">${esc(okLabel)}</button>
+      </div>`, (overlay, close) => {
+      const input = overlay.querySelector('.dialog-input');
+      const submit = () => close(input.value);
+      overlay.querySelector('[data-act="cancel"]').onclick = () => close(null);
+      overlay.querySelector('[data-act="ok"]').onclick = submit;
+      input.onkeydown = e => {
+        if (e.key === 'Enter') { e.preventDefault(); submit(); }
+        if (e.key === 'Escape') close(null);
+      };
+      setTimeout(() => { input.focus(); input.select(); }, 30);
+    });
+  }
+
+  // 選択肢メニュー。options = [{ label, value, danger }]
+  function askChoice(title, options) {
+    const buttons = options.map((o, i) =>
+      `<button class="btn ${o.danger ? 'danger' : 'outline'} wide dialog-choice" data-i="${i}">${esc(o.label)}</button>`).join('');
+    return openDialog(`
+      <p class="dialog-text">${fmt(title)}</p>
+      ${buttons}
+      <div class="modal-actions">
+        <button class="btn text" data-act="cancel">キャンセル</button>
+      </div>`, (overlay, close) => {
+      overlay.querySelector('[data-act="cancel"]').onclick = () => close(null);
+      for (const btn of overlay.querySelectorAll('.dialog-choice')) {
+        btn.onclick = () => close(options[Number(btn.dataset.i)].value);
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------
   // 画面: デッキ一覧 (ホーム)
   // ---------------------------------------------------------------
 
@@ -209,6 +284,9 @@
           <div class="deck-actions">
             <button class="btn primary btn-study" data-deck="${deck.id}"
               ${c.newCount + c.learnCount + c.dueCount === 0 ? 'disabled' : ''}>学習</button>
+            <button class="btn outline btn-cram" data-deck="${deck.id}"
+              title="期限に関係なく全カードをランダムに解き続ける"
+              ${c.total === 0 ? 'disabled' : ''}>⚡直前</button>
             <button class="btn icon btn-deck-menu" data-deck="${deck.id}" title="デッキ操作">⋯</button>
           </div>
         </div>`;
@@ -233,29 +311,40 @@
         <button class="btn outline wide" id="btn-add-deck">＋ デッキを追加</button>
       </div>`;
 
-    $('#btn-add-deck').onclick = () => {
-      const name = prompt('デッキ名を入力してください:');
+    $('#btn-add-deck').onclick = async () => {
+      const name = await askText('デッキ名を入力してください', '', { okLabel: '作成' });
       if (name && name.trim()) { Store.addDeck(name); renderDecks(); }
     };
     for (const btn of document.querySelectorAll('.btn-study')) {
       btn.onclick = e => { e.stopPropagation(); startStudy(btn.dataset.deck); };
+    }
+    for (const btn of document.querySelectorAll('.btn-cram')) {
+      btn.onclick = e => { e.stopPropagation(); startCram(btn.dataset.deck); };
     }
     for (const btn of document.querySelectorAll('.btn-deck-menu')) {
       btn.onclick = e => { e.stopPropagation(); deckMenu(btn.dataset.deck); };
     }
   }
 
-  function deckMenu(deckId) {
+  async function deckMenu(deckId) {
     const deck = Store.getDeck(deckId);
     if (!deck) return;
-    const choice = prompt(
-      `「${deck.name}」の操作:\n  1 = 名前を変更\n  2 = デッキを削除\n番号を入力してください:`);
-    if (choice === '1') {
-      const name = prompt('新しいデッキ名:', deck.name);
+    const n = Store.getCards(deckId).length;
+    const choice = await askChoice(`「${deck.name}」(${n} 枚)`, [
+      { label: '✎ 名前を変更', value: 'rename' },
+      { label: '⚡ 直前モードで解く', value: 'cram' },
+      { label: '🗑 デッキを削除', value: 'delete', danger: true },
+    ]);
+    if (choice === 'rename') {
+      const name = await askText('新しいデッキ名', deck.name, { okLabel: '変更' });
       if (name && name.trim()) { Store.renameDeck(deckId, name); renderDecks(); }
-    } else if (choice === '2') {
-      const n = Store.getCards(deckId).length;
-      if (confirm(`「${deck.name}」とカード ${n} 枚を削除します。よろしいですか？`)) {
+    } else if (choice === 'cram') {
+      startCram(deckId);
+    } else if (choice === 'delete') {
+      const ok = await askConfirm(
+        `「${deck.name}」とカード ${n} 枚を削除します。\nこの操作は取り消せません。`,
+        { okLabel: '削除する', danger: true });
+      if (ok) {
         Store.deleteDeck(deckId);
         Media.sweep(Store.referencedMediaIds());
         renderDecks();
@@ -271,6 +360,32 @@
     const queue = buildQueue(deckId);
     if (queue.length === 0) { renderDecks(); return; }
     session = { deckId, queue, answered: 0, showingAnswer: false, history: [] };
+    renderStudy();
+  }
+
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // 直前モード: 期限を無視して全カードをランダム順に出し続ける。
+  // 復習スケジュール (SRS 状態) には一切影響しない。
+  function startCram(deckId) {
+    const cards = Store.getCards(deckId);
+    if (cards.length === 0) { renderDecks(); return; }
+    session = {
+      deckId, cram: true,
+      queue: shuffle(cards),
+      total: cards.length,
+      round: 1,
+      answered: 0, correct: 0,
+      showingAnswer: false,
+      history: [],
+    };
     renderStudy();
   }
 
@@ -306,6 +421,13 @@
   async function renderStudy() {
     if (!session) { renderDecks(); return; }
 
+    // 直前モードは終わりがない: キューが空になったら次のラウンドへ
+    if (session.cram && session.queue.length === 0) {
+      session.round += 1;
+      session.queue = shuffle(Store.getCards(session.deckId));
+      if (session.queue.length === 0) { renderDecks(); return; }
+    }
+
     if (session.queue.length === 0) {
       const deck = Store.getDeck(session.deckId);
       app.innerHTML = `
@@ -328,42 +450,63 @@
 
     const body = await faceHTML(card, session.showingAnswer);
 
+    const meta = session.cram
+      ? `<div class="study-meta">
+           <span>${esc(deck ? deck.name : '')}</span>
+           <span class="badge cram">⚡直前 ${session.round}周目</span>
+           <span class="meta-right">残り ${session.queue.length} / ${session.total} ${undoBtn}</span>
+         </div>`
+      : `<div class="study-meta">
+           <span>${esc(deck ? deck.name : '')}</span>
+           <span class="badge ${card.state}">${STATE_LABEL[card.state]}</span>
+           <span class="meta-right">残り ${session.queue.length} 枚 ${undoBtn}</span>
+         </div>`;
+    const quitLabel = session.cram ? '直前モードを終了' : '学習を終了';
+
     if (!session.showingAnswer) {
       app.innerHTML = `
         <div class="screen study">
-          <div class="study-meta">
-            <span>${esc(deck ? deck.name : '')}</span>
-            <span class="badge ${card.state}">${STATE_LABEL[card.state]}</span>
-            <span class="meta-right">残り ${session.queue.length} 枚 ${undoBtn}</span>
-          </div>
+          ${meta}
           <div class="card-face">${body}</div>
           <button class="btn primary wide" id="btn-show">答えを表示 <kbd>Space</kbd></button>
-          <button class="btn text" id="btn-quit">学習を終了</button>
+          <button class="btn text" id="btn-quit">${quitLabel}</button>
         </div>`;
       $('#btn-show').onclick = showAnswer;
       $('#btn-quit').onclick = renderDecks;
     } else {
-      const previews = SRS.previewIntervals(card);
-      let buttons = '';
-      for (const r of [1, 2, 3, 4]) {
-        const info = RATING_INFO[r];
-        buttons += `
-          <button class="btn rate ${info.cls}" data-rating="${r}">
-            <span class="rate-label">${info.label}</span>
-            <span class="rate-interval">${previews[r]}</span>
-            <kbd>${info.key}</kbd>
+      let buttons;
+      if (session.cram) {
+        // 直前モードは 2 択。スケジュールは変えず、間違えた分だけ周回中に再出題する。
+        buttons = `
+          <button class="btn rate again cram-rate" data-rating="1">
+            <span class="rate-label">できなかった</span>
+            <span class="rate-interval">この周でもう一度</span>
+            <kbd>1</kbd>
+          </button>
+          <button class="btn rate good cram-rate" data-rating="3">
+            <span class="rate-label">できた</span>
+            <span class="rate-interval">次のカードへ</span>
+            <kbd>Space</kbd>
           </button>`;
+      } else {
+        const previews = SRS.previewIntervals(card);
+        buttons = '';
+        for (const r of [1, 2, 3, 4]) {
+          const info = RATING_INFO[r];
+          buttons += `
+            <button class="btn rate ${info.cls}" data-rating="${r}">
+              <span class="rate-label">${info.label}</span>
+              <span class="rate-interval">${previews[r]}</span>
+              <kbd>${info.key}</kbd>
+            </button>`;
+        }
       }
       app.innerHTML = `
         <div class="screen study">
-          <div class="study-meta">
-            <span>${esc(deck ? deck.name : '')}</span>
-            <span class="badge ${card.state}">${STATE_LABEL[card.state]}</span>
-            <span class="meta-right">残り ${session.queue.length} 枚 ${undoBtn}</span>
-          </div>
+          ${meta}
           <div class="card-face">${body}</div>
-          <div class="rate-row">${buttons}</div>
-          <button class="btn text" id="btn-quit">学習を終了</button>
+          <div class="rate-row${session.cram ? ' cram' : ''}">${buttons}</div>
+          <button class="btn text" id="btn-quit">${quitLabel}</button>
         </div>`;
       for (const btn of document.querySelectorAll('.btn.rate')) {
         btn.onclick = () => rateCard(Number(btn.dataset.rating));
@@ -407,6 +550,24 @@
     });
     if (session.history.length > 20) session.history.shift();
 
+    // 直前モード: SRS 状態も統計も変更しない
+    if (session.cram) {
+      const card = session.queue.shift();
+      session.answered += 1;
+      session.showingAnswer = false;
+      if (rating === 1) {
+        // できなかったカードは同じ周回の後ろの方にランダムに戻す
+        const rest = session.queue.length;
+        const idx = rest === 0 ? 0
+          : Math.min(rest, Math.floor(rest / 2) + Math.floor(Math.random() * (Math.ceil(rest / 2) + 1)));
+        session.queue.splice(Math.max(1, idx), 0, card);
+      } else {
+        session.correct += 1;
+      }
+      renderStudy();
+      return;
+    }
+
     const card = session.queue.shift();
     const snap = session.history[session.history.length - 1];
     const next = SRS.answer(card, rating);
@@ -430,6 +591,16 @@
   function undoAnswer() {
     if (!session || !session.history.length) return;
     const entry = session.history.pop();
+
+    // 直前モードはキューだけ戻せばよい (カードは変更していない)
+    if (session.cram) {
+      session.queue = entry.queue.map(c => Store.getCard(c.id) || c);
+      session.answered = Math.max(0, session.answered - 1);
+      session.showingAnswer = false;
+      renderStudy();
+      return;
+    }
+
     // SRS 状態のみ巻き戻す (本文編集は保持)
     const { state, ease, intervalDays, stepIndex, due, reps, lapses } = entry.card;
     Store.updateCard(entry.card.id, { state, ease, intervalDays, stepIndex, due, reps, lapses });
@@ -948,8 +1119,15 @@
         btn.onclick = () => openEditModal(btn.dataset.id, refresh);
       }
       for (const btn of document.querySelectorAll('.btn-del')) {
-        btn.onclick = () => {
-          if (confirm('このカードを削除しますか？')) {
+        btn.onclick = async () => {
+          const card = Store.getCard(btn.dataset.id);
+          const label = card
+            ? (card.type === 'cloze' ? clozePlain(card.clozeText) : card.front).slice(0, 40)
+            : '';
+          const ok = await askConfirm(
+            `このカードを削除しますか？${label ? `\n\n「${label}」` : ''}`,
+            { okLabel: '削除する', danger: true });
+          if (ok) {
             Store.deleteCard(btn.dataset.id);
             Media.sweep(Store.referencedMediaIds());
             refresh();
@@ -1102,7 +1280,10 @@
     $('#import-file').onchange = async e => {
       const file = e.target.files[0];
       if (!file) return;
-      if (!confirm('現在のデータ (メディア含む) をインポート内容で置き換えます。よろしいですか？')) return;
+      const ok = await askConfirm(
+        '現在のデータ (メディア含む) をインポート内容で置き換えます。よろしいですか？',
+        { okLabel: '置き換える', danger: true });
+      if (!ok) { e.target.value = ''; return; }
       try {
         await Store.importJSON(await file.text());
         $('#backup-status').textContent = '✓ インポートしました';
@@ -1172,12 +1353,14 @@
     const runSync = async force => {
       setStatus('同期中...');
       try {
-        if (force === 'download' &&
-            !confirm('クラウドのデータでこの端末のデータを上書きします。よろしいですか？')) {
+        if (force === 'download' && !await askConfirm(
+            'クラウドのデータでこの端末のデータを上書きします。よろしいですか？',
+            { okLabel: 'ダウンロード', danger: true })) {
           setStatus(''); return;
         }
-        if (force === 'upload' &&
-            !confirm('この端末のデータでクラウドのデータを上書きします。よろしいですか？')) {
+        if (force === 'upload' && !await askConfirm(
+            'この端末のデータでクラウドのデータを上書きします。よろしいですか？',
+            { okLabel: 'アップロード', danger: true })) {
           setStatus(''); return;
         }
         const { action } = await Sync.sync(force);
@@ -1235,7 +1418,8 @@
       else rateCard(3);
     } else if (['1', '2', '3', '4'].includes(e.key)) {
       e.preventDefault();
-      rateCard(Number(e.key));
+      // 直前モードは 2 択なので 1 以外は「できた」扱い
+      rateCard(session.cram && e.key !== '1' ? 3 : Number(e.key));
     } else if (e.key === 'r' || e.key === 'R') {
       e.preventDefault();
       replayAudio();
