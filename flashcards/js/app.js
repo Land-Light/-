@@ -900,12 +900,8 @@
             <select id="add-deck">${options}</select>
           </label>
           <label class="field">
-            <span>ノートタイプ</span>
-            <select id="add-type">
-              <option value="basic">基本</option>
-              <option value="reversed">基本と反転カード</option>
-              <option value="cloze">穴埋め (Cloze)</option>
-            </select>
+            <span>分野 (任意)</span>
+            <select id="add-category"></select>
           </label>
         </div>
 
@@ -940,8 +936,12 @@
         </div>
 
         <label class="field">
-          <span>分野 (任意 — デッキ内をさらに細かく分類できます。未設定のままでも作成できます)</span>
-          <select id="add-category"></select>
+          <span>ノートタイプ</span>
+          <select id="add-type">
+            <option value="basic">基本</option>
+            <option value="reversed">基本と反転カード</option>
+            <option value="cloze">穴埋め (Cloze)</option>
+          </select>
         </label>
 
         <label class="field">
