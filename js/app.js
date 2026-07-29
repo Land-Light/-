@@ -19,6 +19,8 @@
 
   // 現在の学習セッション
   let session = null;
+  // デッキ一覧で分野を展開しているデッキ
+  const expandedDecks = new Set();
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, c => ({
@@ -146,9 +148,10 @@
     };
   }
 
-  function deckCounts(deckId) {
+  // category: null=デッキ全体 / ''=分野未設定のみ / 文字列=その分野のみ
+  function deckCounts(deckId, category = null) {
     const eod = SRS.endOfToday();
-    const cards = Store.getCards(deckId);
+    const cards = Store.getCardsByCategory(deckId, category);
     const { newLimit, reviewLimit } = limits();
 
     let newCount = 0, learnCount = 0, dueCount = 0;
@@ -167,9 +170,9 @@
   }
 
   // 学習キューを構築: 期限切れ learning → review → new の優先順
-  function buildQueue(deckId) {
+  function buildQueue(deckId, category = null) {
     const eod = SRS.endOfToday();
-    const cards = Store.getCards(deckId);
+    const cards = Store.getCardsByCategory(deckId, category);
     const { newLimit, reviewLimit } = limits();
 
     const learning = cards.filter(c =>
@@ -270,12 +273,25 @@
     const decks = Store.getDecks();
     const stats = Store.todayStats();
 
+    // 分野行のクリック対象 (分野名は自由入力なので添字で参照する)
+    const catRefs = [];
+
     let rows = '';
     for (const deck of decks) {
       const c = deckCounts(deck.id);
+      const cats = Store.getCategories(deck.id);
+      const hasUncat = Store.getCards(deck.id).some(x => !x.category);
+      const expandable = cats.length > 0;
+      const expanded = expandedDecks.has(deck.id);
       rows += `
         <div class="deck-row" data-deck="${deck.id}">
-          <div class="deck-name">${esc(deck.name)}</div>
+          <div class="deck-name">
+            ${expandable
+              ? `<button class="cat-toggle" data-deck="${deck.id}"
+                   title="分野を表示">${expanded ? '▾' : '▸'}</button>` : ''}
+            ${esc(deck.name)}
+            ${expandable ? `<span class="cat-count">${cats.length}分野</span>` : ''}
+          </div>
           <div class="deck-counts">
             <span class="count new" title="新規">${c.newCount}</span>
             <span class="count learn" title="学習中">${c.learnCount}</span>
@@ -290,6 +306,36 @@
             <button class="btn icon btn-deck-menu" data-deck="${deck.id}" title="デッキ操作">⋯</button>
           </div>
         </div>`;
+
+      if (expanded) {
+        const list = [...cats];
+        if (hasUncat) list.push(''); // 分野未設定はまとめて最後に
+        for (const cat of list) {
+          const i = catRefs.push({ deckId: deck.id, category: cat }) - 1;
+          const cc = deckCounts(deck.id, cat);
+          rows += `
+            <div class="deck-row cat-row">
+              <div class="deck-name">
+                <span class="cat-mark">↳</span>
+                ${cat ? esc(cat) : '<span class="cat-none">分野なし</span>'}
+                <span class="cat-count">${cc.total}枚</span>
+              </div>
+              <div class="deck-counts">
+                <span class="count new">${cc.newCount}</span>
+                <span class="count learn">${cc.learnCount}</span>
+                <span class="count due">${cc.dueCount}</span>
+              </div>
+              <div class="deck-actions">
+                <button class="btn primary btn-study-cat" data-i="${i}"
+                  ${cc.newCount + cc.learnCount + cc.dueCount === 0 ? 'disabled' : ''}>学習</button>
+                <button class="btn outline btn-cram-cat" data-i="${i}"
+                  ${cc.total === 0 ? 'disabled' : ''}>⚡直前</button>
+                ${cat ? `<button class="btn icon btn-cat-menu" data-i="${i}"
+                  title="分野の操作">⋯</button>` : '<span class="cat-menu-space"></span>'}
+              </div>
+            </div>`;
+        }
+      }
     }
 
     app.innerHTML = `
@@ -324,6 +370,60 @@
     for (const btn of document.querySelectorAll('.btn-deck-menu')) {
       btn.onclick = e => { e.stopPropagation(); deckMenu(btn.dataset.deck); };
     }
+    for (const btn of document.querySelectorAll('.cat-toggle')) {
+      btn.onclick = e => {
+        e.stopPropagation();
+        const id = btn.dataset.deck;
+        if (expandedDecks.has(id)) expandedDecks.delete(id);
+        else expandedDecks.add(id);
+        renderDecks();
+      };
+    }
+    for (const btn of document.querySelectorAll('.btn-study-cat')) {
+      btn.onclick = e => {
+        e.stopPropagation();
+        const r = catRefs[Number(btn.dataset.i)];
+        startStudy(r.deckId, r.category);
+      };
+    }
+    for (const btn of document.querySelectorAll('.btn-cram-cat')) {
+      btn.onclick = e => {
+        e.stopPropagation();
+        const r = catRefs[Number(btn.dataset.i)];
+        startCram(r.deckId, r.category);
+      };
+    }
+    for (const btn of document.querySelectorAll('.btn-cat-menu')) {
+      btn.onclick = e => {
+        e.stopPropagation();
+        const r = catRefs[Number(btn.dataset.i)];
+        categoryMenu(r.deckId, r.category);
+      };
+    }
+  }
+
+  // 分野の操作 (名前の変更・分野なしへ戻す)
+  async function categoryMenu(deckId, category) {
+    const n = Store.getCardsByCategory(deckId, category).length;
+    const choice = await askChoice(`分野「${category}」(${n} 枚)`, [
+      { label: '✎ 分野名を変更', value: 'rename' },
+      { label: '⚡ この分野を直前モードで解く', value: 'cram' },
+      { label: '↩ 分野の設定を外す (カードは残ります)', value: 'clear' },
+    ]);
+    if (choice === 'rename') {
+      const name = await askText('新しい分野名', category, { okLabel: '変更' });
+      if (name !== null && name.trim()) {
+        Store.renameCategory(deckId, category, name.trim());
+        renderDecks();
+      }
+    } else if (choice === 'cram') {
+      startCram(deckId, category);
+    } else if (choice === 'clear') {
+      const ok = await askConfirm(
+        `「${category}」の ${n} 枚を「分野なし」に戻します。カードは削除されません。`,
+        { okLabel: '設定を外す' });
+      if (ok) { Store.renameCategory(deckId, category, ''); renderDecks(); }
+    }
   }
 
   async function deckMenu(deckId) {
@@ -356,10 +456,10 @@
   // 画面: 学習
   // ---------------------------------------------------------------
 
-  function startStudy(deckId) {
-    const queue = buildQueue(deckId);
+  function startStudy(deckId, category = null) {
+    const queue = buildQueue(deckId, category);
     if (queue.length === 0) { renderDecks(); return; }
-    session = { deckId, queue, answered: 0, showingAnswer: false, history: [] };
+    session = { deckId, category, queue, answered: 0, showingAnswer: false, history: [] };
     renderStudy();
   }
 
@@ -374,11 +474,11 @@
 
   // 直前モード: 期限を無視して全カードをランダム順に出し続ける。
   // 復習スケジュール (SRS 状態) には一切影響しない。
-  function startCram(deckId) {
-    const cards = Store.getCards(deckId);
+  function startCram(deckId, category = null) {
+    const cards = Store.getCardsByCategory(deckId, category);
     if (cards.length === 0) { renderDecks(); return; }
     session = {
-      deckId, cram: true,
+      deckId, category, cram: true,
       queue: shuffle(cards),
       total: cards.length,
       round: 1,
@@ -424,7 +524,7 @@
     // 直前モードは終わりがない: キューが空になったら次のラウンドへ
     if (session.cram && session.queue.length === 0) {
       session.round += 1;
-      session.queue = shuffle(Store.getCards(session.deckId));
+      session.queue = shuffle(Store.getCardsByCategory(session.deckId, session.category));
       if (session.queue.length === 0) { renderDecks(); return; }
     }
 
@@ -450,14 +550,19 @@
 
     const body = await faceHTML(card, session.showingAnswer);
 
+    // 分野を絞って学習中ならデッキ名に併記する
+    const scope = esc(deck ? deck.name : '') + (
+      session.category === null || session.category === undefined ? ''
+        : session.category ? ` <span class="scope-cat">/ ${esc(session.category)}</span>`
+        : ' <span class="scope-cat">/ 分野なし</span>');
     const meta = session.cram
       ? `<div class="study-meta">
-           <span>${esc(deck ? deck.name : '')}</span>
+           <span>${scope}</span>
            <span class="badge cram">⚡直前 ${session.round}周目</span>
            <span class="meta-right">残り ${session.queue.length} / ${session.total} ${undoBtn}</span>
          </div>`
       : `<div class="study-meta">
-           <span>${esc(deck ? deck.name : '')}</span>
+           <span>${scope}</span>
            <span class="badge ${card.state}">${STATE_LABEL[card.state]}</span>
            <span class="meta-right">残り ${session.queue.length} 枚 ${undoBtn}</span>
          </div>`;
@@ -806,6 +911,12 @@
         </div>
 
         <label class="field">
+          <span>分野 (任意 — デッキ内をさらに細かく分類できます。空欄のままでも作成できます)</span>
+          <input type="text" id="add-category" placeholder="例: 株式 / 機関 (省略可)">
+        </label>
+        <div class="cat-chips" id="add-cat-chips"></div>
+
+        <label class="field">
           <span>タグ (スペース区切り・省略可)</span>
           <input type="text" id="add-tags" placeholder="例: 英単語 重要">
         </label>
@@ -858,6 +969,34 @@
       $('#fields-cloze').hidden = !cloze;
     };
 
+    // 既存の分野をワンタップで入力できるチップ (デッキを変えると入れ替わる)
+    function renderCatChips() {
+      const cats = Store.getCategories($('#add-deck').value);
+      const el = $('#add-cat-chips');
+      el.innerHTML = cats.length
+        ? `<span class="cat-chips-label">既存の分野:</span>` + cats.map((c, i) =>
+            `<button type="button" class="cat-chip" data-i="${i}">${esc(c)}</button>`).join('')
+        : '';
+      for (const btn of el.querySelectorAll('.cat-chip')) {
+        btn.onclick = () => {
+          const v = cats[Number(btn.dataset.i)];
+          const input = $('#add-category');
+          input.value = input.value.trim() === v ? '' : v; // もう一度押すと解除
+          markActiveChips();
+        };
+      }
+      markActiveChips();
+    }
+    function markActiveChips() {
+      const cur = $('#add-category').value.trim();
+      for (const btn of $('#add-cat-chips').querySelectorAll('.cat-chip')) {
+        btn.classList.toggle('active', btn.textContent === cur);
+      }
+    }
+    $('#add-deck').addEventListener('change', renderCatChips);
+    $('#add-category').addEventListener('input', markActiveChips);
+    renderCatChips();
+
     // 選択範囲を {{cN::...}} で囲む
     function wrapCloze(useNewIndex) {
       const ta = $('#add-cloze');
@@ -879,6 +1018,7 @@
       const deckId = $('#add-deck').value;
       const type = $('#add-type').value;
       const tags = parseTags();
+      const category = $('#add-category').value.trim(); // 空欄可
 
       if (type === 'cloze') {
         const text = $('#add-cloze').value.trim();
@@ -892,7 +1032,7 @@
         for (const idx of indices) {
           Store.addCard(deckId, {
             type: 'cloze', noteId, clozeText: text, clozeIndex: idx,
-            back: extra, tags,
+            back: extra, tags, category,
             frontMedia: [...staged.clozefront], backMedia: [...staged.clozeback],
           });
         }
@@ -902,7 +1042,9 @@
         staged.clozeback.length = 0;
         widgets.clozefront.renderChips();
         widgets.clozeback.renderChips();
-        status(`✓ 穴埋めカードを ${indices.length} 枚追加しました`);
+        status(`✓ 穴埋めカードを ${indices.length} 枚追加しました`
+          + (category ? ` (分野: ${category})` : ''));
+        renderCatChips();
         $('#add-cloze').focus();
         return;
       }
@@ -917,12 +1059,12 @@
       }
       const noteId = 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       Store.addCard(deckId, {
-        type: 'basic', noteId, front, back, tags,
+        type: 'basic', noteId, front, back, tags, category,
         frontMedia: [...staged.front], backMedia: [...staged.back],
       });
       if (type === 'reversed') {
         Store.addCard(deckId, {
-          type: 'basic', noteId, front: back, back: front, tags,
+          type: 'basic', noteId, front: back, back: front, tags, category,
           frontMedia: [...staged.back], backMedia: [...staged.front],
         });
       }
@@ -932,7 +1074,9 @@
       staged.back.length = 0;
       widgets.front.renderChips();
       widgets.back.renderChips();
-      status(type === 'reversed' ? '✓ カードを 2 枚 (表↔裏) 追加しました' : '✓ カードを追加しました');
+      status((type === 'reversed' ? '✓ カードを 2 枚 (表↔裏) 追加しました' : '✓ カードを追加しました')
+        + (category ? ` (分野: ${category})` : ''));
+      renderCatChips();
       $('#add-front').focus();
     };
     $('#btn-save-card').onclick = saveCard;
@@ -949,11 +1093,14 @@
         const front = line.slice(0, tab).trim();
         const back = line.slice(tab + 1).trim();
         if (!front || !back) { skipped++; continue; }
-        Store.addCard($('#add-deck').value, { type: 'basic', front, back, tags: parseTags() });
+        Store.addCard($('#add-deck').value, {
+          type: 'basic', front, back, tags: parseTags(),
+          category: $('#add-category').value.trim(),
+        });
         ok++;
       }
       status(`✓ ${ok} 枚をインポートしました${skipped ? ` (${skipped} 行をスキップ)` : ''}`);
-      if (ok) $('#import-tsv').value = '';
+      if (ok) { $('#import-tsv').value = ''; renderCatChips(); }
     };
   }
 
@@ -1001,6 +1148,11 @@
         <h3>カードを編集</h3>
         ${bodyFields}
         <label class="field">
+          <span>分野 (任意・空欄可)</span>
+          <input type="text" id="edit-category" value="${esc(card.category || '')}">
+        </label>
+        <div class="cat-chips" id="edit-cat-chips"></div>
+        <label class="field">
           <span>タグ (スペース区切り)</span>
           <input type="text" id="edit-tags" value="${esc(card.tags.join(' '))}">
         </label>
@@ -1016,6 +1168,30 @@
     attachMediaControls(overlay.querySelector('.media-controls[data-side="front"]'), frontMedia, status);
     attachMediaControls(overlay.querySelector('.media-controls[data-side="back"]'), backMedia, status);
 
+    // 既存の分野をワンタップで選べるチップ
+    const catInput = overlay.querySelector('#edit-category');
+    const cats = Store.getCategories(card.deckId);
+    const chipsEl = overlay.querySelector('#edit-cat-chips');
+    if (cats.length) {
+      chipsEl.innerHTML = `<span class="cat-chips-label">既存の分野:</span>` + cats.map((c, i) =>
+        `<button type="button" class="cat-chip" data-i="${i}">${esc(c)}</button>`).join('');
+      const mark = () => {
+        const cur = catInput.value.trim();
+        for (const b of chipsEl.querySelectorAll('.cat-chip')) {
+          b.classList.toggle('active', b.textContent === cur);
+        }
+      };
+      for (const btn of chipsEl.querySelectorAll('.cat-chip')) {
+        btn.onclick = () => {
+          const v = cats[Number(btn.dataset.i)];
+          catInput.value = catInput.value.trim() === v ? '' : v;
+          mark();
+        };
+      }
+      catInput.addEventListener('input', mark);
+      mark();
+    }
+
     const close = () => overlay.remove();
     overlay.querySelector('#edit-cancel').onclick = close;
     overlay.onclick = e => { if (e.target === overlay) close(); };
@@ -1023,6 +1199,7 @@
     overlay.querySelector('#edit-save').onclick = () => {
       const tags = overlay.querySelector('#edit-tags').value
         .split(/[\s,]+/).map(t => t.trim()).filter(Boolean);
+      const category = catInput.value.trim();
       if (card.type === 'cloze') {
         const text = overlay.querySelector('#edit-cloze').value.trim();
         if (!text || !clozeIndices(text).includes(card.clozeIndex)) {
@@ -1032,7 +1209,7 @@
         Store.updateCard(card.id, {
           clozeText: text,
           back: overlay.querySelector('#edit-extra').value.trim(),
-          tags, frontMedia, backMedia,
+          tags, category, frontMedia, backMedia,
         });
       } else {
         const front = overlay.querySelector('#edit-front').value.trim();
@@ -1041,7 +1218,7 @@
           status('表面と裏面の両方に内容を入れてください。');
           return;
         }
-        Store.updateCard(card.id, { front, back, tags, frontMedia, backMedia });
+        Store.updateCard(card.id, { front, back, tags, category, frontMedia, backMedia });
       }
       close();
       onSaved && onSaved();
@@ -1064,21 +1241,51 @@
         <h2>カード一覧</h2>
         <div class="browse-controls">
           <select id="browse-deck">${options}</select>
-          <input type="search" id="browse-search" placeholder="本文・タグを検索...">
+          <select id="browse-cat"><option value="__all">すべての分野</option></select>
+          <input type="search" id="browse-search" placeholder="本文・分野・タグを検索...">
         </div>
         <div id="browse-list"></div>
       </div>`;
+
+    // デッキ選択に応じて分野の選択肢を組み立てる
+    const refreshCatOptions = () => {
+      const deckId = $('#browse-deck').value || null;
+      const sel = $('#browse-cat');
+      const prev = sel.value;
+      const cats = deckId
+        ? Store.getCategories(deckId)
+        : [...new Set(Store.getCards().map(c => c.category).filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b, 'ja'));
+      sel.innerHTML = `<option value="__all">すべての分野</option>` +
+        cats.map((c, i) => `<option value="c${i}">${esc(c)}</option>`).join('') +
+        `<option value="__none">分野なし</option>`;
+      sel.dataset.cats = JSON.stringify(cats);
+      if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+    };
+    refreshCatOptions();
 
     const refresh = () => {
       const deckId = $('#browse-deck').value || null;
       const q = $('#browse-search').value.trim().toLowerCase();
       const deckName = id => { const d = Store.getDeck(id); return d ? d.name : '?'; };
       let cards = Store.getCards(deckId);
+
+      // 分野で絞り込み
+      const catSel = $('#browse-cat');
+      const catList = JSON.parse(catSel.dataset.cats || '[]');
+      if (catSel.value === '__none') {
+        cards = cards.filter(c => !c.category);
+      } else if (catSel.value.startsWith('c')) {
+        const name = catList[Number(catSel.value.slice(1))];
+        cards = cards.filter(c => c.category === name);
+      }
+
       if (q) {
         cards = cards.filter(c =>
           c.front.toLowerCase().includes(q) ||
           c.back.toLowerCase().includes(q) ||
           c.clozeText.toLowerCase().includes(q) ||
+          (c.category || '').toLowerCase().includes(q) ||
           c.tags.some(t => t.toLowerCase().includes(q)));
       }
       cards = [...cards].sort((a, b) => b.createdAt - a.createdAt);
@@ -1105,7 +1312,8 @@
           </div>
           <div class="browse-side">
             <span class="badge ${c.state}">${STATE_LABEL[c.state]}</span>
-            <span class="browse-deckname">${esc(deckName(c.deckId))}</span>
+            <span class="browse-deckname">${esc(deckName(c.deckId))}${
+              c.category ? ` / ${esc(c.category)}` : ''}</span>
             ${c.state === 'review' ? `<span class="browse-due">間隔 ${c.intervalDays}日</span>` : ''}
           </div>
           <div class="browse-actions">
@@ -1136,7 +1344,8 @@
       }
     };
 
-    $('#browse-deck').onchange = refresh;
+    $('#browse-deck').onchange = () => { refreshCatOptions(); refresh(); };
+    $('#browse-cat').onchange = refresh;
     $('#browse-search').oninput = refresh;
     refresh();
   }

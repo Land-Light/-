@@ -48,6 +48,7 @@ const Store = (() => {
       if (!c.updatedAt) c.updatedAt = c.createdAt || 0;
       if (!c.type) c.type = 'basic';
       if (!c.noteId) c.noteId = c.id;
+      if (typeof c.category !== 'string') c.category = '';
       if (!Array.isArray(c.tags)) c.tags = [];
       if (!Array.isArray(c.frontMedia)) c.frontMedia = [];
       if (!Array.isArray(c.backMedia)) c.backMedia = [];
@@ -131,6 +132,7 @@ const Store = (() => {
       type: 'basic',
       front: '', back: '',
       clozeText: '', clozeIndex: 0,
+      category: '',
       tags: [],
       frontMedia: [], backMedia: [],
       createdAt: Date.now(),
@@ -168,6 +170,40 @@ const Store = (() => {
 
   function getCard(cardId) {
     return load().cards.find(c => c.id === cardId) || null;
+  }
+
+  // ---- 分野 (デッキ内の細分類。未設定は '' として扱う) ----
+
+  // デッキ内で使われている分野名の一覧 (空の分野は含まない)
+  function getCategories(deckId) {
+    const set = new Set();
+    for (const c of getCards(deckId)) {
+      if (c.category) set.add(c.category);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, 'ja'));
+  }
+
+  // category: null なら全件、'' なら分野未設定のみ、文字列ならその分野のみ
+  function getCardsByCategory(deckId, category = null) {
+    const cards = getCards(deckId);
+    if (category === null) return cards;
+    return cards.filter(c => (c.category || '') === category);
+  }
+
+  // 分野名の一括変更 (空文字にすると分野なしへ移動)
+  function renameCategory(deckId, from, to) {
+    const d = load();
+    const name = to.trim();
+    let n = 0;
+    for (const c of d.cards) {
+      if (c.deckId === deckId && (c.category || '') === from) {
+        c.category = name;
+        c.updatedAt = Date.now();
+        n++;
+      }
+    }
+    if (n) save();
+    return n;
   }
 
   // 全カードが参照しているメディア id の集合
@@ -254,6 +290,7 @@ const Store = (() => {
     load, save, getLastModified, setOnChange,
     addDeck, renameDeck, deleteDeck, getDecks, getDeck,
     addCard, updateCard, deleteCard, getCards, getCard,
+    getCategories, getCardsByCategory, renameCategory,
     referencedMediaIds,
     todayStats, recordAnswer, unrecordAnswer, getDayStats,
     getSettings, updateSettings,
