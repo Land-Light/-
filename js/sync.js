@@ -281,7 +281,11 @@ const Sync = (() => {
     for (const d of remote.decks || []) decks.set(d.id, d);
     for (const d of local.decks || []) {
       const r = decks.get(d.id);
-      if (!r || (d.updatedAt || 0) >= (r.updatedAt || 0)) decks.set(d.id, d);
+      if (!r) { decks.set(d.id, d); continue; }
+      // デッキ名などは新しい方を採用。分野の登録簿は両端末の和集合にする。
+      const winner = (d.updatedAt || 0) >= (r.updatedAt || 0) ? d : r;
+      const cats = [...new Set([...(r.categories || []), ...(d.categories || [])])];
+      decks.set(d.id, { ...winner, categories: cats });
     }
 
     const cards = new Map();

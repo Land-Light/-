@@ -15,6 +15,8 @@
   };
 
   const STATE_LABEL = { new: '新規', learning: '学習中', relearning: '再学習', review: '復習' };
+  // 分野プルダウンで「新しい分野を追加…」を表す値 (分野名として使えない文字列)
+  const NEW_CATEGORY = '__new_category__';
   const CLOZE_RE = /\{\{c(\d+)::([\s\S]*?)(?:::([\s\S]*?))?\}\}/g;
 
   // 現在の学習セッション
@@ -402,14 +404,16 @@
     }
   }
 
-  // 分野の操作 (名前の変更・分野なしへ戻す)
+  // 分野の操作 (名前の変更・分野の削除)
   async function categoryMenu(deckId, category) {
     const n = Store.getCardsByCategory(deckId, category).length;
-    const choice = await askChoice(`分野「${category}」(${n} 枚)`, [
-      { label: '✎ 分野名を変更', value: 'rename' },
-      { label: '⚡ この分野を直前モードで解く', value: 'cram' },
-      { label: '↩ 分野の設定を外す (カードは残ります)', value: 'clear' },
-    ]);
+    const items = [{ label: '✎ 分野名を変更', value: 'rename' }];
+    if (n > 0) items.push({ label: '⚡ この分野を直前モードで解く', value: 'cram' });
+    items.push({
+      label: n > 0 ? '🗑 分野を削除 (カードは残ります)' : '🗑 分野を削除',
+      value: 'delete', danger: true,
+    });
+    const choice = await askChoice(`分野「${category}」(${n} 枚)`, items);
     if (choice === 'rename') {
       const name = await askText('新しい分野名', category, { okLabel: '変更' });
       if (name !== null && name.trim()) {
@@ -418,11 +422,17 @@
       }
     } else if (choice === 'cram') {
       startCram(deckId, category);
-    } else if (choice === 'clear') {
-      const ok = await askConfirm(
-        `「${category}」の ${n} 枚を「分野なし」に戻します。カードは削除されません。`,
-        { okLabel: '設定を外す' });
-      if (ok) { Store.renameCategory(deckId, category, ''); renderDecks(); }
+    } else if (choice === 'delete') {
+      const ok = n > 0
+        ? await askConfirm(
+            `分野「${category}」を削除します。\n${n} 枚のカードは「分野なし」として残ります。`,
+            { okLabel: '削除する', danger: true })
+        : true;
+      if (ok) {
+        if (n > 0) Store.renameCategory(deckId, category, '');
+        Store.removeCategory(deckId, category);
+        renderDecks();
+      }
     }
   }
 
@@ -432,12 +442,22 @@
     const n = Store.getCards(deckId).length;
     const choice = await askChoice(`「${deck.name}」(${n} 枚)`, [
       { label: '✎ 名前を変更', value: 'rename' },
+      { label: '＋ 分野を追加', value: 'addcat' },
       { label: '⚡ 直前モードで解く', value: 'cram' },
       { label: '🗑 デッキを削除', value: 'delete', danger: true },
     ]);
     if (choice === 'rename') {
       const name = await askText('新しいデッキ名', deck.name, { okLabel: '変更' });
       if (name && name.trim()) { Store.renameDeck(deckId, name); renderDecks(); }
+    } else if (choice === 'addcat') {
+      const name = await askText(
+        `「${deck.name}」に追加する分野名\n(カード追加時にプルダウンから選べるようになります)`,
+        '', { okLabel: '追加' });
+      if (name && name.trim()) {
+        Store.addCategory(deckId, name.trim());
+        expandedDecks.add(deckId);
+        renderDecks();
+      }
     } else if (choice === 'cram') {
       startCram(deckId);
     } else if (choice === 'delete') {
@@ -487,6 +507,15 @@
       history: [],
     };
     renderStudy();
+  }
+
+  // 分野プルダウンの選択肢を組み立てる (未設定 + 登録済み + 新規追加)
+  function optionsForCategories(cats, selected) {
+    const sel = cats.includes(selected) ? selected : '';
+    return `<option value=""${sel === '' ? ' selected' : ''}>（分野なし）</option>` +
+      cats.map(c =>
+        `<option value="${esc(c)}"${c === sel ? ' selected' : ''}>${esc(c)}</option>`).join('') +
+      `<option value="${NEW_CATEGORY}">＋ 新しい分野を追加…</option>`;
   }
 
   // 長文は左揃え・行間広めで読みやすくする
@@ -911,10 +940,9 @@
         </div>
 
         <label class="field">
-          <span>分野 (任意 — デッキ内をさらに細かく分類できます。空欄のままでも作成できます)</span>
-          <input type="text" id="add-category" placeholder="例: 株式 / 機関 (省略可)">
+          <span>分野 (任意 — デッキ内をさらに細かく分類できます。未設定のままでも作成できます)</span>
+          <select id="add-category"></select>
         </label>
-        <div class="cat-chips" id="add-cat-chips"></div>
 
         <label class="field">
           <span>タグ (スペース区切り・省略可)</span>
@@ -969,33 +997,28 @@
       $('#fields-cloze').hidden = !cloze;
     };
 
-    // 既存の分野をワンタップで入力できるチップ (デッキを変えると入れ替わる)
-    function renderCatChips() {
+    // 分野はデッキ・ノートタイプと同じくプルダウンで選ぶ。
+    // 一覧にないものは「＋ 新しい分野を追加…」で登録すると次回から選べる。
+    const catSelect = $('#add-category');
+    let lastCat = '';
+    function renderCatSelect(keep) {
+      const want = keep !== undefined ? keep : catSelect.value;
       const cats = Store.getCategories($('#add-deck').value);
-      const el = $('#add-cat-chips');
-      el.innerHTML = cats.length
-        ? `<span class="cat-chips-label">既存の分野:</span>` + cats.map((c, i) =>
-            `<button type="button" class="cat-chip" data-i="${i}">${esc(c)}</button>`).join('')
-        : '';
-      for (const btn of el.querySelectorAll('.cat-chip')) {
-        btn.onclick = () => {
-          const v = cats[Number(btn.dataset.i)];
-          const input = $('#add-category');
-          input.value = input.value.trim() === v ? '' : v; // もう一度押すと解除
-          markActiveChips();
-        };
-      }
-      markActiveChips();
+      catSelect.innerHTML = optionsForCategories(cats, want);
+      lastCat = catSelect.value;
     }
-    function markActiveChips() {
-      const cur = $('#add-category').value.trim();
-      for (const btn of $('#add-cat-chips').querySelectorAll('.cat-chip')) {
-        btn.classList.toggle('active', btn.textContent === cur);
+    catSelect.onchange = async () => {
+      if (catSelect.value !== NEW_CATEGORY) { lastCat = catSelect.value; return; }
+      catSelect.value = lastCat; // 「追加…」自体は選択状態にしない
+      const name = await askText('新しい分野名を入力してください', '', { okLabel: '追加' });
+      if (name && name.trim()) {
+        const v = Store.addCategory($('#add-deck').value, name.trim());
+        renderCatSelect(v);
+        status(`✓ 分野「${v}」を追加しました`);
       }
-    }
-    $('#add-deck').addEventListener('change', renderCatChips);
-    $('#add-category').addEventListener('input', markActiveChips);
-    renderCatChips();
+    };
+    $('#add-deck').addEventListener('change', () => renderCatSelect(''));
+    renderCatSelect('');
 
     // 選択範囲を {{cN::...}} で囲む
     function wrapCloze(useNewIndex) {
@@ -1018,7 +1041,8 @@
       const deckId = $('#add-deck').value;
       const type = $('#add-type').value;
       const tags = parseTags();
-      const category = $('#add-category').value.trim(); // 空欄可
+      // プルダウンで選んだ分野 ('' なら分野なし)
+      const category = catSelect.value === NEW_CATEGORY ? '' : catSelect.value;
 
       if (type === 'cloze') {
         const text = $('#add-cloze').value.trim();
@@ -1044,7 +1068,7 @@
         widgets.clozeback.renderChips();
         status(`✓ 穴埋めカードを ${indices.length} 枚追加しました`
           + (category ? ` (分野: ${category})` : ''));
-        renderCatChips();
+        renderCatSelect(category);
         $('#add-cloze').focus();
         return;
       }
@@ -1076,7 +1100,7 @@
       widgets.back.renderChips();
       status((type === 'reversed' ? '✓ カードを 2 枚 (表↔裏) 追加しました' : '✓ カードを追加しました')
         + (category ? ` (分野: ${category})` : ''));
-      renderCatChips();
+      renderCatSelect(category);
       $('#add-front').focus();
     };
     $('#btn-save-card').onclick = saveCard;
@@ -1095,12 +1119,12 @@
         if (!front || !back) { skipped++; continue; }
         Store.addCard($('#add-deck').value, {
           type: 'basic', front, back, tags: parseTags(),
-          category: $('#add-category').value.trim(),
+          category: catSelect.value === NEW_CATEGORY ? '' : catSelect.value,
         });
         ok++;
       }
       status(`✓ ${ok} 枚をインポートしました${skipped ? ` (${skipped} 行をスキップ)` : ''}`);
-      if (ok) { $('#import-tsv').value = ''; renderCatChips(); }
+      if (ok) { $('#import-tsv').value = ''; renderCatSelect(catSelect.value); }
     };
   }
 
@@ -1148,10 +1172,9 @@
         <h3>カードを編集</h3>
         ${bodyFields}
         <label class="field">
-          <span>分野 (任意・空欄可)</span>
-          <input type="text" id="edit-category" value="${esc(card.category || '')}">
+          <span>分野 (任意)</span>
+          <select id="edit-category"></select>
         </label>
-        <div class="cat-chips" id="edit-cat-chips"></div>
         <label class="field">
           <span>タグ (スペース区切り)</span>
           <input type="text" id="edit-tags" value="${esc(card.tags.join(' '))}">
@@ -1168,29 +1191,20 @@
     attachMediaControls(overlay.querySelector('.media-controls[data-side="front"]'), frontMedia, status);
     attachMediaControls(overlay.querySelector('.media-controls[data-side="back"]'), backMedia, status);
 
-    // 既存の分野をワンタップで選べるチップ
+    // 分野は登録済みの一覧から選ぶ (ここからも新規追加できる)
     const catInput = overlay.querySelector('#edit-category');
-    const cats = Store.getCategories(card.deckId);
-    const chipsEl = overlay.querySelector('#edit-cat-chips');
-    if (cats.length) {
-      chipsEl.innerHTML = `<span class="cat-chips-label">既存の分野:</span>` + cats.map((c, i) =>
-        `<button type="button" class="cat-chip" data-i="${i}">${esc(c)}</button>`).join('');
-      const mark = () => {
-        const cur = catInput.value.trim();
-        for (const b of chipsEl.querySelectorAll('.cat-chip')) {
-          b.classList.toggle('active', b.textContent === cur);
-        }
-      };
-      for (const btn of chipsEl.querySelectorAll('.cat-chip')) {
-        btn.onclick = () => {
-          const v = cats[Number(btn.dataset.i)];
-          catInput.value = catInput.value.trim() === v ? '' : v;
-          mark();
-        };
-      }
-      catInput.addEventListener('input', mark);
-      mark();
-    }
+    let lastEditCat = card.category || '';
+    const fillCats = keep => {
+      catInput.innerHTML = optionsForCategories(Store.getCategories(card.deckId), keep);
+      lastEditCat = catInput.value;
+    };
+    fillCats(card.category || '');
+    catInput.onchange = async () => {
+      if (catInput.value !== NEW_CATEGORY) { lastEditCat = catInput.value; return; }
+      catInput.value = lastEditCat;
+      const name = await askText('新しい分野名を入力してください', '', { okLabel: '追加' });
+      if (name && name.trim()) fillCats(Store.addCategory(card.deckId, name.trim()));
+    };
 
     const close = () => overlay.remove();
     overlay.querySelector('#edit-cancel').onclick = close;
@@ -1199,7 +1213,7 @@
     overlay.querySelector('#edit-save').onclick = () => {
       const tags = overlay.querySelector('#edit-tags').value
         .split(/[\s,]+/).map(t => t.trim()).filter(Boolean);
-      const category = catInput.value.trim();
+      const category = catInput.value === NEW_CATEGORY ? '' : catInput.value;
       if (card.type === 'cloze') {
         const text = overlay.querySelector('#edit-cloze').value.trim();
         if (!text || !clozeIndices(text).includes(card.clozeIndex)) {
