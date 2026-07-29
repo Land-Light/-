@@ -43,6 +43,7 @@ const Store = (() => {
     }
     for (const deck of d.decks) {
       if (!deck.updatedAt) deck.updatedAt = deck.createdAt || 0;
+      if (!Array.isArray(deck.categories)) deck.categories = [];
     }
     for (const c of d.cards) {
       if (!c.updatedAt) c.updatedAt = c.createdAt || 0;
@@ -96,7 +97,10 @@ const Store = (() => {
   // ---- デッキ ----
 
   function addDeck(name) {
-    const deck = { id: uid(), name: name.trim(), createdAt: Date.now(), updatedAt: Date.now() };
+    const deck = {
+      id: uid(), name: name.trim(), categories: [],
+      createdAt: Date.now(), updatedAt: Date.now(),
+    };
     load().decks.push(deck);
     save();
     return deck;
@@ -174,13 +178,43 @@ const Store = (() => {
 
   // ---- 分野 (デッキ内の細分類。未設定は '' として扱う) ----
 
-  // デッキ内で使われている分野名の一覧 (空の分野は含まない)
+  // 選択肢に出す分野名の一覧。
+  // デッキに登録した分野 + 実際にカードで使われている分野の和集合。
   function getCategories(deckId) {
     const set = new Set();
+    const deck = getDeck(deckId);
+    if (deck) for (const c of deck.categories || []) { if (c) set.add(c); }
     for (const c of getCards(deckId)) {
       if (c.category) set.add(c.category);
     }
     return [...set].sort((a, b) => a.localeCompare(b, 'ja'));
+  }
+
+  // 分野をデッキに登録する (カードがなくても選択肢に残る)。登録名を返す。
+  function addCategory(deckId, name) {
+    const v = name.trim();
+    // '__new_category__' は選択肢の「新しい分野を追加…」に使う予約語
+    if (!v || v === '__new_category__') return '';
+    const deck = getDeck(deckId);
+    if (!deck) return '';
+    if (!deck.categories.includes(v)) {
+      deck.categories.push(v);
+      deck.updatedAt = Date.now();
+      save();
+    }
+    return v;
+  }
+
+  // 登録簿から分野を取り除く (カードの分野は変更しない)
+  function removeCategory(deckId, name) {
+    const deck = getDeck(deckId);
+    if (!deck) return;
+    const i = deck.categories.indexOf(name);
+    if (i >= 0) {
+      deck.categories.splice(i, 1);
+      deck.updatedAt = Date.now();
+      save();
+    }
   }
 
   // category: null なら全件、'' なら分野未設定のみ、文字列ならその分野のみ
@@ -190,7 +224,7 @@ const Store = (() => {
     return cards.filter(c => (c.category || '') === category);
   }
 
-  // 分野名の一括変更 (空文字にすると分野なしへ移動)
+  // 分野名の一括変更 (空文字にすると分野なしへ移動)。登録簿も併せて更新する。
   function renameCategory(deckId, from, to) {
     const d = load();
     const name = to.trim();
@@ -202,7 +236,14 @@ const Store = (() => {
         n++;
       }
     }
-    if (n) save();
+    const deck = getDeck(deckId);
+    if (deck) {
+      const i = deck.categories.indexOf(from);
+      if (i >= 0) deck.categories.splice(i, 1);
+      if (name && !deck.categories.includes(name)) deck.categories.push(name);
+      deck.updatedAt = Date.now();
+    }
+    save();
     return n;
   }
 
@@ -290,7 +331,7 @@ const Store = (() => {
     load, save, getLastModified, setOnChange,
     addDeck, renameDeck, deleteDeck, getDecks, getDeck,
     addCard, updateCard, deleteCard, getCards, getCard,
-    getCategories, getCardsByCategory, renameCategory,
+    getCategories, getCardsByCategory, addCategory, removeCategory, renameCategory,
     referencedMediaIds,
     todayStats, recordAnswer, unrecordAnswer, getDayStats,
     getSettings, updateSettings,
