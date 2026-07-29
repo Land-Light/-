@@ -296,9 +296,13 @@ input:focus, select:focus, textarea:focus {
 
 .browse-controls {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto auto 1fr;
   gap: 8px;
   margin-bottom: 14px;
+}
+@media (max-width: 640px) {
+  .browse-controls { grid-template-columns: 1fr 1fr; }
+  .browse-controls input[type="search"] { grid-column: 1 / -1; }
 }
 
 .browse-row {
@@ -535,6 +539,60 @@ input:focus, select:focus, textarea:focus {
 .dialog-choice { margin-bottom: 8px; text-align: left; }
 .btn.danger { background: var(--again); color: #fff; }
 .btn.danger:hover { filter: brightness(1.08); }
+
+/* ---- 分野 (デッキ内の細分類) ---- */
+
+.cat-toggle {
+  font: inherit;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 4px 0 0;
+  font-size: 0.9rem;
+}
+.cat-toggle:hover { color: var(--primary); }
+
+.cat-count {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.deck-row.cat-row { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.deck-row.cat-row .deck-name {
+  font-weight: 400;
+  font-size: 0.92rem;
+  padding-left: 10px;
+}
+.cat-mark { color: var(--text-dim); margin-right: 4px; }
+.cat-none { color: var(--text-dim); }
+.cat-menu-space { display: inline-block; width: 34px; }
+.deck-row.cat-row .btn { padding: 6px 12px; font-size: 0.82rem; }
+
+.cat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: -8px 0 14px;
+}
+.cat-chips-label { font-size: 0.78rem; color: var(--text-dim); }
+.cat-chip {
+  font: inherit;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 12px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.cat-chip:hover { border-color: var(--primary); }
+.cat-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+.scope-cat { color: var(--text-dim); }
 
 /* ---- 直前モード ---- */
 
