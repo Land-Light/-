@@ -1292,51 +1292,117 @@
       .replace(/[\uFF21-\uFF3A\uFF41-\uFF5A\uFF10-\uFF19]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
       .trim();
   }
-
   const NORMALIZED = RANKED.map(normalize);
   const RANK = new Map();
   NORMALIZED.forEach((s, i) => { if (!RANK.has(s)) RANK.set(s, i + 1); });
 
+  /* 中国・韓国で主に使われる姓。日本にも同じ字の姓が実在するので上の一覧には
+     入っているが、既定ではここに挙げた姓を「日本の姓」から外して検出できるようにする。
+     日本で 1000 位以内に入る姓（林 18 位・秦 667 位など）は日本でも日常的な姓なので
+     ここには含めていない。setDropCjk(false) で全体を、restore() で 1 件ずつ元に戻せる。 */
+  const CJK_MAJOR = `
+李 金 朴 崔 鄭 姜 趙 尹 張 韓 呉 申 権 黄 安 宋 全 洪 高 文 孫 白 劉 陳 王 楊 周 徐 胡 朱 郭 何
+羅 梁 謝 唐 許 馮 曹 彭 曾 蕭 董 袁 潘 蔡 余 杜 葉 程 蘇 魏 呂 丁 任 盧 姚 沈 鍾 譚 陸 范 汪 廖
+江 史 顧 侯 邵 孟 龍 段 雷 銭 湯 黎 易 常 喬 賀 龔 鄒 熊 于 華 方 兪 傅 沙 元 昌 明 車 池 辺 都
+具 玉 印 諸 卓 陰 薛 南宮 欧陽 司馬 諸葛
+`.trim().split(/\s+/).map(normalize);
+  const CJK_SET = new Set(CJK_MAJOR);
+
   let limit = NORMALIZED.length;
-  let SET = new Set(NORMALIZED);
-  let maxLen = Math.max(...NORMALIZED.map((s) => s.length));
+  let dropCjk = true;              // 既定で中韓系の主要な姓を外しておく
+  const restored = new Set();      // 個別に日本の姓へ戻したもの
+  let SET = new Set();
+  let DROPPED = new Set();
+  let maxLen = 1;
+  let droppedMaxLen = 1;
+
+  function isDropped(s) {
+    return dropCjk && CJK_SET.has(s) && !restored.has(s);
+  }
+
+  function rebuild() {
+    SET = new Set();
+    DROPPED = new Set();
+    for (let i = 0; i < limit; i++) {
+      const s = NORMALIZED[i];
+      if (isDropped(s)) DROPPED.add(s);
+      else SET.add(s);
+    }
+    maxLen = Math.max(...[...SET].map((s) => s.length), 1);
+    droppedMaxLen = Math.max(...[...DROPPED].map((s) => s.length), 1);
+  }
 
   /** 上位 n 件までを「日本の姓」とみなす */
   function setLimit(n) {
     limit = Math.max(1, Math.min(NORMALIZED.length, Math.round(n) || NORMALIZED.length));
-    SET = new Set(NORMALIZED.slice(0, limit));
-    maxLen = Math.max(...[...SET].map((s) => s.length));
+    rebuild();
     return limit;
   }
 
+  /** 中韓系の主要な姓をまとめて外す / 戻す */
+  function setDropCjk(on) {
+    dropCjk = !!on;
+    rebuild();
+    return dropCjk;
+  }
+
+  /** 1 件だけ日本の姓に戻す / 再び外す */
+  function restore(surname, on) {
+    const key = normalize(surname);
+    if (on) restored.add(key);
+    else restored.delete(key);
+    rebuild();
+    return restored.has(key);
+  }
+
+  /** 画面表示用: 外している姓の一覧（日本での順位つき） */
+  function cjkList() {
+    return CJK_MAJOR
+      .map((s) => ({ name: s, rank: RANK.get(s) || null, restored: restored.has(s) }))
+      .sort((a, b) => (a.rank || Infinity) - (b.rank || Infinity));
+  }
+
   /**
-   * 氏名から姓を切り出して、一覧にあるか調べる。
-   * 区切りがあれば先頭の語、無ければ前方一致で最長の姓を探す。
+   * 氏名から姓を切り出して、渡された一覧にあるか調べる。
+   * 区切りがあれば先頭の語で確定させる（前方一致に落とすと
+   * 「東海林」が「東」に当たってしまうため）。区切りが無ければ最長前方一致。
    */
-  function matchSurname(rawName) {
+  function lookup(rawName, set, max) {
     const name = normalize(rawName);
     if (!name) return null;
 
     const parts = name.split(/[ \u30FB\uFF65,\u3001]/).filter(Boolean);
-    // \u533A\u5207\u308A\u304C\u3042\u308C\u3070\u5148\u982D\u306E\u8A9E\u304C\u305D\u306E\u307E\u307E\u59D3\u3002\u524D\u65B9\u4E00\u81F4\u306B\u843D\u3068\u3059\u3068
-    // \u300C\u6771\u6D77\u6797\u300D\u304C\u300C\u6771\u300D\u306B\u5F53\u305F\u3063\u3066\u3057\u307E\u3046\u306E\u3067\u3001\u3053\u3053\u3067\u78BA\u5B9A\u3055\u305B\u308B
-    if (parts.length >= 2) return SET.has(parts[0]) ? parts[0] : null;
+    if (parts.length >= 2) return set.has(parts[0]) ? parts[0] : null;
 
     const head = parts[0] || name;
-    for (let len = Math.min(maxLen, head.length); len >= 1; len--) {
+    for (let len = Math.min(max, head.length); len >= 1; len--) {
       const candidate = head.slice(0, len);
-      if (SET.has(candidate)) return candidate;
+      if (set.has(candidate)) return candidate;
     }
     return null;
   }
 
+  const matchSurname = (name) => lookup(name, SET, maxLen);
+
+  /** 一覧から外している姓に当たるか（候補にした理由の表示用） */
+  const matchDropped = (name) => lookup(name, DROPPED, droppedMaxLen);
+
+  rebuild();
+
   global.Surnames = {
     total: NORMALIZED.length,
+    cjkTotal: CJK_MAJOR.length,
     getLimit: () => limit,
     setLimit,
+    isDropCjk: () => dropCjk,
+    setDropCjk,
+    restore,
+    restoredCount: () => restored.size,
+    cjkList,
     rankOf: (s) => RANK.get(normalize(s)) || null,
     has: (s) => SET.has(normalize(s)),
     matchSurname,
+    matchDropped,
     normalize,
   };
 })(window);

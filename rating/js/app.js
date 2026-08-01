@@ -218,24 +218,73 @@
     sel.addEventListener('change', () => {
       state.dictLimit = Number(sel.value);
       window.Surnames.setLimit(state.dictLimit || total);
-      // 辞書が変わると仕分けも変わるので、候補を選び直す
-      rule.values = nameCandidates(rule.columnIndex).results
-        .filter((r) => window.NameHint.isCandidate(r.level)).map((r) => r.value);
-      renderRules();
-      recompute();
+      refreshCandidates(rule);   // 辞書が変わると仕分けも変わる
     });
+    const dropCb = el('input', { type: 'checkbox' });
+    dropCb.checked = window.Surnames.isDropCjk();
+    dropCb.addEventListener('change', () => {
+      window.Surnames.setDropCjk(dropCb.checked);
+      refreshCandidates(rule);
+    });
+
     return el('div', { class: 'dict-row' }, [
       el('label', { class: 'field' }, [el('span', { text: '日本の姓とみなす範囲' }), sel]),
       el('p', {
         class: 'field-note',
         text: state.dictLimit === 0
-          ? '全件を使うと、李・金・張・陳など中国・韓国でも使われる姓が「日本の姓」に含まれるため、'
-            + '漢字表記の氏名はほぼ検出されません。範囲を狭めると検出は増えますが、'
-            + '珍しい姓の日本国籍の方も一覧に無い側へ入ります。'
-          : '範囲を狭めるほど検出は増えますが、珍しい姓の日本国籍の方も「一覧に無い」側に入ります。'
-            + '全 ' + total.toLocaleString() + ' 件のうち上位 ' + state.dictLimit.toLocaleString() + ' 件だけを日本の姓として扱っています。',
+          ? '全 ' + total.toLocaleString() + ' 件を使っています。範囲を狭めるほど検出は増えますが、'
+            + '珍しい姓の日本国籍の方も「一覧に無い」側へ入ります。'
+          : '全 ' + total.toLocaleString() + ' 件のうち上位 ' + state.dictLimit.toLocaleString() + ' 件だけを日本の姓として扱っています。'
+            + '狭めるほど検出は増えますが、珍しい姓の日本国籍の方も「一覧に無い」側へ入ります。',
       }),
+      el('label', { class: 'check' }, [
+        dropCb,
+        el('span', { text: '中国・韓国系の主要な姓 ' + window.Surnames.cjkTotal + ' 件を日本の姓から外す' }),
+      ]),
+      el('p', {
+        class: 'field-note',
+        text: '李・金・張・陳などは日本にも実在する姓のため、外さないと漢字表記の氏名はほとんど検出されません。'
+          + 'チェックを外せば全件まとめて元に戻ります。',
+      }),
+      cjkRestoreList(rule),
     ]);
+  }
+
+  /** 外している姓を 1 件ずつ日本の姓に戻すための一覧 */
+  function cjkRestoreList(rule) {
+    if (!window.Surnames.isDropCjk()) return null;
+    const list = el('div', { class: 'rule-values' });
+    window.Surnames.cjkList().forEach((entry) => {
+      const cb = el('input', { type: 'checkbox' });
+      cb.checked = !entry.restored;
+      cb.addEventListener('change', () => {
+        window.Surnames.restore(entry.name, !cb.checked);
+        refreshCandidates(rule);
+      });
+      list.appendChild(el('label', { class: 'check' }, [
+        cb,
+        el('span', { text: entry.name }),
+        el('span', { class: 'count', text: entry.rank ? '日本で ' + entry.rank.toLocaleString() + ' 位' : '一覧に無し' }),
+      ]));
+    });
+
+    const restoredCount = window.Surnames.restoredCount();
+    return el('details', { class: 'cjk-details' }, [
+      el('summary', {
+        text: '外している姓を個別に戻す'
+          + (restoredCount ? '（' + restoredCount + ' 件を日本の姓に戻し中）' : ''),
+      }),
+      el('p', { class: 'field-note', text: 'チェックを外した姓は「日本の姓」として扱われ、その姓の方は候補に出なくなります。' }),
+      list,
+    ]);
+  }
+
+  /** 辞書の設定が変わったら候補を選び直す */
+  function refreshCandidates(rule) {
+    rule.values = nameCandidates(rule.columnIndex).results
+      .filter((r) => window.NameHint.isCandidate(r.level)).map((r) => r.value);
+    renderRules();
+    recompute();
   }
 
   /** 氏名の表記で仕分けした一覧 */

@@ -261,6 +261,11 @@ input[type="number"] { width: 110px; }
 
 .dict-row { margin-bottom: 12px; }
 .dict-row .field-note { margin: 6px 0 0; max-width: 62em; }
+.dict-row > .check { margin-top: 10px; }
+
+.cjk-details { margin-top: 8px; }
+.cjk-details summary { font-size: 13px; cursor: pointer; color: var(--primary); }
+.cjk-details .rule-values { max-height: 170px; }
 
 .name-group {
   border-top: 1px solid var(--border);

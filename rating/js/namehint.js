@@ -54,8 +54,14 @@
       return { level: LEVEL.KATAKANA, reason: text.includes('・') ? 'カタカナ（中黒あり）' : 'カタカナ' };
     }
 
-    const surname = global.Surnames && global.Surnames.matchSurname(text);
+    const dict = global.Surnames;
+    const surname = dict && dict.matchSurname(text);
     if (surname) return { level: LEVEL.COMMON, reason: '「' + surname + '」は日本で多い姓', surname };
+
+    const dropped = dict && dict.matchDropped(text);
+    if (dropped) {
+      return { level: LEVEL.RARE, reason: '「' + dropped + '」は中韓系として一覧から外し中', surname: dropped, dropped: true };
+    }
     return { level: LEVEL.RARE, reason: '日本で多い姓の一覧に無い' };
   }
 
