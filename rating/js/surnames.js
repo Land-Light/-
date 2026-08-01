@@ -1384,6 +1384,17 @@
 
   const matchSurname = (name) => lookup(name, SET, maxLen);
 
+  /* 目視で確認したい姓。日本でも多いため自動では外していないが、
+     中国・韓国でも使われるので名前だけでは区別できない
+     （林は日本で 18 位。秦 667 位なども同じ性質があるので、必要なら足す）。 */
+  const WATCH = ['林'];
+
+  /** その氏名の姓が「目視で確認したい姓」なら、その姓を返す */
+  function watchedSurname(name) {
+    const s = matchSurname(name);
+    return s && WATCH.indexOf(s) >= 0 ? s : null;
+  }
+
   /** 一覧から外している姓に当たるか（候補にした理由の表示用） */
   const matchDropped = (name) => lookup(name, DROPPED, droppedMaxLen);
 
@@ -1403,6 +1414,8 @@
     has: (s) => SET.has(normalize(s)),
     matchSurname,
     matchDropped,
+    watchList: () => WATCH.slice(),
+    watchedSurname,
     normalize,
   };
 })(window);
