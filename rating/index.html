@@ -54,6 +54,9 @@
       <p class="lead">
         列と値を選ぶと、その行を集計から外します。平均・偏差値・順位はすべて
         <strong>除外後の対象者だけ</strong>で計算されます。
+        国籍などの欄が無い場合は「氏名の表記から候補を出す」を選ぶと、
+        氏名を表記と姓の一覧で仕分けして候補を提示します
+        （<strong>名前から国籍は判定できません</strong>。必ず内容をご確認ください）。
       </p>
       <div id="rules"></div>
       <button type="button" class="btn btn-quiet" id="add-rule">＋ 除外条件を追加</button>
@@ -138,6 +141,8 @@
   </main>
 
   <script src="js/xlsx.js"></script>
+  <script src="js/surnames.js"></script>
+  <script src="js/namehint.js"></script>
   <script src="js/rating.js"></script>
   <script src="js/app.js"></script>
 </body>

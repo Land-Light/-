@@ -16,6 +16,7 @@
     standardize: false,
     gradeMode: 'relative',
     gradeLabel: 'number',
+    dictLimit: 0,           // 0 = 姓の一覧を全件使う
     shares: [7, 24, 38, 24, 7],
     thresholds: [60, 55, 45, 40],
     filtered: null,
@@ -51,6 +52,33 @@
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 
   const ID_LIKE = /番号|ＮＯ|no\.?$|^no$|id|学籍|社員|コード|code|年齢|生年|年度|電話/i;
+
+  /** 名前の表記から除外候補を選び出す（列全体を分類してから候補にチェックを入れる） */
+  function nameCandidates(columnIndex) {
+    const counts = window.Rating.valueCounts(state.table, columnIndex);
+    return window.NameHint.classifyColumn(counts);
+  }
+
+  /**
+   * 最初に出す除外条件を決める。
+   * 国籍などの列があればそれを使い、無ければ氏名の列から候補を拾う。
+   */
+  function defaultRule() {
+    const byColumn = window.Rating.suggestFilter(state.table);
+    if (byColumn) return { ...byColumn, mode: 'value' };
+
+    const nameCol = window.NameHint.findNameColumn(state.table.columns);
+    if (nameCol) {
+      const cls = nameCandidates(nameCol.index);
+      return {
+        columnIndex: nameCol.index,
+        mode: 'name',
+        keyword: '',
+        values: cls.results.filter((r) => window.NameHint.isCandidate(r.level)).map((r) => r.value),
+      };
+    }
+    return { columnIndex: -1, mode: 'value', values: [], keyword: '' };
+  }
 
   /* ------------------------------------------------------------ 読み込み */
 
@@ -90,8 +118,7 @@
       state.table.records.length + ' 行 × ' + state.table.headers.length + ' 列を読み込みました';
 
     if (resetSettings) {
-      const suggested = window.Rating.suggestFilter(state.table);
-      state.rules = suggested ? [suggested] : [{ columnIndex: -1, values: [], keyword: '' }];
+      state.rules = [defaultRule()];
       state.items = state.table.columns
         .filter((c) => c.isNumeric && c.uniqueCount > 1 && !ID_LIKE.test(c.name))
         .map((c) => ({ columnIndex: c.index, weight: 1 }));
@@ -155,6 +182,102 @@
     return sel;
   }
 
+  /** 値のチェックボックス 1 個ぶん */
+  function valueCheckbox(rule, value, count, badge) {
+    const cb = el('input', { type: 'checkbox' });
+    cb.checked = rule.values.includes(value);
+    cb.addEventListener('change', () => {
+      if (cb.checked) {
+        if (!rule.values.includes(value)) rule.values.push(value);
+      } else {
+        rule.values = rule.values.filter((v) => v !== value);
+      }
+      recompute();
+    });
+    return el('label', { class: 'check' }, [
+      cb,
+      el('span', { text: value }),
+      el('span', { class: 'count', text: '(' + count + ')' }),
+      badge ? el('span', { class: 'badge', text: badge }) : null,
+    ]);
+  }
+
+  const DICT_PRESETS = [300, 1000, 3000, 5000, 10000, 20000, 0];
+
+  /** 「上位何件までを日本の姓とみなすか」の切り替え */
+  function dictControl(rule) {
+    const total = window.Surnames.total;
+    const sel = el('select');
+    DICT_PRESETS.forEach((n) => {
+      sel.appendChild(el('option', {
+        value: String(n),
+        text: n ? '上位 ' + n.toLocaleString() + ' 件' : '全 ' + total.toLocaleString() + ' 件',
+      }));
+    });
+    sel.value = String(state.dictLimit);
+    sel.addEventListener('change', () => {
+      state.dictLimit = Number(sel.value);
+      window.Surnames.setLimit(state.dictLimit || total);
+      // 辞書が変わると仕分けも変わるので、候補を選び直す
+      rule.values = nameCandidates(rule.columnIndex).results
+        .filter((r) => window.NameHint.isCandidate(r.level)).map((r) => r.value);
+      renderRules();
+      recompute();
+    });
+    return el('div', { class: 'dict-row' }, [
+      el('label', { class: 'field' }, [el('span', { text: '日本の姓とみなす範囲' }), sel]),
+      el('p', {
+        class: 'field-note',
+        text: state.dictLimit === 0
+          ? '全件を使うと、李・金・張・陳など中国・韓国でも使われる姓が「日本の姓」に含まれるため、'
+            + '漢字表記の氏名はほぼ検出されません。範囲を狭めると検出は増えますが、'
+            + '珍しい姓の日本国籍の方も一覧に無い側へ入ります。'
+          : '範囲を狭めるほど検出は増えますが、珍しい姓の日本国籍の方も「一覧に無い」側に入ります。'
+            + '全 ' + total.toLocaleString() + ' 件のうち上位 ' + state.dictLimit.toLocaleString() + ' 件だけを日本の姓として扱っています。',
+      }),
+    ]);
+  }
+
+  /** 氏名の表記で仕分けした一覧 */
+  function renderNameGroups(rule, box) {
+    box.appendChild(dictControl(rule));
+    const cls = nameCandidates(rule.columnIndex);
+
+    cls.warnings.forEach((w) => box.appendChild(el('p', { class: 'warn-note', text: '⚠ ' + w })));
+
+    window.NameHint.GROUPS.forEach((group) => {
+      const rows = cls.results.filter((r) => r.level === group.key);
+      if (!rows.length) return;
+      const people = rows.reduce((a, r) => a + r.count, 0);
+
+      const check = (on) => {
+        rows.forEach((r) => {
+          const has = rule.values.includes(r.value);
+          if (on && !has) rule.values.push(r.value);
+          if (!on && has) rule.values = rule.values.filter((v) => v !== r.value);
+        });
+        renderRules();
+        recompute();
+      };
+
+      const header = el('div', { class: 'name-group-head' }, [
+        el('span', { class: 'name-group-title', text: group.title }),
+        el('span', { class: 'count', text: people + ' 人' }),
+        el('button', { type: 'button', class: 'btn-link', text: 'まとめて除外', onclick: () => check(true) }),
+        el('button', { type: 'button', class: 'btn-link', text: '解除', onclick: () => check(false) }),
+      ]);
+
+      const list = el('div', { class: 'rule-values' });
+      rows.forEach((r) => list.appendChild(valueCheckbox(rule, r.value, r.count, r.reason)));
+
+      box.appendChild(el('div', { class: 'name-group level-' + group.key }, [
+        header,
+        group.note ? el('p', { class: 'field-note', text: group.note }) : null,
+        list,
+      ]));
+    });
+  }
+
   function renderRules() {
     const host = $('rules');
     clear(host);
@@ -164,6 +287,20 @@
       select.addEventListener('change', () => {
         rule.columnIndex = Number(select.value);
         rule.values = [];
+        renderRules();
+        recompute();
+      });
+
+      const mode = el('select');
+      mode.appendChild(el('option', { value: 'value', text: '値を選んで除外' }));
+      mode.appendChild(el('option', { value: 'name', text: '氏名の表記から候補を出す' }));
+      mode.value = rule.mode || 'value';
+      mode.addEventListener('change', () => {
+        rule.mode = mode.value;
+        rule.values = rule.mode === 'name' && rule.columnIndex >= 0
+          ? nameCandidates(rule.columnIndex).results
+            .filter((r) => window.NameHint.isCandidate(r.level)).map((r) => r.value)
+          : [];
         renderRules();
         recompute();
       });
@@ -186,38 +323,26 @@
 
       const head = el('div', { class: 'rule-head' }, [
         el('label', { class: 'field' }, [el('span', { text: '対象の列' }), select]),
+        el('label', { class: 'field' }, [el('span', { text: '判定のしかた' }), mode]),
         el('label', { class: 'field' }, [el('span', { text: '部分一致で除外（任意）' }), keyword]),
         remove,
       ]);
 
       const box = el('div', { class: 'rule' }, [head]);
 
-      if (rule.columnIndex >= 0) {
+      if (rule.columnIndex >= 0 && rule.mode === 'name') {
+        renderNameGroups(rule, box);
+      } else if (rule.columnIndex >= 0) {
         const counts = window.Rating.valueCounts(state.table, rule.columnIndex);
         const list = el('div', { class: 'rule-values' });
         if (counts.length > 300) {
           list.appendChild(el('span', {
             class: 'field-note',
-            text: '値の種類が多すぎます (' + counts.length + ' 種)。部分一致の欄で指定してください。',
+            text: '値の種類が多すぎます (' + counts.length + ' 種)。'
+              + '氏名の列なら「氏名の表記から候補を出す」を、それ以外は部分一致の欄をお使いください。',
           }));
         } else {
-          counts.forEach((entry) => {
-            const cb = el('input', { type: 'checkbox' });
-            cb.checked = rule.values.includes(entry.value);
-            cb.addEventListener('change', () => {
-              if (cb.checked) {
-                if (!rule.values.includes(entry.value)) rule.values.push(entry.value);
-              } else {
-                rule.values = rule.values.filter((v) => v !== entry.value);
-              }
-              recompute();
-            });
-            list.appendChild(el('label', { class: 'check' }, [
-              cb,
-              el('span', { text: entry.value }),
-              el('span', { class: 'count', text: '(' + entry.count + ')' }),
-            ]));
-          });
+          counts.forEach((entry) => list.appendChild(valueCheckbox(rule, entry.value, entry.count)));
         }
         box.appendChild(list);
       }

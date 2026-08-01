@@ -257,6 +257,61 @@ input[type="number"] { width: 110px; }
   overflow-y: auto;
 }
 
+/* ---- 氏名からの仕分け ---- */
+
+.dict-row { margin-bottom: 12px; }
+.dict-row .field-note { margin: 6px 0 0; max-width: 62em; }
+
+.name-group {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 12px;
+}
+
+.name-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.name-group-title { font-weight: 600; font-size: 13px; }
+.name-group .field-note { margin: 2px 0 0; }
+.name-group.level-foreign .name-group-title { color: var(--warn); }
+.name-group.level-rare .name-group-title { color: var(--warn); }
+.name-group.level-common .name-group-title { color: var(--text-dim); }
+.name-group .rule-values { max-height: 150px; }
+
+.badge {
+  font-size: 11px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 6px;
+  background: var(--surface);
+}
+
+.btn-link {
+  font: inherit;
+  font-size: 12px;
+  border: none;
+  background: none;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.warn-note {
+  font-size: 12px;
+  color: var(--warn);
+  background: rgba(217, 119, 6, 0.08);
+  border: 1px solid rgba(217, 119, 6, 0.3);
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin: 8px 0;
+}
+
 .check {
   display: inline-flex;
   align-items: center;
