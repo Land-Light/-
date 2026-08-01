@@ -191,9 +191,20 @@
     const how = rules.map((r) => {
       const name = state.table.headers[r.columnIndex];
       if (r.mode === 'name') return '「' + name + '」の表記から判定';
+
+      const kw = (r.keyword || '').trim();
+      const remaining = window.Rating.valueCounts(state.table, r.columnIndex)
+        .map((v) => v.value)
+        .filter((v) => !r.values.includes(v));
+      // 残した値がすべて「日本」なら、そう言ったほうが分かりやすい
+      if (!kw && remaining.length && remaining.every(window.Rating.isJapanValue)) {
+        const blank = r.values.includes('(空欄)') ? '（空欄の行も削除）' : '';
+        return '「' + name + '」列が「' + remaining.join('・') + '」の行だけを残しました' + blank;
+      }
+
       const parts = [];
       if (r.values && r.values.length) parts.push(r.values.slice(0, 6).join('・') + (r.values.length > 6 ? ' ほか' : ''));
-      if ((r.keyword || '').trim()) parts.push('「' + r.keyword.trim() + '」を含む');
+      if (kw) parts.push('「' + kw + '」を含む');
       return '「' + name + '」列が ' + parts.join(' / ');
     });
     summary.appendChild(el('div', {

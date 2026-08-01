@@ -134,16 +134,40 @@
   /** 「国籍」「区分」などの列と、除外候補になりそうな値を推測する */
   const COLUMN_HINT = /国籍|nationality|国別|内外|外国|出身国|citizenship|区分/i;
   const FOREIGN_HINT = /外国|海外|foreign|overseas|非日本|日本以外|留学生|外国人/i;
+  const JAPAN_VALUE = /^(日本|日本国|日本人|にほん|ニホン|にっぽん|ニッポン|邦人|国内|内国|日|JP|JPN|Japan|Japanese)$/i;
 
+  /** その値が「日本」を指しているか */
+  function isJapanValue(value) {
+    return JAPAN_VALUE.test(String(value == null ? '' : value).trim());
+  }
+
+  /**
+   * 国籍らしい列を探し、除外する値を決める。
+   * 「日本」が値として入っていれば、日本以外をすべて除外する（日本だけ残す）。
+   * 入っていなければ、「外国籍」のように外国と書かれた値だけを除外する。
+   */
   function suggestFilter(table) {
-    const col = table.columns.find(
+    const candidates = table.columns.filter(
       (c) => COLUMN_HINT.test(c.name) && c.uniqueCount > 0 && c.uniqueCount <= 100
     );
-    if (!col) return null;
-    const values = valueCounts(table, col.index)
-      .filter((v) => FOREIGN_HINT.test(v.value))
-      .map((v) => v.value);
-    return { columnIndex: col.index, values, keyword: '' };
+    // 「区分」より「国籍」に近い名前の列を優先する
+    const score = (c) => (/国籍|nationality|citizenship|出身国/i.test(c.name) ? 0 : 1);
+    candidates.sort((a, b) => score(a) - score(b));
+
+    for (const col of candidates) {
+      const counts = valueCounts(table, col.index);
+      if (counts.some((v) => isJapanValue(v.value))) {
+        return {
+          columnIndex: col.index,
+          values: counts.filter((v) => !isJapanValue(v.value)).map((v) => v.value),
+          keyword: '',
+          keepJapan: true,
+        };
+      }
+      const foreign = counts.filter((v) => FOREIGN_HINT.test(v.value)).map((v) => v.value);
+      if (foreign.length) return { columnIndex: col.index, values: foreign, keyword: '' };
+    }
+    return null;
   }
 
   /* ------------------------------------------------------------- 統計 */
@@ -303,7 +327,7 @@
 
   global.Rating = {
     guessHeaderRow, buildTable, columnLabel, valueCounts,
-    applyFilters, suggestFilter,
+    applyFilters, suggestFilter, isJapanValue,
     evaluate, toNumber, mean, stdev, tScore,
     DEFAULT_SHARES, GRADE_LABELS,
   };
