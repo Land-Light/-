@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>評価集計 — Excel の表から評価をつくる</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <span class="logo">📊 評価集計</span>
+      <span class="topbar-note">ファイルはブラウザ内だけで処理されます</span>
+    </div>
+  </header>
+
+  <main class="page">
+
+    <!-- 読み込み -->
+    <section class="card" id="step-load">
+      <h2>Excel / CSV を読み込む</h2>
+      <div id="drop" class="drop">
+        <p class="drop-main">ここにファイルをドラッグ＆ドロップ</p>
+        <p class="drop-sub">または</p>
+        <label class="btn">
+          ファイルを選ぶ
+          <input type="file" id="file" accept=".xlsx,.csv,.tsv,.txt" hidden>
+        </label>
+        <p class="drop-sub">.xlsx / .csv / .tsv に対応 ／ 読み込むとすぐに除外後の表が出ます</p>
+      </div>
+      <p id="load-error" class="error hidden"></p>
+
+      <div id="load-options" class="hidden">
+        <div class="row">
+          <label class="field">
+            <span>シート</span>
+            <select id="sheet"></select>
+          </label>
+          <label class="field">
+            <span>見出しの行</span>
+            <input type="number" id="header-row" min="1" value="1">
+          </label>
+          <span class="field-note" id="load-summary"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 除外後の表（設定不要でここまで出る） -->
+    <section class="card hidden" id="step-quick">
+      <h2>除外後の表</h2>
+      <p id="quick-summary" class="quick-summary"></p>
+      <p id="quick-caution" class="warn-note hidden"></p>
+      <div class="row actions">
+        <button type="button" class="btn" id="quick-csv">Excel 用に保存 (CSV)</button>
+        <button type="button" class="btn btn-quiet" id="quick-copy">表をコピー</button>
+        <label class="check">
+          <input type="checkbox" id="quick-drop-col" checked>
+          <span>判定に使った列も削除する</span>
+        </label>
+        <span class="field-note" id="quick-note"></span>
+      </div>
+      <div class="table-wrap">
+        <table id="quick-table" class="grid"></table>
+      </div>
+      <p class="field-note" id="quick-more"></p>
+      <details id="removed-details" class="hidden">
+        <summary>削除した行を確認する</summary>
+        <div class="table-wrap">
+          <table id="removed-table" class="grid"></table>
+        </div>
+      </details>
+    </section>
+
+    <!-- ここから下は開いたときだけ -->
+    <details id="advanced">
+      <summary class="advanced-toggle">除外のしかたを変える・評価を計算する</summary>
+
+      <!-- 除外条件 -->
+      <section class="card hidden" id="step-filter">
+        <h2>除外する行を指定する</h2>
+        <p class="lead">
+          列と値を選ぶと、その行を表から外します。国籍などの欄が無い場合は
+          「氏名の表記から候補を出す」を選ぶと、氏名を表記と姓の一覧で仕分けして
+          候補を提示します
+          （<strong>名前から国籍は判定できません</strong>。必ず内容をご確認ください）。
+        </p>
+        <div id="rules"></div>
+        <button type="button" class="btn btn-quiet" id="add-rule">＋ 除外条件を追加</button>
+        <div class="counts" id="filter-counts"></div>
+      </section>
+
+      <!-- 評価設定 -->
+      <section class="card hidden" id="step-config">
+        <h2>評価のしかたを決める</h2>
+        <p class="lead">
+          除外後の対象者だけで、総合点・偏差値・順位・5 段階評価を計算します。
+        </p>
+
+        <h3>評価に使う項目（数値の列）</h3>
+        <div id="items" class="checklist"></div>
+
+        <h3>結果表に載せる列（氏名・番号など）</h3>
+        <div id="labels" class="checklist"></div>
+
+        <h3>計算方法</h3>
+        <div class="row">
+          <label class="check">
+            <input type="checkbox" id="standardize">
+            <span>項目ごとに偏差値化してから合計する（配点や難易度が違う項目を揃える）</span>
+          </label>
+        </div>
+        <div class="row">
+          <label class="field">
+            <span>評価の付け方</span>
+            <select id="grade-mode">
+              <option value="relative">相対評価（人数の割合で 5 段階）</option>
+              <option value="absolute">絶対評価（偏差値のしきい値で 5 段階）</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>表示</span>
+            <select id="grade-label">
+              <option value="number">5・4・3・2・1</option>
+              <option value="alpha">A・B・C・D・E</option>
+            </select>
+          </label>
+        </div>
+        <div class="row" id="shares-row">
+          <span class="field-note">上位からの割合 (%)</span>
+          <input type="number" class="mini" id="share-0" value="7" min="0" max="100">
+          <input type="number" class="mini" id="share-1" value="24" min="0" max="100">
+          <input type="number" class="mini" id="share-2" value="38" min="0" max="100">
+          <input type="number" class="mini" id="share-3" value="24" min="0" max="100">
+          <input type="number" class="mini" id="share-4" value="7" min="0" max="100">
+          <span class="field-note" id="shares-sum"></span>
+        </div>
+        <div class="row hidden" id="thresholds-row">
+          <span class="field-note">偏差値のしきい値</span>
+          <input type="number" class="mini" id="th-0" value="60">
+          <input type="number" class="mini" id="th-1" value="55">
+          <input type="number" class="mini" id="th-2" value="45">
+          <input type="number" class="mini" id="th-3" value="40">
+        </div>
+        <p class="field-note" id="config-note"></p>
+      </section>
+
+      <!-- 評価結果 -->
+      <section class="card hidden" id="step-result">
+        <h2>評価結果</h2>
+        <div id="result-summary"></div>
+        <div id="result-dist" class="dist"></div>
+        <div class="row actions">
+          <button type="button" class="btn" id="export-csv">CSV で保存</button>
+          <button type="button" class="btn btn-quiet" id="copy-tsv">表をコピー</button>
+          <button type="button" class="btn btn-quiet" id="print">印刷</button>
+          <span class="field-note" id="action-note"></span>
+        </div>
+        <div class="table-wrap">
+          <table id="result-table" class="grid"></table>
+        </div>
+        <p class="field-note" id="skipped-note"></p>
+      </section>
+
+    </details>
+
+  </main>
+
+  <script src="js/xlsx.js"></script>
+  <script src="js/surnames.js"></script>
+  <script src="js/namehint.js"></script>
+  <script src="js/rating.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
