@@ -257,6 +257,40 @@ input[type="number"] { width: 110px; }
   overflow-y: auto;
 }
 
+/* ---- 除外後の表 ---- */
+
+.quick-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.quick-summary .quick-big {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ok);
+  font-variant-numeric: tabular-nums;
+}
+
+.quick-summary .field-note { flex-basis: 100%; margin: 0; }
+
+#step-quick .table-wrap { max-height: 460px; overflow-y: auto; }
+
+/* ---- 詳細設定（開いたときだけ） ---- */
+
+#advanced > .advanced-toggle {
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--primary);
+  padding: 10px 4px;
+  list-style-position: inside;
+}
+
+#advanced > .advanced-toggle:hover { text-decoration: underline; }
+
 /* ---- 氏名からの仕分け ---- */
 
 .dict-row { margin-bottom: 12px; }
@@ -383,7 +417,8 @@ input[type="number"] { width: 110px; }
 .grade-cell { font-weight: 700; text-align: center; }
 
 @media print {
-  .topbar, .drop, .row.actions, #step-load, #step-filter, #step-config { display: none !important; }
+  .topbar, .drop, .row.actions, #step-load, #step-filter, #step-config,
+  #advanced > .advanced-toggle { display: none !important; }
   .card { border: none; box-shadow: none; padding: 0; }
   .table-wrap { overflow: visible; border: none; }
   body { background: #fff; }

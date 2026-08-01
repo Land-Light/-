@@ -17,6 +17,7 @@
     gradeMode: 'relative',
     gradeLabel: 'number',
     dictLimit: 0,           // 0 = 姓の一覧を全件使う
+    quickDropColumn: true,  // 判定に使った列を出力から外すか
     shares: [7, 24, 38, 24, 7],
     thresholds: [60, 55, 45, 40],
     filtered: null,
@@ -136,7 +137,6 @@
       state.labelColumns = state.labelColumns.filter((i) => i <= max);
     }
 
-    renderPreview();
     renderRules();
     renderItems();
     renderLabels();
@@ -145,28 +145,112 @@
     recompute();
   }
 
-  function renderPreview() {
-    const table = $('preview');
-    clear(table);
-    const head = el('tr', null, [el('th', { class: 'dim', text: '行' })]);
-    state.table.headers.forEach((h, i) => {
-      const col = state.table.columns[i];
-      head.appendChild(el('th', { class: col.isNumeric ? 'num' : '', text: h }));
+  /* ------------------------------------------------- 除外後の表（設定不要） */
+
+  const QUICK_LIMIT = 300;
+
+  /** 出力に載せる列（判定に使った列は既定で外す。氏名の列は残す） */
+  function quickColumns() {
+    const dropped = new Set();
+    if (state.quickDropColumn) {
+      state.filtered.activeRules.forEach((r) => {
+        if (r.mode !== 'name') dropped.add(r.columnIndex);
+      });
+    }
+    return state.table.columns.filter((c) => !dropped.has(c.index));
+  }
+
+  function quickMatrix() {
+    const cols = quickColumns();
+    const rows = [cols.map((c) => c.name)];
+    state.filtered.kept.forEach((rec) => {
+      rows.push(cols.map((c) => cellText(rec.values[c.index])));
     });
+    return rows;
+  }
+
+  function renderQuick() {
+    const section = $('step-quick');
+    if (!state.table) {
+      section.classList.add('hidden');
+      return;
+    }
+    section.classList.remove('hidden');
+
+    const total = state.table.records.length;
+    const kept = state.filtered.kept.length;
+    const removed = state.filtered.removed.length;
+    const rules = state.filtered.activeRules;
+
+    // 何をもとに削除したかを 1 行で示す
+    const summary = $('quick-summary');
+    clear(summary);
+    summary.appendChild(el('span', { class: 'quick-big', text: kept + ' 行' }));
+    summary.appendChild(el('span', { text: 'を残しました（元は ' + total + ' 行、削除 ' + removed + ' 行）' }));
+
+    const how = rules.map((r) => {
+      const name = state.table.headers[r.columnIndex];
+      if (r.mode === 'name') return '「' + name + '」の表記から判定';
+      const parts = [];
+      if (r.values && r.values.length) parts.push(r.values.slice(0, 6).join('・') + (r.values.length > 6 ? ' ほか' : ''));
+      if ((r.keyword || '').trim()) parts.push('「' + r.keyword.trim() + '」を含む');
+      return '「' + name + '」列が ' + parts.join(' / ');
+    });
+    summary.appendChild(el('div', {
+      class: 'field-note',
+      text: how.length ? '判定: ' + how.join('、') : '削除の対象になる行は見つかりませんでした。',
+    }));
+
+    // 氏名から判定したときは、その限界を必ず出しておく
+    const caution = $('quick-caution');
+    const byName = rules.some((r) => r.mode === 'name');
+    caution.classList.toggle('hidden', !byName);
+    if (byName) {
+      caution.textContent = '⚠ 氏名の表記からの推定です。国籍そのものは判定できません。'
+        + '通名を使う外国籍の方は残り、日本国籍でも外国風の表記の方は削除されます。'
+        + '下の表と「削除した行を確認する」を必ずご確認ください。';
+    }
+
+    const cols = quickColumns();
+    const droppedCount = state.table.columns.length - cols.length;
+    $('quick-note').textContent = droppedCount
+      ? '判定に使った ' + droppedCount + ' 列を出力から外しています。'
+      : (byName ? '氏名の列は、誰の行か分からなくなるため残しています。' : '');
+
+    const table = $('quick-table');
+    clear(table);
+    const head = el('tr');
+    cols.forEach((c) => head.appendChild(el('th', { class: c.isNumeric ? 'num' : '', text: c.name })));
     table.appendChild(el('thead', null, [head]));
 
     const body = el('tbody');
-    state.table.records.slice(0, 8).forEach((rec) => {
-      const tr = el('tr', null, [el('td', { class: 'dim', text: String(rec.sourceRow) })]);
-      rec.values.forEach((v, i) => {
+    state.filtered.kept.slice(0, QUICK_LIMIT).forEach((rec) => {
+      const tr = el('tr');
+      cols.forEach((c) => {
         tr.appendChild(el('td', {
-          class: state.table.columns[i] && state.table.columns[i].isNumeric ? 'num' : '',
-          text: cellText(v),
+          class: c.isNumeric ? 'num' : '',
+          text: cellText(rec.values[c.index]),
         }));
       });
       body.appendChild(tr);
     });
     table.appendChild(body);
+
+    $('quick-more').textContent = kept > QUICK_LIMIT
+      ? '画面には先頭 ' + QUICK_LIMIT + ' 行だけ表示しています。保存・コピーは ' + kept + ' 行すべてが対象です。'
+      : '';
+  }
+
+  function exportQuickCsv() {
+    if (!state.filtered) return;
+    const blob = new Blob(['﻿' + toCsv(quickMatrix())], { type: 'text/csv;charset=utf-8' });
+    const base = (state.fileName || '表').replace(/\.[^.]+$/, '');
+    downloadBlob(blob, base + '_除外後.csv');
+  }
+
+  async function copyQuick() {
+    if (!state.filtered) return;
+    await copyMatrix(quickMatrix(), $('quick-note'));
   }
 
   /* -------------------------------------------------------------- 除外設定 */
@@ -502,6 +586,7 @@
     ]));
     counts.appendChild(el('span', { class: 'field-note', text: '読み込んだ全 ' + total + ' 行' }));
     renderRemoved(filtered.removed);
+    renderQuick();
 
     state.result = window.Rating.evaluate(filtered.kept, {
       items: state.items,
@@ -636,21 +721,15 @@
     }).join(',')).join('\r\n');
   }
 
-  function exportCsv() {
-    if (!state.result || !state.result.rows.length) return;
-    // Excel で開いたときに文字化けしないよう BOM を付ける
-    const blob = new Blob(['﻿' + toCsv(resultMatrix())], { type: 'text/csv;charset=utf-8' });
-    const base = (state.fileName || '評価').replace(/\.[^.]+$/, '');
-    const a = el('a', { href: URL.createObjectURL(blob), download: base + '_評価.csv' });
+  function downloadBlob(blob, filename) {
+    const a = el('a', { href: URL.createObjectURL(blob), download: filename });
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
   }
 
-  async function copyTsv() {
-    if (!state.result || !state.result.rows.length) return;
-    const text = resultMatrix().map((r) => r.join('\t')).join('\n');
-    const note = $('action-note');
+  async function copyMatrix(rows, note) {
+    const text = rows.map((r) => r.join('\t')).join('\n');
     try {
       await navigator.clipboard.writeText(text);
       note.textContent = 'コピーしました。Excel に貼り付けられます。';
@@ -658,6 +737,19 @@
       note.textContent = 'コピーできませんでした。CSV 保存をお使いください。';
     }
     setTimeout(() => { note.textContent = ''; }, 4000);
+  }
+
+  function exportCsv() {
+    if (!state.result || !state.result.rows.length) return;
+    // Excel で開いたときに文字化けしないよう BOM を付ける
+    const blob = new Blob(['﻿' + toCsv(resultMatrix())], { type: 'text/csv;charset=utf-8' });
+    const base = (state.fileName || '評価').replace(/\.[^.]+$/, '');
+    downloadBlob(blob, base + '_評価.csv');
+  }
+
+  async function copyTsv() {
+    if (!state.result || !state.result.rows.length) return;
+    await copyMatrix(resultMatrix(), $('action-note'));
   }
 
   /* ---------------------------------------------------------------- 初期化 */
@@ -733,6 +825,13 @@
         state.thresholds = [0, 1, 2, 3].map((k) => Number($('th-' + k).value) || 0);
         recompute();
       });
+    });
+
+    $('quick-csv').addEventListener('click', exportQuickCsv);
+    $('quick-copy').addEventListener('click', copyQuick);
+    $('quick-drop-col').addEventListener('change', (e) => {
+      state.quickDropColumn = e.target.checked;
+      renderQuick();
     });
 
     $('export-csv').addEventListener('click', exportCsv);
