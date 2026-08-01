@@ -279,6 +279,37 @@ input[type="number"] { width: 110px; }
 
 #step-quick .table-wrap { max-height: 460px; overflow-y: auto; }
 
+.quick-summary .manual-note {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* 目視で確認したい姓の行 */
+.watch-note {
+  font-size: 12px;
+  color: var(--danger);
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin: 0 0 10px;
+}
+
+.grid tr.watch > td { background: rgba(220, 38, 38, 0.09); }
+.grid tr.watch:hover > td { background: rgba(220, 38, 38, 0.16); }
+.grid td.watch-name { color: var(--danger); font-weight: 700; }
+
+.grid th.rowdel, .grid td.rowdel {
+  width: 1%;
+  padding: 2px 4px 2px 8px;
+  text-align: center;
+}
+
+.grid td.rowdel .btn-icon { font-size: 12px; line-height: 1; }
+
 /* ---- 詳細設定（開いたときだけ） ---- */
 
 #advanced > .advanced-toggle {
@@ -418,7 +449,7 @@ input[type="number"] { width: 110px; }
 
 @media print {
   .topbar, .drop, .row.actions, #step-load, #step-filter, #step-config,
-  #advanced > .advanced-toggle { display: none !important; }
+  #advanced > .advanced-toggle, .grid .rowdel { display: none !important; }
   .card { border: none; box-shadow: none; padding: 0; }
   .table-wrap { overflow: visible; border: none; }
   body { background: #fff; }

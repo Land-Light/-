@@ -18,6 +18,7 @@
     gradeLabel: 'number',
     dictLimit: 0,           // 0 = 姓の一覧を全件使う
     quickDropColumn: true,  // 判定に使った列を出力から外すか
+    manualRemoved: new Set(), // 目視で確認して手動で消した行 (sourceRow)
     shares: [7, 24, 38, 24, 7],
     thresholds: [60, 55, 45, 40],
     filtered: null,
@@ -119,6 +120,7 @@
       state.table.records.length + ' 行 × ' + state.table.headers.length + ' 列を読み込みました';
 
     if (resetSettings) {
+      state.manualRemoved.clear();
       state.rules = [defaultRule()];
       state.items = state.table.columns
         .filter((c) => c.isNumeric && c.uniqueCount > 1 && !ID_LIKE.test(c.name))
@@ -149,6 +151,19 @@
 
   const QUICK_LIMIT = 300;
 
+  /** 手動で消した行を除いた、出力対象の行 */
+  function quickRows() {
+    return state.filtered.kept.filter((rec) => !state.manualRemoved.has(rec.sourceRow));
+  }
+
+  /** 赤く表示する姓を照合するための氏名の列 */
+  function quickNameColumn() {
+    const byName = state.filtered.activeRules.find((r) => r.mode === 'name');
+    if (byName) return byName.columnIndex;
+    const col = window.NameHint.findNameColumn(state.table.columns);
+    return col ? col.index : -1;
+  }
+
   /** 出力に載せる列（判定に使った列は既定で外す。氏名の列は残す） */
   function quickColumns() {
     const dropped = new Set();
@@ -160,10 +175,11 @@
     return state.table.columns.filter((c) => !dropped.has(c.index));
   }
 
+  /** 保存・コピー用。色や操作列は含めない、素の表 */
   function quickMatrix() {
     const cols = quickColumns();
     const rows = [cols.map((c) => c.name)];
-    state.filtered.kept.forEach((rec) => {
+    quickRows().forEach((rec) => {
       rows.push(cols.map((c) => cellText(rec.values[c.index])));
     });
     return rows;
@@ -178,8 +194,10 @@
     section.classList.remove('hidden');
 
     const total = state.table.records.length;
-    const kept = state.filtered.kept.length;
-    const removed = state.filtered.removed.length;
+    const rows = quickRows();
+    const kept = rows.length;
+    const manual = state.manualRemoved.size;
+    const removed = state.filtered.removed.length + manual;
     const rules = state.filtered.activeRules;
 
     // 何をもとに削除したかを 1 行で示す
@@ -187,6 +205,15 @@
     clear(summary);
     summary.appendChild(el('span', { class: 'quick-big', text: kept + ' 行' }));
     summary.appendChild(el('span', { text: 'を残しました（元は ' + total + ' 行、削除 ' + removed + ' 行）' }));
+    if (manual) {
+      summary.appendChild(el('span', { class: 'manual-note' }, [
+        el('span', { text: 'うち手動で削除 ' + manual + ' 行' }),
+        el('button', {
+          type: 'button', class: 'btn-link', text: '元に戻す',
+          onclick: () => { state.manualRemoved.clear(); renderQuick(); },
+        }),
+      ]));
+    }
 
     const how = rules.map((r) => {
       const name = state.table.headers[r.columnIndex];
@@ -228,18 +255,28 @@
       ? '判定に使った ' + droppedCount + ' 列を出力から外しています。'
       : (byName ? '氏名の列は、誰の行か分からなくなるため残しています。' : '');
 
+    const nameIndex = quickNameColumn();
+    const watched = [];
+
     const table = $('quick-table');
     clear(table);
-    const head = el('tr');
+    const head = el('tr', null, [el('th', { class: 'rowdel', title: '行の削除' })]);
     cols.forEach((c) => head.appendChild(el('th', { class: c.isNumeric ? 'num' : '', text: c.name })));
     table.appendChild(el('thead', null, [head]));
 
     const body = el('tbody');
-    state.filtered.kept.slice(0, QUICK_LIMIT).forEach((rec) => {
-      const tr = el('tr');
+    rows.slice(0, QUICK_LIMIT).forEach((rec) => {
+      const surname = nameIndex >= 0 ? window.Surnames.watchedSurname(rec.values[nameIndex]) : null;
+      if (surname) watched.push(surname);
+
+      const del = el('button', {
+        type: 'button', class: 'btn-icon', title: 'この行を削除する', text: '✕',
+        onclick: () => { state.manualRemoved.add(rec.sourceRow); renderQuick(); },
+      });
+      const tr = el('tr', { class: surname ? 'watch' : '' }, [el('td', { class: 'rowdel' }, [del])]);
       cols.forEach((c) => {
         tr.appendChild(el('td', {
-          class: c.isNumeric ? 'num' : '',
+          class: (c.isNumeric ? 'num' : '') + (surname && c.index === nameIndex ? ' watch-name' : ''),
           text: cellText(rec.values[c.index]),
         }));
       });
@@ -247,9 +284,24 @@
     });
     table.appendChild(body);
 
-    $('quick-more').textContent = kept > QUICK_LIMIT
-      ? '画面には先頭 ' + QUICK_LIMIT + ' 行だけ表示しています。保存・コピーは ' + kept + ' 行すべてが対象です。'
-      : '';
+    // 赤い行が何なのかを表の上で説明する
+    const legend = $('quick-legend');
+    const watchList = window.Surnames.watchList().map((s) => '「' + s + '」').join('・');
+    if (watched.length) {
+      legend.classList.remove('hidden');
+      legend.textContent = '赤い行は姓が ' + watchList + ' の ' + watched.length + ' 行です。'
+        + '日本でも多い姓ですが中国・韓国でも使われるため、名前だけでは区別できません。'
+        + '目視で確認し、外す行は左の ✕ を押してください。';
+    } else {
+      legend.classList.add('hidden');
+    }
+
+    const notes = [];
+    if (kept > QUICK_LIMIT) {
+      notes.push('画面には先頭 ' + QUICK_LIMIT + ' 行だけ表示しています。保存・コピーは ' + kept + ' 行すべてが対象です。');
+    }
+    notes.push('保存・コピーする表に色は付きません（✕ の列も入りません）。');
+    $('quick-more').textContent = notes.join(' ');
   }
 
   function exportQuickCsv() {
