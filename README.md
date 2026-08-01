@@ -23,8 +23,9 @@ python3 -m http.server 8000
 ```
 
 初回起動時にはサンプルデッキ（英単語＋穴埋めの例）が入っています。
-`main` または開発ブランチに push すると GitHub Actions
-(`.github/workflows/pages.yml`) が自動で GitHub Pages にデプロイします。
+`main` に push すると GitHub Pages が自動で配信します
+（リポジトリの Settings → Pages で Source を「Deploy from a branch」の
+`main` / `(root)` に設定しています）。
 
 ## 主な機能
 
@@ -112,7 +113,7 @@ Google 同期を使わない場合、ブラウザや端末を変えるとデー�
 | `js/sync.js` | Google ログインと Drive 同期 |
 | `js/app.js` | 画面描画とユーザー操作 |
 | `rating/` | 評価集計サイト（別アプリ・下記参照） |
-| `.github/workflows/pages.yml` | GitHub Pages への自動デプロイ |
+| `.nojekyll` | Pages が静的ファイルをそのまま配信するための目印 |
 
 ## スケジューリングの仕組み
 
