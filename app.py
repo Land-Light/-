@@ -26,7 +26,9 @@ app.config["MAX_CONTENT_LENGTH"] = 256 * 1024 * 1024  # アップロード上限
 
 # 一括採点の並列数。答案採点はAPI待ちが大半なので並列化で総時間を短縮できる。
 # メモリ(無料枠512MB)とAPIレート制限を考慮した既定値。環境変数で調整可。
-GRADE_CONCURRENCY = max(1, int(os.environ.get("GRADE_CONCURRENCY", "3")))
+# 無料プラン(512MB)ではメモリ上限超過で再起動されやすいため、既定は逐次(1)。
+# メモリに余裕のある有料プランでは環境変数 GRADE_CONCURRENCY=3 等で高速化できる。
+GRADE_CONCURRENCY = max(1, int(os.environ.get("GRADE_CONCURRENCY", "1")))
 
 # 添削結果の一時保存(PDF ダウンロード用)。プロセス内メモリ保持。
 _results: dict = {}

@@ -40,6 +40,35 @@ class ToshinFetchError(RuntimeError):
     pass
 
 
+# 省メモリ用の Chromium 起動フラグ。無料プラン(512MB)では Chromium が
+# メモリ上限を超えて再起動されやすいため、GPU・共有メモリ・拡張などを無効化し、
+# 単一プロセスで動かして常駐メモリを抑える。
+_CHROMIUM_ARGS = [
+    "--no-sandbox",
+    "--disable-dev-shm-usage",      # /dev/shm 不足による肥大を回避
+    "--disable-gpu",
+    "--single-process",             # プロセス分割をやめて常駐メモリを削減
+    "--no-zygote",
+    "--disable-extensions",
+    "--disable-background-networking",
+    "--disable-background-timer-throttling",
+    "--disable-renderer-backgrounding",
+    "--disable-features=site-per-process,TranslateUI",
+    "--js-flags=--max-old-space-size=256",
+    "--window-size=1280,1600",
+]
+
+
+def _launch_browser(p, headless: bool = True):
+    """省メモリ設定で Chromium を起動する(全経路で共通)。"""
+    exe = os.environ.get("PLAYWRIGHT_CHROMIUM_PATH")
+    return p.chromium.launch(
+        headless=headless,
+        executable_path=exe if exe else None,
+        args=_CHROMIUM_ARGS,
+    )
+
+
 def _creds():
     user = os.environ.get("TOSHIN_USER", "")
     password = os.environ.get("TOSHIN_PASSWORD", "")
@@ -504,8 +533,7 @@ def inspect_tensakit(headless: bool = True) -> dict:
     user, password = _creds()
     url = os.environ.get("TOSHIN_URL", DEFAULT_URL)
     with sync_playwright() as p:
-        exe = os.environ.get("PLAYWRIGHT_CHROMIUM_PATH")
-        browser = p.chromium.launch(headless=headless, executable_path=exe if exe else None)
+        browser = _launch_browser(p, headless)
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
         try:
@@ -738,8 +766,7 @@ def grade_and_submit_on_tensakit(
     url = os.environ.get("TOSHIN_URL", DEFAULT_URL)
     report = {"sections": 0, "checked": 0, "commented": 0, "saved": False, "submitted": False}
     with sync_playwright() as p:
-        exe = os.environ.get("PLAYWRIGHT_CHROMIUM_PATH")
-        browser = p.chromium.launch(headless=headless, executable_path=exe if exe else None)
+        browser = _launch_browser(p, headless)
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
         try:
@@ -879,8 +906,7 @@ def batch_grade_on_tensakit(
     url = os.environ.get("TOSHIN_URL", DEFAULT_URL)
     results: List[dict] = []
     with sync_playwright() as p:
-        exe = os.environ.get("PLAYWRIGHT_CHROMIUM_PATH")
-        browser = p.chromium.launch(headless=headless, executable_path=exe if exe else None)
+        browser = _launch_browser(p, headless)
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
         try:
@@ -1061,10 +1087,7 @@ def fetch_answers(max_count: int = 100, headless: bool = True) -> List[FetchedAn
     fetched: List[FetchedAnswer] = []
 
     with sync_playwright() as p:
-        exe = os.environ.get("PLAYWRIGHT_CHROMIUM_PATH")
-        browser = p.chromium.launch(
-            headless=headless, executable_path=exe if exe else None
-        )
+        browser = _launch_browser(p, headless)
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
         try:
