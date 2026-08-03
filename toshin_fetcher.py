@@ -943,9 +943,19 @@ def batch_grade_on_tensakit(
                             pass
 
                     _shot("before.png")
+                    # 実際のDOMを保存(採点パネルのセレクタ調整用。/tensakit-html で確認)
+                    try:
+                        with open(os.path.join(_DEBUG_DIR, "tensakit_page.html"),
+                                  "w", encoding="utf-8") as fh:
+                            fh.write(tpage.content())
+                        tpage.screenshot(path=os.path.join(_DEBUG_DIR, "tensakit_page.png"),
+                                         full_page=True)
+                    except Exception:
+                        pass
                     sections = _scrape_grading_panel(tpage)
                     if not sections:
-                        raise RuntimeError("採点パネルを読み取れませんでした")
+                        raise RuntimeError(
+                            "採点パネルを読み取れませんでした(/tensakit-html で画面構造を確認できます)")
                     decisions = decide_fn(pdf_bytes, sections)
                     rep = _apply_tensakit_decisions(
                         tpage, context, sections, decisions, submit, shot=_shot)
