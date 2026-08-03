@@ -450,22 +450,24 @@ class TensakitDecisionResult(BaseModel):
 
 
 def decide_tensakit_marks(
-    pdf_bytes: bytes,
+    page_images: List[bytes],
     sections: List[dict],
     rubric: Optional[str] = None,
 ) -> List[TensakitSectionDecision]:
     """Tensakit 採点パネルの選択肢を、答案に照らしてどう選ぶか判断する。
 
+    page_images: 答案ページのPNGバイト列(Tensakit画面のスクショ、または
+                 PDFを描画した画像)。呼び出し側で用意する(メモリ節約のため
+                 この関数内ではPDF描画をしない)。
     sections: [{"section_label":..., "add_options":[{"index","label"},...],
                 "deduct_options":[...]}...] (画面から読み取ったもの)
-    戻り値: セクションごとの選択(add_indices/deduct_indices)とコメント。
+    戻り値: セクションごとの選択(add_indices/deduct_indices)。
     """
     if not sections:
         return []
     client = anthropic.Anthropic()
-    # 無料プランのメモリ節約: 低めの解像度で描画し、ページ数も制限する。
-    pages = render_pages_png(pdf_bytes, scale=1.4)[:6]
-    exam_hint = _identify_exam(client, pages)
+    pages = list(page_images)[:6]  # 枚数を制限してメモリ・トークンを抑える
+    exam_hint = _identify_exam(client, pages) if pages else ""
 
     content: list = []
     for i, png in enumerate(pages):

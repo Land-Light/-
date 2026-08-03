@@ -929,6 +929,58 @@ def _apply_tensakit_decisions(tpage, context, sections, decisions, submit, shot=
     return report
 
 
+def _tensakit_next_page(tpage) -> bool:
+    """採点画面の「次のページ(>)」を押す。押せたら True。"""
+    for sel in [
+        'button:has(svg[data-testid="NavigateNextIcon"])',
+        'button:has(svg[data-testid="ChevronRightIcon"])',
+        'button:has(svg[data-testid="KeyboardArrowRightIcon"])',
+        '[aria-label*="次"]',
+    ]:
+        loc = tpage.locator(sel)
+        try:
+            if loc.count() > 0 and loc.last.is_enabled():
+                loc.last.click()
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _screenshot_tensakit_pages(tpage, max_pages: int = 5) -> List[bytes]:
+    """採点画面の答案ページをスクリーンショットで取得する(PDF描画を避ける)。
+
+    「N / M ページ」表示から総ページ数を推定し、> で送りながら各ページを撮る。
+    総数が読めなければ現在ページ1枚だけ返す。
+    """
+    total = None
+    try:
+        import re as _re
+        txt = tpage.locator("body").inner_text()
+        m = _re.search(r"(\d+)\s*/\s*(\d+)\s*ページ", txt)
+        if m:
+            total = int(m.group(2))
+    except Exception:
+        total = None
+    n = min(total, max_pages) if total else 1
+    shots: List[bytes] = []
+    for k in range(max(n, 1)):
+        try:
+            shots.append(tpage.screenshot(full_page=False))
+        except Exception:
+            break
+        if k < n - 1:
+            if not _tensakit_next_page(tpage):
+                break
+            tpage.wait_for_timeout(800)
+    if not shots:
+        try:
+            shots.append(tpage.screenshot(full_page=False))
+        except Exception:
+            pass
+    return shots
+
+
 def _row_download_button(row, dl_col):
     """行内の答案ダウンロードボタンを特定する(fetch_answers と同じ規則)。"""
     ib = row.locator('button.MuiIconButton-root:not(.Mui-disabled):not([disabled])')
@@ -953,7 +1005,8 @@ def batch_grade_on_tensakit(
     採点(加点/減点チェック・コメント・添削完了・保存、submit=Trueなら提出)する。
 
     PDF添削は作らず、直接オンライン採点へ入力する。
-    decide_fn(pdf_bytes, sections) -> decisions を受け取る(採点判断はAI=呼び出し側)。
+    decide_fn(page_images, sections) -> decisions を受け取る(採点判断はAI=呼び出し側)。
+    page_images は Tensakit 画面のスクリーンショット(PDFダウンロード・描画はしない)。
     progress(index, total_done, item) はUI更新用の任意コールバック。
     """
     from playwright.sync_api import sync_playwright
@@ -1007,13 +1060,7 @@ def batch_grade_on_tensakit(
                 try:
                     if not href:
                         raise RuntimeError("この答案には Tensakit リンクがありません")
-                    # AI判読用に答案PDFを取得
-                    btn = _row_download_button(row, dl_col)
-                    if btn is None:
-                        raise RuntimeError("答案ダウンロードボタンが見つかりません")
-                    _, pdf_bytes = _click_and_get_pdf(page, context, btn, i + 1)
-                    _close_dialogs(page)
-                    # Tensakit 採点画面を開く
+                    # メモリ節約: 答案PDFはダウンロードせず、Tensakit画面から採点する
                     tpage = _open_tensakit_grading(context, page, href, user, password)
 
                     def _shot(name, _i=i):
@@ -1038,7 +1085,9 @@ def batch_grade_on_tensakit(
                     if not sections:
                         raise RuntimeError(
                             "採点パネルを読み取れませんでした(/tensakit-html で画面構造を確認できます)")
-                    decisions = decide_fn(pdf_bytes, sections)
+                    # 答案画像は Tensakit 画面のスクショから取得(PDF描画を避ける)
+                    page_images = _screenshot_tensakit_pages(tpage)
+                    decisions = decide_fn(page_images, sections)
                     rep = _apply_tensakit_decisions(
                         tpage, context, sections, decisions, submit, shot=_shot)
                     item.update(status="done", report=rep, tensakit_url=href)

@@ -143,8 +143,8 @@ def _start_tensakit_batch(max_count: int, rubric, submit: bool) -> str:
     state["total"] = max_count  # 上限(緑スキップで実数は減ることがある)
     state["items"] = []
 
-    def decide_fn(pdf_bytes, sections):
-        return decide_tensakit_marks(pdf_bytes, sections, rubric=rubric)
+    def decide_fn(page_images, sections):
+        return decide_tensakit_marks(page_images, sections, rubric=rubric)
 
     def progress(index: int, done: int, item: dict):
         while len(state["items"]) <= index:
@@ -411,7 +411,9 @@ def tensakit_grade(result_id: str):
     rubric = data.get("rubric")
 
     def decide_fn(sections):
-        return decide_tensakit_marks(pdf_bytes, sections, rubric=rubric)
+        # 保存済みのPDFを低解像度で描画して渡す(単発版)
+        imgs = render_pages_png(pdf_bytes, scale=1.4)[:6]
+        return decide_tensakit_marks(imgs, sections, rubric=rubric)
 
     try:
         report = grade_and_submit_on_tensakit(href, decide_fn, submit=submit)
