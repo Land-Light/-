@@ -566,6 +566,332 @@ def inspect_tensakit(headless: bool = True) -> dict:
             browser.close()
 
 
+def _open_tensakit_grading(context, page, href: str, user: str, password: str):
+    """一覧の Tensakit リンクから採点画面(別タブ)を開き、必要ならサインインする。"""
+    tpage = None
+    try:
+        with context.expect_page(timeout=30000) as pg_info:
+            page.locator(f'a[href="{href}"]').first.click()
+        tpage = pg_info.value
+    except Exception:
+        tpage = context.new_page()
+        tpage.goto(href, wait_until="domcontentloaded", timeout=60000)
+    try:
+        tpage.wait_for_load_state("networkidle", timeout=30000)
+    except Exception:
+        pass
+    _try_tensakit_login(tpage, user, password)
+    try:
+        tpage.wait_for_load_state("networkidle", timeout=30000)
+    except Exception:
+        pass
+    tpage.wait_for_timeout(2500)
+    return tpage
+
+
+def _scrape_grading_panel(tpage) -> List[dict]:
+    """採点パネル(右側)を読み取り、設問セクションごとの加点/減点選択肢を返す。
+
+    Tensakit のパネルは「◯◯完了(添削完了)」のチェックが各セクションの見出しに
+    付き、その下に「加点項目」「減点項目」の選択肢が並ぶ。画面のテキスト構造から
+    ベストエフォートで抽出する(DOM変更時は tensakit_page.html を見て調整)。
+    """
+    sections = tpage.evaluate(
+        r"""() => {
+            const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+            // 「添削完了」を含む見出し要素を各セクションの起点にする
+            const all = Array.from(document.querySelectorAll('body *'));
+            const heads = all.filter(el =>
+                el.children.length <= 4 && /添削完了/.test(el.textContent || '') &&
+                !Array.from(el.children).some(c => /添削完了/.test(c.textContent || '')));
+            const secs = [];
+            heads.forEach((head, hi) => {
+                // セクション見出しの文言(「添削完了」を除く)
+                let label = norm((head.textContent || '').replace('添削完了', ''));
+                // このセクションの範囲 = head から次の head の直前まで、共通の親配下で走査
+                let container = head;
+                for (let k = 0; k < 5 && container.parentElement; k++) container = container.parentElement;
+                const add = [], ded = [];
+                // container 配下のチェックボックス行を「加点項目/減点項目」の見出しで振り分け
+                const nodes = Array.from(container.querySelectorAll('*'));
+                let mode = '';
+                let idxA = 0, idxD = 0;
+                for (const n of nodes) {
+                    const t = norm(n.textContent || '');
+                    if (n.children.length === 0 && /加点項目/.test(t)) mode = 'add';
+                    else if (n.children.length === 0 && /減点項目/.test(t)) mode = 'ded';
+                    const cb = n.matches && n.matches('input[type=checkbox], [role=checkbox]');
+                    if (cb) {
+                        // 行のラベル = チェックボックスの近傍テキスト
+                        let row = n.closest('li,label,tr,div') || n.parentElement;
+                        let lab = norm(row ? row.textContent : '');
+                        if (mode === 'add') add.push({index: idxA++, label: lab});
+                        else if (mode === 'ded') ded.push({index: idxD++, label: lab});
+                    }
+                }
+                if (label || add.length || ded.length)
+                    secs.push({section_label: label || ('セクション' + (hi+1)),
+                               add_options: add, deduct_options: ded});
+            });
+            return secs;
+        }"""
+    )
+    return sections or []
+
+
+def _tensakit_check_option(tpage, section_label: str, kind: str, index: int) -> None:
+    """指定セクションの加点/減点の index 番目のチェックボックスをオンにする。"""
+    tpage.evaluate(
+        r"""({label, kind, index}) => {
+            const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+            const all = Array.from(document.querySelectorAll('body *'));
+            const heads = all.filter(el =>
+                el.children.length <= 4 && /添削完了/.test(el.textContent || '') &&
+                !Array.from(el.children).some(c => /添削完了/.test(c.textContent || '')));
+            const head = heads.find(h => norm((h.textContent||'').replace('添削完了','')) === label) || heads[0];
+            if (!head) return;
+            let container = head;
+            for (let k = 0; k < 5 && container.parentElement; k++) container = container.parentElement;
+            const wantHead = kind === 'add' ? '加点項目' : '減点項目';
+            const nodes = Array.from(container.querySelectorAll('*'));
+            let mode = '', i = 0;
+            for (const n of nodes) {
+                const t = norm(n.textContent || '');
+                if (n.children.length === 0 && /加点項目/.test(t)) mode = 'add';
+                else if (n.children.length === 0 && /減点項目/.test(t)) mode = 'ded';
+                if (n.matches && n.matches('input[type=checkbox], [role=checkbox]')) {
+                    const cur = (mode === 'add') ? 'add' : (mode === 'ded' ? 'ded' : '');
+                    if (cur === kind) {
+                        if (i === index) {
+                            const checked = n.getAttribute('aria-checked') === 'true' || n.checked;
+                            if (!checked) (n.closest('label,li,div') || n).click();
+                            return;
+                        }
+                        i++;
+                    }
+                }
+            }
+        }""",
+        {"label": section_label, "kind": kind, "index": index},
+    )
+
+
+def _tensakit_mark_done(tpage, section_label: str) -> None:
+    """指定セクションの「添削完了」チェックをオンにする。"""
+    tpage.evaluate(
+        r"""(label) => {
+            const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+            const all = Array.from(document.querySelectorAll('body *'));
+            const heads = all.filter(el =>
+                el.children.length <= 4 && /添削完了/.test(el.textContent || '') &&
+                !Array.from(el.children).some(c => /添削完了/.test(c.textContent || '')));
+            const head = heads.find(h => norm((h.textContent||'').replace('添削完了','')) === label) || heads[0];
+            if (!head) return;
+            const cb = head.querySelector('input[type=checkbox], [role=checkbox]')
+                    || (head.parentElement && head.parentElement.querySelector('input[type=checkbox], [role=checkbox]'));
+            if (cb) {
+                const checked = cb.getAttribute('aria-checked') === 'true' || cb.checked;
+                if (!checked) (cb.closest('label,li,div') || cb).click();
+            }
+        }""",
+        section_label,
+    )
+
+
+def _tensakit_toolbar_click(tpage, which: str) -> bool:
+    """上部ツールバーの保存(save)/提出(send)アイコンをクリックする。"""
+    aliases = {
+        "save": ['button[aria-label*="保存"]', 'button[title*="保存"]',
+                 '[aria-label*="save" i]', '[data-testid*="Save" i]',
+                 'svg[data-testid="SaveIcon"]', 'button:has(svg[data-testid="SaveIcon"])'],
+        "send": ['button[aria-label*="提出"]', 'button[title*="提出"]',
+                 'button[aria-label*="送信"]', '[aria-label*="send" i]',
+                 'svg[data-testid="SendIcon"]', 'button:has(svg[data-testid="SendIcon"])'],
+    }[which]
+    for sel in aliases:
+        loc = tpage.locator(sel)
+        try:
+            if loc.count() > 0 and loc.first.is_visible():
+                loc.first.click()
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def grade_and_submit_on_tensakit(
+    href: str,
+    decide_fn,
+    submit: bool = False,
+    headless: bool = True,
+) -> dict:
+    """Tensakit 採点画面を開き、AIの判断で加点/減点を選択・コメント入力・添削完了、
+    保存し、submit=True なら提出まで行う。
+
+    decide_fn(sections) -> [TensakitSectionDecision 互換の dict/obj] を受け取り、
+    どの項目にチェックしコメントを書くかを決める(採点ロジックは呼び出し側=AI)。
+    実際の提出(submit=True)は取り消しにくい操作のため、既定では下書き保存のみ。
+    """
+    from playwright.sync_api import sync_playwright
+
+    user, password = _creds()
+    url = os.environ.get("TOSHIN_URL", DEFAULT_URL)
+    report = {"sections": 0, "checked": 0, "commented": 0, "saved": False, "submitted": False}
+    with sync_playwright() as p:
+        exe = os.environ.get("PLAYWRIGHT_CHROMIUM_PATH")
+        browser = p.chromium.launch(headless=headless, executable_path=exe if exe else None)
+        context = browser.new_context(accept_downloads=True)
+        page = context.new_page()
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            try:
+                page.wait_for_selector('input[type="password"], table tbody tr', timeout=30000)
+            except Exception:
+                pass
+            _try_login(page, user, password)
+            tpage = _open_tensakit_grading(context, page, href, user, password)
+
+            def _shot(name):
+                try:
+                    tpage.screenshot(path=os.path.join(_DEBUG_DIR, name), full_page=True)
+                except Exception:
+                    pass
+
+            _shot("tensakit_before.png")
+            sections = _scrape_grading_panel(tpage)
+            report["sections"] = len(sections)
+            # パネル構造を保存(セレクタ調整用)
+            try:
+                with open(os.path.join(_DEBUG_DIR, "tensakit_page.html"), "w", encoding="utf-8") as fh:
+                    fh.write(tpage.content())
+            except Exception:
+                pass
+            if not sections:
+                raise ToshinFetchError(
+                    "Tensakit の採点パネルを読み取れませんでした。/tensakit-page と /tensakit-html で"
+                    "画面構造を確認してください(セレクタ調整が必要な可能性があります)。"
+                )
+
+            decisions = decide_fn(sections) or []
+            dmap = {}
+            for d in decisions:
+                lab = d["section_label"] if isinstance(d, dict) else d.section_label
+                dmap[lab] = d
+
+            for s in sections:
+                d = dmap.get(s["section_label"])
+                if d is None:
+                    continue
+                add_i = d["add_indices"] if isinstance(d, dict) else d.add_indices
+                ded_i = d["deduct_indices"] if isinstance(d, dict) else d.deduct_indices
+                comment = (d["comment"] if isinstance(d, dict) else d.comment) or ""
+                for idx in add_i:
+                    _tensakit_check_option(tpage, s["section_label"], "add", idx)
+                    report["checked"] += 1
+                for idx in ded_i:
+                    _tensakit_check_option(tpage, s["section_label"], "ded", idx)
+                    report["checked"] += 1
+                if comment.strip():
+                    _tensakit_add_comment(tpage, s["section_label"], comment)
+                    report["commented"] += 1
+                _tensakit_mark_done(tpage, s["section_label"])
+                tpage.wait_for_timeout(200)
+
+            _shot("tensakit_filled.png")
+            report["saved"] = _tensakit_toolbar_click(tpage, "save")
+            tpage.wait_for_timeout(1500)
+
+            if submit:
+                # 提出(右上の三角)。別タブでPDF確認が開くことがあるので待つ。
+                before = set(context.pages)
+                if _tensakit_toolbar_click(tpage, "send"):
+                    tpage.wait_for_timeout(2000)
+                    # 確認ダイアログ(提出しますか等)が出たら承認する
+                    for sel in ['button:has-text("提出")', 'button:has-text("送信")',
+                                'button:has-text("OK")', 'button:has-text("はい")']:
+                        loc = tpage.locator(sel)
+                        try:
+                            if loc.count() > 0 and loc.first.is_visible():
+                                loc.first.click()
+                                break
+                        except Exception:
+                            continue
+                    tpage.wait_for_timeout(1500)
+                    report["submitted"] = True
+                # 開いた確認タブがあれば閉じておく
+                for pg in list(context.pages):
+                    if pg not in before and pg != tpage:
+                        try:
+                            pg.close()
+                        except Exception:
+                            pass
+
+            _shot("tensakit_after.png")
+            return report
+        except ToshinFetchError:
+            _save_debug(page)
+            raise
+        except Exception as e:
+            _save_debug(page)
+            raise ToshinFetchError(f"Tensakit への自動採点・提出に失敗しました: {e}") from e
+        finally:
+            context.close()
+            browser.close()
+
+
+def _tensakit_add_comment(tpage, section_label: str, comment: str) -> None:
+    """指定セクションの「T」(テキスト)ボタンからコメントを入力する。
+
+    Tensakit は各セクションに「T」ボタンがあり、押すとコメント入力欄が出る。
+    入力後、可能なら保存/確定ボタンを押す(無ければ入力のみ)。
+    """
+    # セクション見出し近傍の「T」ボタンを押す
+    pressed = tpage.evaluate(
+        r"""(label) => {
+            const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+            const all = Array.from(document.querySelectorAll('body *'));
+            const heads = all.filter(el =>
+                el.children.length <= 4 && /添削完了/.test(el.textContent || '') &&
+                !Array.from(el.children).some(c => /添削完了/.test(c.textContent || '')));
+            const head = heads.find(h => norm((h.textContent||'').replace('添削完了','')) === label) || heads[0];
+            if (!head) return false;
+            let container = head;
+            for (let k = 0; k < 5 && container.parentElement; k++) container = container.parentElement;
+            // 「T」だけのボタン/要素を探す
+            const cand = Array.from(container.querySelectorAll('button, [role=button]'))
+                .find(b => norm(b.textContent) === 'T'
+                    || (b.getAttribute('aria-label')||'').match(/text|コメント|テキスト/i));
+            if (cand) { cand.click(); return true; }
+            return false;
+        }""",
+        section_label,
+    )
+    if not pressed:
+        return
+    tpage.wait_for_timeout(400)
+    # 出てきた入力欄にコメントを入れる
+    for sel in ['textarea:visible', 'input[type="text"]:visible',
+                '[contenteditable="true"]:visible']:
+        loc = tpage.locator(sel)
+        try:
+            if loc.count() > 0 and loc.last.is_visible():
+                loc.last.click()
+                loc.last.fill(comment)
+                break
+        except Exception:
+            continue
+    # 確定ボタン(保存/OK/追加)があれば押す
+    for sel in ['button:has-text("保存")', 'button:has-text("追加")',
+                'button:has-text("OK")', 'button:has-text("確定")']:
+        loc = tpage.locator(sel)
+        try:
+            if loc.count() > 0 and loc.last.is_visible():
+                loc.last.click()
+                break
+        except Exception:
+            continue
+
+
 def _save_debug(page) -> str:
     """失敗時の画面(PNG)とHTMLを保存し、現在地のヒント文字列を返す。"""
     try:

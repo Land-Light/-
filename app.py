@@ -13,8 +13,12 @@ from flask import (
 from annotator import Mark, annotate_pdf
 from grader import GENRE_LABELS, GRADER_NAME, QuestionInput, grade_answers
 from pdf_generator import build_pdf
-from scan_grader import build_marks, grade_scanned_pdf, render_pages_png
-from toshin_fetcher import ToshinFetchError, fetch_answers, inspect_tensakit
+from scan_grader import (
+    build_marks, decide_tensakit_marks, grade_scanned_pdf, render_pages_png,
+)
+from toshin_fetcher import (
+    ToshinFetchError, fetch_answers, grade_and_submit_on_tensakit, inspect_tensakit,
+)
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 256 * 1024 * 1024  # アップロード上限 256MB(大量枚数対応)
@@ -332,6 +336,45 @@ def tensakit_inspect():
         "<a href='/tensakit-html'>HTMLを見る</a></p>"
         "<p>この2つを開発者に共有すると、採点入力の自動化を作成できます。</p>"
         "<p><a href='/'>戻る</a></p>"
+    )
+
+
+@app.route("/tensakit-grade/<result_id>", methods=["POST", "GET"])
+def tensakit_grade(result_id: str):
+    """採点済みの1件を Tensakit 採点画面に自動入力する(既定は下書き保存のみ)。
+
+    ?submit=1 を付けると提出まで行う。提出は取り消しにくいので既定は保存のみ。
+    """
+    data = _results.get(result_id)
+    if not data:
+        abort(404)
+    href = (data.get("source_meta") or {}).get("tensakit_url")
+    if not href:
+        return ("この答案には Tensakit のリンクがありません(東進取込の答案のみ対応)。", 400)
+    submit = request.values.get("submit") in ("1", "true", "on")
+    pdf_bytes = data["pdf_bytes"]
+    rubric = data.get("rubric")
+
+    def decide_fn(sections):
+        return decide_tensakit_marks(pdf_bytes, sections, rubric=rubric)
+
+    try:
+        report = grade_and_submit_on_tensakit(href, decide_fn, submit=submit)
+    except ToshinFetchError as e:
+        return (f"<h3>Tensakit 自動採点に失敗しました</h3><p>{e}</p>"
+                "<p><a href='/tensakit-page'>実行時の画面を見る</a></p>"
+                "<p><a href='/'>戻る</a></p>"), 502
+    action = "提出まで完了" if report.get("submitted") else "下書き保存まで完了(未提出)"
+    return (
+        f"<h3>Tensakit 自動採点: {action}</h3>"
+        f"<p>セクション {report['sections']} 件 / チェック {report['checked']} 件 / "
+        f"コメント {report['commented']} 件 / 保存 {'○' if report['saved'] else '×'}</p>"
+        "<p>入力結果を確認してください: "
+        "<a href='/tensakit-page' target='_blank'>実行後の画面</a></p>"
+        + ("" if submit else
+           f"<p><a href='/tensakit-grade/{result_id}?submit=1'>"
+           "内容を確認できたら『提出』まで実行する</a></p>")
+        + "<p><a href='/'>戻る</a></p>"
     )
 
 

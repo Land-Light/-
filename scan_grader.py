@@ -410,3 +410,120 @@ def grade_and_annotate(pdf_bytes: bytes, rubric: Optional[str] = None):
     result = grade_scanned_pdf(pdf_bytes, rubric=rubric)
     annotated = annotate_pdf(pdf_bytes, build_marks(result))
     return result, annotated
+
+
+# ── Tensakit(東進オンライン採点)への自動入力判断 ────────────────────────
+# Tensakit の採点パネルは、設問ごとに「加点項目」「減点項目」のチェックボックス
+# (採点基準そのもの)を並べている。採点をやり直すのではなく、実際に画面に出て
+# いる選択肢を読み取り、答案に照らして「どの項目にチェックを入れるか」だけを
+# AI に判断させる。これにより基準とのズレを防ぎ、入力を確実にする。
+
+class TensakitPanelOption(BaseModel):
+    """採点パネルの1選択肢(加点/減点のチェック項目)。"""
+
+    index: int = Field(description="そのセクション内での選択肢の通し番号(0始まり)")
+    label: str = Field(description="画面に表示されている選択肢の文言(例: +2 1, とむら(う) など)")
+
+
+class TensakitSectionInput(BaseModel):
+    """採点パネルの1セクション(設問・小問)分の入力候補。"""
+
+    section_label: str = Field(description="セクション見出し(例: 第一問 / 一 / コ)")
+    add_options: List[TensakitPanelOption] = Field(default_factory=list, description="加点項目の選択肢")
+    deduct_options: List[TensakitPanelOption] = Field(default_factory=list, description="減点項目の選択肢")
+
+
+class TensakitSectionDecision(BaseModel):
+    """1セクションについて、チェックすべき項目とコメント。"""
+
+    section_label: str = Field(description="対象セクション見出し(入力の section_label と一致させる)")
+    add_indices: List[int] = Field(
+        default_factory=list, description="チェックする加点項目の index(該当が無ければ空)"
+    )
+    deduct_indices: List[int] = Field(
+        default_factory=list, description="チェックする減点項目の index(該当が無ければ空)"
+    )
+    comment: str = Field(
+        default="",
+        description="このセクションに書くコメント(丁寧語)。定型の使い回しでよいが、"
+        "記述問題は具体的に。漢字・記号問題や正解のみの項目は空にする",
+    )
+
+
+class TensakitDecisionResult(BaseModel):
+    sections: List[TensakitSectionDecision]
+
+
+def decide_tensakit_marks(
+    pdf_bytes: bytes,
+    sections: List[dict],
+    rubric: Optional[str] = None,
+) -> List[TensakitSectionDecision]:
+    """Tensakit 採点パネルの選択肢を、答案に照らしてどう選ぶか判断する。
+
+    sections: [{"section_label":..., "add_options":[{"index","label"},...],
+                "deduct_options":[...]}...] (画面から読み取ったもの)
+    戻り値: セクションごとの選択(add_indices/deduct_indices)とコメント。
+    """
+    if not sections:
+        return []
+    client = anthropic.Anthropic()
+    pages = render_pages_png(pdf_bytes)
+    exam_hint = _identify_exam(client, pages)
+
+    content: list = []
+    for i, png in enumerate(pages):
+        content.append({"type": "text", "text": f"【答案 {i + 1}/{len(pages)}ページ目】"})
+        content.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": "image/png",
+                       "data": base64.standard_b64encode(png).decode()},
+        })
+    if rubric:
+        content.append({"type": "text", "text": f"【利用者提供の採点基準】(最優先)\n{rubric}"})
+
+    panel_text = "\n\n".join(
+        "■セクション: " + s["section_label"] + "\n"
+        + "  加点項目:\n" + "".join(
+            f"    [{o['index']}] {o['label']}\n" for o in s.get("add_options", [])
+        )
+        + "  減点項目:\n" + "".join(
+            f"    [{o['index']}] {o['label']}\n" for o in s.get("deduct_options", [])
+        )
+        for s in sections
+    )
+    content.append({
+        "type": "text",
+        "text": (
+            "以下は東進オンライン採点(Tensakit)の採点パネルに実際に表示されている、"
+            "設問ごとの加点項目・減点項目の選択肢です。上の答案を読み、各セクションについて"
+            "『どの加点項目・減点項目にチェックを入れるべきか』を index で選んでください。"
+            "採点基準そのものなので、勝手な加点減点はせず、該当する項目だけを選ぶこと。"
+            "漢字・記号は正解した小問の加点項目のみ選び、コメントは空にする。"
+            "記述問題は該当する加点/減点項目を選び、comment に丁寧語で具体的な講評を書く"
+            "(定型の使い回しでよい)。該当が無いセクションは空のまま返すこと。\n\n"
+            + panel_text
+        ),
+    })
+
+    system_blocks = [{"type": "text", "text": SYSTEM_PROMPT}]
+    reference = select_reference(exam_hint) if exam_hint and exam_hint != "不明" else _load_reference()
+    if reference:
+        system_blocks.append({
+            "type": "text",
+            "text": "参照実例(採点基準の実例):\n\n" + reference,
+            "cache_control": {"type": "ephemeral"},
+        })
+
+    with client.with_options(timeout=800.0).messages.stream(
+        model=MODEL,
+        max_tokens=16000,
+        thinking={"type": "adaptive"},
+        output_config={"effort": "medium"},
+        system=system_blocks,
+        messages=[{"role": "user", "content": content}],
+        output_format=TensakitDecisionResult,
+    ) as stream:
+        response = stream.get_final_message()
+    out = response.parsed_output
+    return out.sections if out else []
