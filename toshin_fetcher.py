@@ -829,7 +829,8 @@ def _apply_tensakit_decisions(tpage, context, sections, decisions, submit, shot=
             continue
         add_i = d["add_indices"] if isinstance(d, dict) else d.add_indices
         ded_i = d["deduct_indices"] if isinstance(d, dict) else d.deduct_indices
-        comment = (d["comment"] if isinstance(d, dict) else d.comment) or ""
+        # コメントは扱わない方針(使い回し・手動)。互換のため残っていれば使う。
+        comment = (d.get("comment") if isinstance(d, dict) else getattr(d, "comment", "")) or ""
         for idx in add_i:
             _tensakit_check_option(tpage, s["section_label"], "add", idx)
             report["checked"] += 1

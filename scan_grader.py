@@ -434,7 +434,7 @@ class TensakitSectionInput(BaseModel):
 
 
 class TensakitSectionDecision(BaseModel):
-    """1セクションについて、チェックすべき項目とコメント。"""
+    """1セクションについて、チェックすべき加点/減点項目(コメントは扱わない)。"""
 
     section_label: str = Field(description="対象セクション見出し(入力の section_label と一致させる)")
     add_indices: List[int] = Field(
@@ -442,11 +442,6 @@ class TensakitSectionDecision(BaseModel):
     )
     deduct_indices: List[int] = Field(
         default_factory=list, description="チェックする減点項目の index(該当が無ければ空)"
-    )
-    comment: str = Field(
-        default="",
-        description="このセクションに書くコメント(丁寧語)。定型の使い回しでよいが、"
-        "記述問題は具体的に。漢字・記号問題や正解のみの項目は空にする",
     )
 
 
@@ -468,7 +463,8 @@ def decide_tensakit_marks(
     if not sections:
         return []
     client = anthropic.Anthropic()
-    pages = render_pages_png(pdf_bytes)
+    # 無料プランのメモリ節約: 低めの解像度で描画し、ページ数も制限する。
+    pages = render_pages_png(pdf_bytes, scale=1.4)[:6]
     exam_hint = _identify_exam(client, pages)
 
     content: list = []
@@ -499,9 +495,8 @@ def decide_tensakit_marks(
             "設問ごとの加点項目・減点項目の選択肢です。上の答案を読み、各セクションについて"
             "『どの加点項目・減点項目にチェックを入れるべきか』を index で選んでください。"
             "採点基準そのものなので、勝手な加点減点はせず、該当する項目だけを選ぶこと。"
-            "漢字・記号は正解した小問の加点項目のみ選び、コメントは空にする。"
-            "記述問題は該当する加点/減点項目を選び、comment に丁寧語で具体的な講評を書く"
-            "(定型の使い回しでよい)。該当が無いセクションは空のまま返すこと。\n\n"
+            "漢字・記号は正解した小問の加点項目のみ選ぶ。記述問題も該当する加点/減点項目だけを選ぶ。"
+            "コメントは扱いません(選択のみ)。該当が無いセクションは空のまま返すこと。\n\n"
             + panel_text
         ),
     })
@@ -515,9 +510,10 @@ def decide_tensakit_marks(
             "cache_control": {"type": "ephemeral"},
         })
 
+    # コメント生成をしない分、出力は短い。max_tokens を抑えて低コスト・低メモリに。
     with client.with_options(timeout=800.0).messages.stream(
         model=MODEL,
-        max_tokens=16000,
+        max_tokens=6000,
         thinking={"type": "adaptive"},
         output_config={"effort": "medium"},
         system=system_blocks,
