@@ -45,7 +45,21 @@
     <label for="toshin_rubric">採点基準 <span class="opt">(任意・貼り付けると最優先で適用)</span></label>
     <textarea id="toshin_rubric" name="toshin_rubric" rows="2"
               placeholder="採点基準があれば貼り付けてください"></textarea>
-    <button class="primary" type="submit">東進から取得して一括採点</button>
+    <button class="primary" type="submit">東進から取得して一括採点(PDF添削)</button>
+
+    <div style="margin-top:1rem; padding-top:0.8rem; border-top:1px dashed var(--border);">
+      <label style="display:flex; align-items:center; gap:0.4rem; font-weight:normal;">
+        <input type="checkbox" name="submit" value="on" style="width:auto;">
+        提出まで自動で行う <span class="opt">(チェックしない場合は下書き保存のみ。まず保存で確認するのが安全です)</span>
+      </label>
+      <button class="primary" type="submit" formaction="/grade-tensakit"
+              style="margin-top:0.5rem; background:#137a4d;">
+        東進から取得して Tensakit で直接採点
+      </button>
+      <div class="opt" style="margin-top:0.3rem;">
+        PDFを作らず、東進オンライン採点(Tensakit)の画面に加点/減点・コメント・添削完了を自動入力します。
+      </div>
+    </div>
     <div id="toshin-loading" style="display:none; margin-top:1rem; color:var(--accent); font-weight:600;">
       取得・採点中です…(取得+1枚あたり1〜数分かかります)
     </div>

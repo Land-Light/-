@@ -773,60 +773,8 @@ def grade_and_submit_on_tensakit(
                 )
 
             decisions = decide_fn(sections) or []
-            dmap = {}
-            for d in decisions:
-                lab = d["section_label"] if isinstance(d, dict) else d.section_label
-                dmap[lab] = d
-
-            for s in sections:
-                d = dmap.get(s["section_label"])
-                if d is None:
-                    continue
-                add_i = d["add_indices"] if isinstance(d, dict) else d.add_indices
-                ded_i = d["deduct_indices"] if isinstance(d, dict) else d.deduct_indices
-                comment = (d["comment"] if isinstance(d, dict) else d.comment) or ""
-                for idx in add_i:
-                    _tensakit_check_option(tpage, s["section_label"], "add", idx)
-                    report["checked"] += 1
-                for idx in ded_i:
-                    _tensakit_check_option(tpage, s["section_label"], "ded", idx)
-                    report["checked"] += 1
-                if comment.strip():
-                    _tensakit_add_comment(tpage, s["section_label"], comment)
-                    report["commented"] += 1
-                _tensakit_mark_done(tpage, s["section_label"])
-                tpage.wait_for_timeout(200)
-
-            _shot("tensakit_filled.png")
-            report["saved"] = _tensakit_toolbar_click(tpage, "save")
-            tpage.wait_for_timeout(1500)
-
-            if submit:
-                # 提出(右上の三角)。別タブでPDF確認が開くことがあるので待つ。
-                before = set(context.pages)
-                if _tensakit_toolbar_click(tpage, "send"):
-                    tpage.wait_for_timeout(2000)
-                    # 確認ダイアログ(提出しますか等)が出たら承認する
-                    for sel in ['button:has-text("提出")', 'button:has-text("送信")',
-                                'button:has-text("OK")', 'button:has-text("はい")']:
-                        loc = tpage.locator(sel)
-                        try:
-                            if loc.count() > 0 and loc.first.is_visible():
-                                loc.first.click()
-                                break
-                        except Exception:
-                            continue
-                    tpage.wait_for_timeout(1500)
-                    report["submitted"] = True
-                # 開いた確認タブがあれば閉じておく
-                for pg in list(context.pages):
-                    if pg not in before and pg != tpage:
-                        try:
-                            pg.close()
-                        except Exception:
-                            pass
-
-            _shot("tensakit_after.png")
+            rep2 = _apply_tensakit_decisions(tpage, context, sections, decisions, submit, shot=_shot)
+            report.update(rep2)
             return report
         except ToshinFetchError:
             _save_debug(page)
@@ -834,6 +782,195 @@ def grade_and_submit_on_tensakit(
         except Exception as e:
             _save_debug(page)
             raise ToshinFetchError(f"Tensakit への自動採点・提出に失敗しました: {e}") from e
+        finally:
+            context.close()
+            browser.close()
+
+
+def _apply_tensakit_decisions(tpage, context, sections, decisions, submit, shot=None) -> dict:
+    """AIの判断(decisions)を採点パネルに反映し、保存(・提出)する。共通処理。"""
+    report = {"sections": len(sections), "checked": 0, "commented": 0,
+              "saved": False, "submitted": False}
+    dmap = {}
+    for d in decisions or []:
+        lab = d["section_label"] if isinstance(d, dict) else d.section_label
+        dmap[lab] = d
+
+    for s in sections:
+        d = dmap.get(s["section_label"])
+        if d is None:
+            continue
+        add_i = d["add_indices"] if isinstance(d, dict) else d.add_indices
+        ded_i = d["deduct_indices"] if isinstance(d, dict) else d.deduct_indices
+        comment = (d["comment"] if isinstance(d, dict) else d.comment) or ""
+        for idx in add_i:
+            _tensakit_check_option(tpage, s["section_label"], "add", idx)
+            report["checked"] += 1
+        for idx in ded_i:
+            _tensakit_check_option(tpage, s["section_label"], "ded", idx)
+            report["checked"] += 1
+        if comment.strip():
+            _tensakit_add_comment(tpage, s["section_label"], comment)
+            report["commented"] += 1
+        _tensakit_mark_done(tpage, s["section_label"])
+        tpage.wait_for_timeout(200)
+
+    if shot:
+        shot("tensakit_filled.png")
+    report["saved"] = _tensakit_toolbar_click(tpage, "save")
+    tpage.wait_for_timeout(1500)
+
+    if submit:
+        before = set(context.pages)
+        if _tensakit_toolbar_click(tpage, "send"):
+            tpage.wait_for_timeout(2000)
+            for sel in ['button:has-text("提出")', 'button:has-text("送信")',
+                        'button:has-text("OK")', 'button:has-text("はい")']:
+                loc = tpage.locator(sel)
+                try:
+                    if loc.count() > 0 and loc.first.is_visible():
+                        loc.first.click()
+                        break
+                except Exception:
+                    continue
+            tpage.wait_for_timeout(1500)
+            report["submitted"] = True
+        for pg in list(context.pages):
+            if pg not in before and pg != tpage:
+                try:
+                    pg.close()
+                except Exception:
+                    pass
+    if shot:
+        shot("tensakit_after.png")
+    return report
+
+
+def _row_download_button(row, dl_col):
+    """行内の答案ダウンロードボタンを特定する(fetch_answers と同じ規則)。"""
+    ib = row.locator('button.MuiIconButton-root:not(.Mui-disabled):not([disabled])')
+    if ib.count() > 0:
+        return ib.first
+    if dl_col is not None:
+        cell = row.locator("td").nth(dl_col)
+        c = cell.locator("button:not([disabled]), a[href]")
+        if c.count() > 0:
+            return c.first
+    return _find_download_control(row)
+
+
+def batch_grade_on_tensakit(
+    max_count: int,
+    decide_fn,
+    submit: bool = False,
+    headless: bool = True,
+    progress=None,
+) -> List[dict]:
+    """東進にログインし、未採点(緑でない)の各答案について、そのまま Tensakit で
+    採点(加点/減点チェック・コメント・添削完了・保存、submit=Trueなら提出)する。
+
+    PDF添削は作らず、直接オンライン採点へ入力する。
+    decide_fn(pdf_bytes, sections) -> decisions を受け取る(採点判断はAI=呼び出し側)。
+    progress(index, total_done, item) はUI更新用の任意コールバック。
+    """
+    from playwright.sync_api import sync_playwright
+
+    user, password = _creds()
+    url = os.environ.get("TOSHIN_URL", DEFAULT_URL)
+    results: List[dict] = []
+    with sync_playwright() as p:
+        exe = os.environ.get("PLAYWRIGHT_CHROMIUM_PATH")
+        browser = p.chromium.launch(headless=headless, executable_path=exe if exe else None)
+        context = browser.new_context(accept_downloads=True)
+        page = context.new_page()
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            try:
+                page.wait_for_selector('input[type="password"], table tbody tr', timeout=30000)
+            except Exception:
+                pass
+            _try_login(page, user, password)
+            if not _has_answer_table(page):
+                if "/correction" not in page.url:
+                    try:
+                        page.goto(url, wait_until="networkidle", timeout=60000)
+                    except Exception:
+                        pass
+                if not _has_answer_table(page):
+                    _follow_grading_app_link(page)
+            page.wait_for_selector("table tbody tr", timeout=30000)
+            rows = page.locator("table tbody tr")
+            total_rows = rows.count()
+            if total_rows == 0:
+                raise ToshinFetchError("答案一覧に行がありません(未割当の可能性)。")
+
+            dl_col = _download_col_index(page)
+            picked = 0
+            skipped = 0
+            for i in range(total_rows):
+                if picked >= max_count:
+                    break
+                row = rows.nth(i)
+                if _is_graded(row):  # 採点済み(緑表示)は対象外
+                    skipped += 1
+                    continue
+                picked += 1
+                _close_dialogs(page)
+                meta = _row_meta(row)
+                item = {"filename": meta.get("exam") or f"answer_{i + 1}",
+                        "meta": meta, "status": "grading"}
+                if progress:
+                    progress(picked - 1, picked, item)
+                href = meta.get("tensakit_url")
+                try:
+                    if not href:
+                        raise RuntimeError("この答案には Tensakit リンクがありません")
+                    # AI判読用に答案PDFを取得
+                    btn = _row_download_button(row, dl_col)
+                    if btn is None:
+                        raise RuntimeError("答案ダウンロードボタンが見つかりません")
+                    _, pdf_bytes = _click_and_get_pdf(page, context, btn, i + 1)
+                    _close_dialogs(page)
+                    # Tensakit 採点画面を開く
+                    tpage = _open_tensakit_grading(context, page, href, user, password)
+
+                    def _shot(name, _i=i):
+                        try:
+                            tpage.screenshot(
+                                path=os.path.join(_DEBUG_DIR, f"tensakit_{_i + 1}_{name}"),
+                                full_page=True)
+                        except Exception:
+                            pass
+
+                    _shot("before.png")
+                    sections = _scrape_grading_panel(tpage)
+                    if not sections:
+                        raise RuntimeError("採点パネルを読み取れませんでした")
+                    decisions = decide_fn(pdf_bytes, sections)
+                    rep = _apply_tensakit_decisions(
+                        tpage, context, sections, decisions, submit, shot=_shot)
+                    item.update(status="done", report=rep, tensakit_url=href)
+                    try:
+                        tpage.close()
+                    except Exception:
+                        pass
+                except Exception as e:
+                    item.update(status="error", error=str(e))
+                results.append(item)
+                if progress:
+                    progress(picked - 1, picked, item)
+
+            if picked == 0 and skipped > 0:
+                raise ToshinFetchError(
+                    f"未採点の答案がありませんでした(採点済み {skipped} 件は緑表示のため対象外)。"
+                )
+            return results
+        except ToshinFetchError:
+            _save_debug(page)
+            raise
+        except Exception as e:
+            _save_debug(page)
+            raise ToshinFetchError(f"Tensakit 一括採点に失敗しました: {e}") from e
         finally:
             context.close()
             browser.close()

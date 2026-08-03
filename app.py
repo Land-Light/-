@@ -17,7 +17,8 @@ from scan_grader import (
     build_marks, decide_tensakit_marks, grade_scanned_pdf, render_pages_png,
 )
 from toshin_fetcher import (
-    ToshinFetchError, fetch_answers, grade_and_submit_on_tensakit, inspect_tensakit,
+    ToshinFetchError, batch_grade_on_tensakit, fetch_answers,
+    grade_and_submit_on_tensakit, inspect_tensakit,
 )
 
 app = Flask(__name__)
@@ -123,6 +124,52 @@ def _start_toshin_batch(max_count: int, rubric) -> str:
             return
         try:
             _grade_items_bg(state, items, rubric)
+        except Exception as e:
+            state.update(phase="error", error=str(e))
+
+    threading.Thread(target=worker, daemon=True).start()
+    return batch_id
+
+
+def _start_tensakit_batch(max_count: int, rubric, submit: bool) -> str:
+    """東進から取得し、PDFを作らずそのまま Tensakit で一括採点する(バックグラウンド)。"""
+    batch_id = _new_batch()
+    state = _batches[batch_id]
+    state["phase"] = "grading"
+    state["mode"] = "tensakit"
+    state["submit"] = submit
+    state["total"] = max_count  # 上限(緑スキップで実数は減ることがある)
+    state["items"] = []
+
+    def decide_fn(pdf_bytes, sections):
+        return decide_tensakit_marks(pdf_bytes, sections, rubric=rubric)
+
+    def progress(index: int, done: int, item: dict):
+        while len(state["items"]) <= index:
+            state["items"].append({"filename": item.get("filename", ""), "status": "grading"})
+        slot = state["items"][index]
+        slot["filename"] = item.get("filename", slot.get("filename", ""))
+        slot["exam"] = item.get("filename", slot.get("exam", ""))
+        slot["status"] = item.get("status", slot.get("status"))
+        slot["tensakit_url"] = item.get("tensakit_url")
+        if item.get("status") == "done":
+            rep = item.get("report") or {}
+            slot["note"] = (
+                f"加点/減点チェック {rep.get('checked', 0)} 件・"
+                f"コメント {rep.get('commented', 0)} 件 → "
+                + ("提出済" if rep.get("submitted") else
+                   ("下書き保存済(未提出)" if rep.get("saved") else "未保存"))
+            )
+        elif item.get("status") == "error":
+            slot["error"] = item.get("error", "")
+
+    def worker():
+        try:
+            batch_grade_on_tensakit(max_count, decide_fn, submit=submit, progress=progress)
+            state["total"] = max(1, len(state["items"]))
+            state["phase"] = "done"
+        except ToshinFetchError as e:
+            state.update(phase="error", error=str(e))
         except Exception as e:
             state.update(phase="error", error=str(e))
 
@@ -255,6 +302,22 @@ def fetch_toshin():
     except ValueError:
         max_count = 10
     batch_id = _start_toshin_batch(max_count, rubric)
+    return redirect(url_for("batch_progress", batch_id=batch_id))
+
+
+@app.route("/grade-tensakit", methods=["POST"])
+def grade_tensakit():
+    """東進から取得し、PDFを作らずそのまま Tensakit で一括採点する。
+
+    フォームの submit=on のときだけ提出まで行う(既定は下書き保存のみ)。
+    """
+    rubric = request.form.get("toshin_rubric", "").strip() or None
+    try:
+        max_count = int(request.form.get("toshin_max", "10"))
+    except ValueError:
+        max_count = 10
+    submit = request.form.get("submit") in ("on", "1", "true")
+    batch_id = _start_tensakit_batch(max_count, rubric, submit)
     return redirect(url_for("batch_progress", batch_id=batch_id))
 
 
