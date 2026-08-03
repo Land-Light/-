@@ -1,5 +1,6 @@
 """国語入試 過去問添削AI — Flask アプリ本体。"""
 
+import base64
 import concurrent.futures
 import io
 import os
@@ -7,7 +8,8 @@ import threading
 import uuid
 
 from flask import (
-    Flask, Response, abort, redirect, render_template, request, send_file, url_for,
+    Flask, Response, abort, jsonify, redirect, render_template, request,
+    send_file, url_for,
 )
 
 from annotator import Mark, annotate_pdf
@@ -188,6 +190,70 @@ _APP_PASSWORD = ""
 def _require_password():
     # パスワード認証は無効(どのページも認証なしで開ける)。
     return None
+
+
+@app.after_request
+def _cors(resp):
+    """ブックマークレット(Tensakit画面から)がAPI/スクリプトを呼べるようにCORSを許可。"""
+    if request.path.startswith("/api/") or request.path == "/tensakit-bm.js":
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        resp.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
+    return resp
+
+
+@app.route("/api/tensakit-decide", methods=["POST", "OPTIONS"])
+def api_tensakit_decide():
+    """ブックマークレットから答案画像+パネル選択肢を受け取り、AIが加点/減点を判断して返す。
+
+    サーバー側でブラウザを起動しないため、無料プラン(512MB)でも動く。
+    """
+    if request.method == "OPTIONS":
+        return ("", 204)
+    data = request.get_json(force=True, silent=True) or {}
+    sections = data.get("sections") or []
+    if not sections:
+        return jsonify({"error": "採点パネルの選択肢を受け取れませんでした。"})
+    images = []
+    for du in (data.get("images") or []):
+        if isinstance(du, str) and du.startswith("data:"):
+            try:
+                images.append(base64.b64decode(du.split(",", 1)[1]))
+            except Exception:
+                pass
+    try:
+        decisions = decide_tensakit_marks(images, sections, rubric=None)
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    out = [
+        {"section_label": d.section_label,
+         "add_indices": d.add_indices, "deduct_indices": d.deduct_indices}
+        for d in decisions
+    ]
+    return jsonify({"sections": out})
+
+
+@app.route("/tensakit-bm.js")
+def tensakit_bm_js():
+    """ブックマークレット本体(Tensakit画面に注入されるスクリプト)を配信する。"""
+    base = request.host_url  # 末尾 / 付き
+    path = os.path.join(app.root_path, "tensakit_bm.js")
+    with open(path, encoding="utf-8") as fh:
+        js = fh.read().replace("__API_BASE__", base)
+    return Response(js, mimetype="application/javascript")
+
+
+@app.route("/bookmarklet")
+def bookmarklet_page():
+    """ブックマークレットの登録手順を表示するページ。"""
+    base = request.host_url
+    loader = (
+        "javascript:(function(){var d=document,s=d.createElement('script');"
+        "s.src='" + base + "tensakit-bm.js?t='+Date.now();"
+        "s.onerror=function(){alert('スクリプトを読み込めませんでした(サイトのCSP制限の可能性)');};"
+        "d.body.appendChild(s);})();"
+    )
+    return render_template("bookmarklet.html", loader=loader, base=base)
 
 
 @app.route("/healthz")

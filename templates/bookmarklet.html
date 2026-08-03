@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Tensakit採点ブックマークレット — 国語 過去問添削AI{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 class="section" style="margin-top:0;">Tensakit採点ブックマークレット</h2>
+  <p class="notice">
+    サーバーでブラウザを起動せず、<strong>あなたのiPadのブラウザ内</strong>で採点します。
+    無料プランでもメモリ不足になりません。Tensakitに<strong>ログイン済みの採点画面</strong>で
+    ブックマークをタップすると、答案と採点パネルを読み取り、AIが<strong>加点/減点にチェック</strong>を入れます。
+    (コメントは自動では入れません。「よく使うコメント」から選んでください。)
+  </p>
+
+  <h3 class="section">① ブックマークレットを登録する(最初の一度だけ)</h3>
+  <p class="notice">下のコードをコピーし、ブックマークとして保存します。</p>
+  <textarea id="code" readonly rows="4"
+    style="width:100%;font-family:monospace;font-size:0.8rem;">{{ loader }}</textarea>
+  <button class="primary" type="button" onclick="copyCode()">コードをコピー</button>
+  <span id="copied" style="display:none;color:var(--accent);margin-left:0.6rem;">コピーしました</span>
+
+  <h4 class="section" style="margin-bottom:0.3rem;">iPad(Safari / Brave)での登録手順</h4>
+  <ol class="notice" style="margin-top:0.2rem;">
+    <li>このページを<strong>ブックマークに追加</strong>する(共有ボタン →「ブックマークを追加」)。名前は「Tensakit採点」などにする。</li>
+    <li>ブックマーク一覧を開き、今作ったブックマークを<strong>編集</strong>する。</li>
+    <li>URL(アドレス)欄を<strong>全部消して</strong>、上でコピーした<strong>コードを貼り付け</strong>て保存する。
+        (<code>javascript:</code> で始まる文字列になります)</li>
+  </ol>
+
+  <h3 class="section">② 使い方(毎回)</h3>
+  <ol class="notice" style="margin-top:0.2rem;">
+    <li>Tensakitで採点したい答案を開く(<strong>加点項目が右に見える採点画面</strong>にする)。</li>
+    <li>アドレスバーにブックマーク名「Tensakit採点」を入力して選ぶ、またはブックマーク一覧から<strong>タップ</strong>する。</li>
+    <li>右下に「AIが採点中…」と出て、少し待つと<strong>加点/減点にチェック</strong>が入ります。</li>
+    <li>内容を確認し、<strong>コメントは「よく使うコメント」から選択</strong>、問題なければ<strong>保存・提出</strong>してください。</li>
+  </ol>
+
+  <p class="notice" style="background:#fff8e1;border-left:3px solid #f0b400;padding:0.6rem 0.9rem;">
+    うまく動かない・右下にエラーが出た場合は、そのメッセージ(または画面)を開発者に伝えてください。
+    サイトのセキュリティ設定(CSP)により外部スクリプトや通信が制限されている場合は、別の方法に切り替えます。
+  </p>
+
+  <p><a class="btn-back" href="/">戻る</a></p>
+</div>
+
+<script>
+function copyCode(){
+  var t = document.getElementById('code');
+  t.select(); t.setSelectionRange(0, 99999);
+  try {
+    navigator.clipboard.writeText(t.value);
+  } catch(e) {
+    document.execCommand('copy');
+  }
+  document.getElementById('copied').style.display = 'inline';
+}
+</script>
+{% endblock %}
