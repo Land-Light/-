@@ -525,6 +525,55 @@ def _try_tensakit_login(tpage, user: str, password: str) -> None:
     )
 
 
+def _try_tensakit_register(tpage) -> None:
+    """Tensakit の「添削者名の登録」画面が出ていれば、姓に名前を入れて登録する。
+
+    自動化ブラウザは名前未登録の状態で始まるため、採点画面の前にこの画面
+    (「あなたのお名前を登録してください」姓・名・登録ボタン)が出る。
+    ここを通過しないと採点パネルが表示されない。
+    名前は環境変数 TENSAKIT_NAME(既定「佐藤」)を姓に入れる。
+    """
+    name = os.environ.get("TENSAKIT_NAME", "佐藤")
+    try:
+        heading = tpage.locator('text=/お名前を登録/')
+        if heading.count() == 0:
+            return  # 登録画面ではない(登録済み)
+    except Exception:
+        return
+
+    # 姓(必須の最初のテキスト入力)に名前を入れる。React 制御のため1文字ずつ。
+    inputs = tpage.locator('input[type="text"]')
+    if inputs.count() == 0:
+        return
+    try:
+        inputs.first.click()
+        inputs.first.press_sequentially(name, delay=40)
+    except Exception:
+        try:
+            inputs.first.fill(name)
+        except Exception:
+            return
+    tpage.wait_for_timeout(400)
+
+    # 「登録」ボタン(姓入力で有効化される)を押す
+    btn = tpage.locator('button:has-text("登録")')
+    for _ in range(12):
+        try:
+            if btn.count() > 0 and btn.first.is_enabled():
+                btn.first.click()
+                break
+        except Exception:
+            pass
+        tpage.wait_for_timeout(300)
+
+    # 採点画面(パネル)が現れるまで待つ
+    try:
+        tpage.wait_for_selector('text=/添削完了|加点項目/', timeout=15000)
+    except Exception:
+        pass
+    tpage.wait_for_timeout(1000)
+
+
 def inspect_tensakit(headless: bool = True) -> dict:
     """ログインして一覧の最初の行の Tensakit リンクを開き、
     採点画面の HTML とスクリーンショットを保存する(採点入力自動化の設計用・偵察)。"""
@@ -578,7 +627,10 @@ def inspect_tensakit(headless: bool = True) -> dict:
                 tpage.wait_for_load_state("networkidle", timeout=30000)
             except Exception:
                 pass
-            tpage.wait_for_timeout(3000)
+            tpage.wait_for_timeout(2000)
+            # 名前未登録なら「添削者名の登録」画面を通過する
+            _try_tensakit_register(tpage)
+            tpage.wait_for_timeout(2000)
             tpage.screenshot(path=os.path.join(_DEBUG_DIR, "tensakit_page.png"), full_page=True)
             with open(os.path.join(_DEBUG_DIR, "tensakit_page.html"), "w", encoding="utf-8") as fh:
                 fh.write(tpage.content())
@@ -613,7 +665,10 @@ def _open_tensakit_grading(context, page, href: str, user: str, password: str):
         tpage.wait_for_load_state("networkidle", timeout=30000)
     except Exception:
         pass
-    tpage.wait_for_timeout(2500)
+    tpage.wait_for_timeout(2000)
+    # 名前未登録なら「添削者名の登録」画面を通過する(採点画面の手前で出る)
+    _try_tensakit_register(tpage)
+    tpage.wait_for_timeout(1000)
     return tpage
 
 
