@@ -351,6 +351,93 @@ def _row_meta(row) -> dict:
     return meta
 
 
+def _close_dialogs(page) -> None:
+    """直前の操作で開いたモーダル/ダイアログを閉じる。
+
+    MUI の Dialog(data-test="dialog")が開いたまま残っていると、次の行の
+    ダウンロードボタンを覆ってしまい、クリックが妨げられる
+    (pointer events intercepted)。複数採点の2件目以降で失敗する原因なので、
+    各行の処理前にこれを呼んで前のダイアログを確実に閉じる。
+    """
+    for _ in range(3):
+        dlg = page.locator('[data-test="dialog"], .MuiDialog-root')
+        try:
+            visible = dlg.count() > 0 and dlg.first.is_visible()
+        except Exception:
+            visible = False
+        if not visible:
+            return
+        closed = False
+        for sel in [
+            '[data-test="dialog"] button[aria-label*="close" i]',
+            '.MuiDialog-root button[aria-label*="close" i]',
+            '[aria-label*="閉じる"]', 'button:has-text("閉じる")',
+            'button:has-text("キャンセル")', 'button:has-text("戻る")',
+        ]:
+            loc = page.locator(sel)
+            try:
+                if loc.count() > 0 and loc.first.is_visible():
+                    loc.first.click()
+                    closed = True
+                    break
+            except Exception:
+                continue
+        if not closed:
+            try:
+                page.keyboard.press("Escape")
+            except Exception:
+                pass
+        page.wait_for_timeout(400)
+
+
+_GRADED_TEXT = re.compile(r"採点済|添削済|返却済|提出済|完了")
+
+
+def _is_graded(row) -> bool:
+    """行が採点済み(東進の一覧で緑色に表示される答案)かどうかを判定する。
+
+    採点/提出が済んだ答案は緑色で表示されるため、
+    (1) 「採点済」等のステータス文言、または
+    (2) success 系の緑色の配色(文字色・背景色・枠色)
+    のいずれかを持つ行を採点済みとみなす。
+    """
+    # (1) ステータス文言
+    try:
+        if _GRADED_TEXT.search(row.inner_text() or ""):
+            return True
+    except Exception:
+        pass
+    # (2) 緑色(success系)の配色を持つ要素があるか(計算スタイルを走査)
+    try:
+        green = row.evaluate(
+            """(el) => {
+                const isGreen = (c) => {
+                    if (!c) return false;
+                    const m = c.match(/rgba?\\(([^)]+)\\)/);
+                    if (!m) return false;
+                    const p = m[1].split(',').map(s => parseFloat(s));
+                    const r = p[0], g = p[1], b = p[2];
+                    const a = p.length > 3 ? p[3] : 1;
+                    if (a < 0.1) return false;
+                    // 緑が突出している配色(MUI success #2e7d32 / #4caf50 など)
+                    return g > 90 && g > r + 25 && g > b + 25;
+                };
+                const nodes = [el, ...el.querySelectorAll('*')];
+                for (const n of nodes) {
+                    const s = getComputedStyle(n);
+                    if (isGreen(s.color) || isGreen(s.backgroundColor)
+                        || isGreen(s.borderColor)) return true;
+                }
+                return false;
+            }"""
+        )
+        if green:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def _try_tensakit_login(tpage, user: str, password: str) -> None:
     """Tensakit(AWS Amplify製)のサインイン画面が出ていればログインする。
 
@@ -532,14 +619,26 @@ def fetch_answers(max_count: int = 100, headless: bool = True) -> List[FetchedAn
 
             page.wait_for_selector("table tbody tr", timeout=30000)
             rows = page.locator("table tbody tr")
-            n = min(rows.count(), max_count)
-            if n == 0:
+            total_rows = rows.count()
+            if total_rows == 0:
                 raise ToshinFetchError("答案一覧に行がありません(未割当の可能性)。")
 
             dl_col = _download_col_index(page)
             list_dumped = False
-            for i in range(n):
+            picked = 0       # 実際に採点対象とした(未採点の)件数
+            skipped = 0      # 採点済み(緑表示)でスキップした件数
+            for i in range(total_rows):
+                if picked >= max_count:
+                    break
                 row = rows.nth(i)
+                # 採点済み(緑で表示されている)答案は対象から除外する
+                if _is_graded(row):
+                    skipped += 1
+                    continue
+                picked += 1
+                # 直前の行のダウンロードで開いたダイアログが残っていると
+                # 次のボタンを覆ってクリックできないので、先に閉じる
+                _close_dialogs(page)
                 meta = _row_meta(row)
                 # 答案DLは行内の「有効なアイコンボタン」で特定する。
                 # (採点基準=テキストボタン、点数入力=無効アイコンボタン、と区別できる)
@@ -575,6 +674,11 @@ def fetch_answers(max_count: int = 100, headless: bool = True) -> List[FetchedAn
                         filename=f"row{i + 1}_error", pdf_bytes=b"",
                         meta={**meta, "error": str(e) + extra},
                     ))
+            if picked == 0 and skipped > 0:
+                raise ToshinFetchError(
+                    f"未採点の答案がありませんでした(採点済み {skipped} 件は"
+                    "緑表示のため対象外にしました)。"
+                )
             return fetched
         except Exception as e:
             # 失敗時は必ず最新の画面を保存する(ログイン失敗も含む)

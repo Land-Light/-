@@ -64,6 +64,7 @@ class Mark(BaseModel):
       cross  — バツ(✗)
       tri    — 三角(△: 部分点)
       line   — 傍線(縦線。記述の指摘箇所)
+      kuno   — くの字括弧(加点した該当箇所を囲む。width×height の範囲)
     """
 
     page: int = Field(description="1始まりのページ番号")
@@ -139,6 +140,22 @@ def _draw_mark(c, mark: Mark, W: float, H: float) -> None:
     elif mark.kind == "line":
         c.setLineWidth(2.2)
         c.line(x, y, x, y - H * mark.height)
+    elif mark.kind == "kuno":
+        # 加点箇所を囲む「くの字」括弧。(x, y) を中心に、width×height の範囲を
+        # 対角のかぎ括弧(「 と 」)で囲う。縦書き答案では height を大きめにする。
+        c.setLineWidth(2.0)
+        w = W * mark.width
+        h = H * mark.height
+        tw = max(w * 0.5, 6)   # かぎの横棒の長さ
+        th = max(h * 0.18, 8)  # かぎの縦棒の長さ
+        left, right = x - w / 2, x + w / 2
+        top, bot = y + h / 2, y - h / 2
+        # 上のかぎ括弧(左上): 上辺を右へ・左端を下へ
+        c.line(left, top, left + tw, top)
+        c.line(left, top, left, top - th)
+        # 下のかぎ括弧(右下): 下辺を左へ・右端を上へ
+        c.line(right, bot, right - tw, bot)
+        c.line(right, bot, right, bot + th)
 
 
 def annotate_pdf(src_pdf: bytes, marks: List[Mark]) -> bytes:

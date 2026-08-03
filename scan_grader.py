@@ -50,6 +50,19 @@ class ItemMark(BaseModel):
     correct: bool = Field(description="正解なら true(○)、不正解なら false(✔)")
 
 
+class CreditMark(BaseModel):
+    """加点した該当箇所を「くの字」の括弧で囲む位置。"""
+
+    pos: MarkPos = Field(description="囲む範囲の中心位置(加点対象の語句・要素の中央)")
+    width: float = Field(
+        default=0.05, description="囲む範囲の横幅(ページ幅に対する割合)。縦書きなら細めでよい"
+    )
+    height: float = Field(
+        default=0.08,
+        description="囲む範囲の縦の長さ(ページ高さに対する割合)。縦書きで複数字にわたる加点箇所は大きめにする",
+    )
+
+
 class QuestionAnnotation(BaseModel):
     """設問1つ分の書き込み位置と欄外講評。"""
 
@@ -80,6 +93,12 @@ class QuestionAnnotation(BaseModel):
     comment_pos: Optional[MarkPos] = Field(
         default=None,
         description="欄外講評の書き出し位置(答案記入欄のすぐ左の余白の上端)。講評が無ければ省略",
+    )
+    credit_marks: List[CreditMark] = Field(
+        default_factory=list,
+        description="加点法で得点を与えた該当箇所を「くの字」括弧で囲む位置。"
+        "加点した要素・語句ごとに1つずつ指定する(参考資料の採点例と同じ流儀)。"
+        "加点が無い設問、および漢字・記号の集合設問では空にする",
     )
 
 
@@ -119,6 +138,12 @@ SCAN_INSTRUCTIONS = """答案はスキャン画像で与えられます。追加
   ★漢字問題・記号問題には講評(margin_comment・comment_code)を一切付けない(空にする)。
 (B) 内容の異なる記述小問(問二(1)(2)など、別々に説明する小問):小問ごとに questions・annotations を分け、
   それぞれ symbol_pos に記号を1つ、必要なら具体的な margin_comment を書く。
+
+【加点箇所の囲み(くの字)】採点基準が加点法(要素ごとに点を与える方式)の場合は、
+参考資料の採点例と同じように、加点した該当箇所を答案上で「くの字」の括弧で囲むこと。
+annotations の credit_marks に、加点した要素・語句ごとに囲む位置(pos)と範囲(width・height)を
+指定する。答案は縦書きが多いので、複数字にわたる要素は height を大きめにして縦方向に囲む。
+加点が無い設問や、漢字・記号の集合設問(A)では credit_marks は空にする。
 
 【書き込み位置の指定】各設問(小問含む)について、答案画像に赤ペンで書き込むための位置を
 annotations に指定すること。座標は各ページ画像の左上を(0,0)、右下を(1,1)とする割合。
@@ -316,6 +341,13 @@ def build_marks(result: ScanGradingResult) -> List[Mark]:
             Mark(page=a.score_pos.page, x=a.score_pos.x, y=a.score_pos.y,
                  kind="text", text=str(q.score), size=22)
         )
+
+        # 加点した該当箇所を「くの字」括弧で囲む(参考資料の採点例に準拠)
+        for cm in a.credit_marks:
+            marks.append(
+                Mark(page=cm.pos.page, x=cm.pos.x, y=cm.pos.y,
+                     kind="kuno", width=cm.width, height=cm.height)
+            )
 
         if a.item_marks:
             # 漢字・記号などの集合設問: 各小問に○(正解)/✔(不正解)を打つ。コメントは付けない。
