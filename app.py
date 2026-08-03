@@ -129,26 +129,16 @@ def _start_toshin_batch(max_count: int, rubric) -> str:
     threading.Thread(target=worker, daemon=True).start()
     return batch_id
 
-# 公開デプロイ時の簡易認証。環境変数 APP_PASSWORD を設定すると
-# Basic 認証(ユーザー名は任意、パスワード一致)が全ページに掛かる。
-_APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+# サイトを開くときのパスワードは不要にする(利用者の希望により無効化)。
+# 再びパスワードを掛けたくなった場合は、環境変数 APP_PASSWORD を設定したうえで
+# 下の _require_password の中身を元(Basic認証)に戻すこと。
+_APP_PASSWORD = ""
 
 
 @app.before_request
 def _require_password():
-    # ヘルスチェック用エンドポイントは認証を掛けない
-    # (掛けると Render 等の死活監視が 401 で失敗し、サービスが Live にならない)
-    if request.path == "/healthz":
-        return None
-    if not _APP_PASSWORD:
-        return None  # 未設定ならローカル利用とみなし認証なし
-    auth = request.authorization
-    if auth and auth.password == _APP_PASSWORD:
-        return None
-    return Response(
-        "認証が必要です", 401,
-        {"WWW-Authenticate": 'Basic realm="kokugo-tensaku"'},
-    )
+    # パスワード認証は無効(どのページも認証なしで開ける)。
+    return None
 
 
 @app.route("/healthz")
