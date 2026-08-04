@@ -1,0 +1,17 @@
+{
+  "name": "暗記カード — 間隔反復学習アプリ",
+  "short_name": "暗記カード",
+  "description": "FSRS による間隔反復で効率よく暗記するカードアプリ",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#14161c",
+  "theme_color": "#2f6fed",
+  "lang": "ja",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

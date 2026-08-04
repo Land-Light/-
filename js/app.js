@@ -1446,8 +1446,25 @@
           <input type="checkbox" id="set-autoplay" ${s.autoPlayAudio ? 'checked' : ''}>
           カード表示時に音声を自動再生する
         </label>
+        <label class="field">
+          <span>目標保持率 (復習時に思い出せている確率の目安)</span>
+          <select id="set-retention">
+            ${[[0.85, '85% — 復習が少なめ・忘れやすい'],
+               [0.9, '90% — 標準 (推奨)'],
+               [0.95, '95% — 復習が多め・忘れにくい']]
+              .map(([v, label]) =>
+                `<option value="${v}"${Math.abs((s.desiredRetention || 0.9) - v) < 0.001 ? ' selected' : ''}>${label}</option>`).join('')}
+          </select>
+        </label>
+        <p class="hint">間隔は FSRS-6 (Anki と同じアルゴリズム) が記憶の安定度から計算します。
+          目標保持率を上げるほど間隔が短く、復習回数が増えます。</p>
         <button class="btn primary" id="btn-save-settings">保存</button>
         <div class="hint" id="settings-status"></div>
+
+        <h2>通知</h2>
+        <p class="hint">指定した時刻に「今日の復習」をお知らせします。</p>
+        <div id="notify-body"></div>
+        <div class="hint" id="notify-status"></div>
 
         <h2>バックアップ</h2>
         <p class="hint">カードはブラウザの localStorage、画像・音声は IndexedDB に保存されています。
@@ -1479,6 +1496,7 @@
         newPerDay: Math.max(0, Math.min(999, Number($('#set-new-per-day').value) || 0)),
         reviewsPerDay: Math.max(0, Math.min(9999, Number($('#set-reviews-per-day').value) || 0)),
         autoPlayAudio: $('#set-autoplay').checked,
+        desiredRetention: Number($('#set-retention').value) || 0.9,
       });
       $('#settings-status').textContent = '✓ 保存しました';
     };
@@ -1517,6 +1535,95 @@
     };
 
     renderSyncSection();
+    renderNotifySection();
+  }
+
+  // 今日の学習対象の合計枚数 (通知・バッジ用)
+  function totalDueToday() {
+    return Store.getDecks().reduce((sum, d) => {
+      const c = deckCounts(d.id);
+      return sum + c.newCount + c.learnCount + c.dueCount;
+    }, 0);
+  }
+
+  // 通知セクション (設定画面内)
+  function renderNotifySection() {
+    const el = $('#notify-body');
+    if (!el) return;
+    const setStatus = msg => { const s = $('#notify-status'); if (s) s.textContent = msg; };
+    const s = Store.getSettings();
+
+    if (!Notify.supported()) {
+      el.innerHTML = `<p class="hint">このブラウザは通知に対応していません。</p>`;
+      return;
+    }
+    if (Notify.needsInstall()) {
+      el.innerHTML = `
+        <p class="hint">iPhone / iPad で通知を使うには、Safari などの
+          <strong>共有ボタン → 「ホーム画面に追加」</strong> でアプリとして追加し、
+          そのアイコンから開いてください (iOS 16.4 以降)。</p>`;
+      return;
+    }
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      el.innerHTML = `<p class="hint">通知は https で開いたときに利用できます。</p>`;
+      return;
+    }
+
+    const perm = Notify.permission();
+    const enabled = !!s.notifyEnabled && perm === 'granted';
+    el.innerHTML = `
+      <label class="check-field">
+        <input type="checkbox" id="set-notify" ${enabled ? 'checked' : ''}>
+        毎日この時刻に復習をお知らせする
+      </label>
+      <div class="notify-row">
+        <input type="time" id="set-notify-time" value="${esc(s.notifyTime || '20:00')}">
+        <button class="btn outline small" id="btn-notify-test">テスト通知</button>
+      </div>
+      <p class="hint">
+        ${perm === 'denied'
+          ? '⚠ 通知がブロックされています。ブラウザの設定でこのサイトの通知を許可してください。'
+          : enabled
+            ? `次回のお知らせ: ${new Date(Notify.nextFireTime(s.notifyTime)).toLocaleString('ja-JP')}`
+            : 'オンにすると通知の許可を求めます。'}
+        <br>ブラウザ (またはホーム画面のアプリ) を完全に終了している間はお知らせできません。
+      </p>`;
+
+    $('#set-notify').onchange = async e => {
+      if (e.target.checked) {
+        try {
+          await Notify.requestPermission();
+          Store.updateSettings({ notifyEnabled: true, notifyTime: $('#set-notify-time').value || '20:00' });
+          Notify.schedule(Store.getSettings());
+          setStatus('✓ 通知をオンにしました');
+        } catch (err) {
+          e.target.checked = false;
+          setStatus(err.message);
+        }
+      } else {
+        Store.updateSettings({ notifyEnabled: false });
+        Notify.schedule(Store.getSettings());
+        setStatus('通知をオフにしました');
+      }
+      renderNotifySection();
+    };
+    $('#set-notify-time').onchange = () => {
+      Store.updateSettings({ notifyTime: $('#set-notify-time').value || '20:00' });
+      Notify.schedule(Store.getSettings());
+      renderNotifySection();
+      setStatus('✓ 通知時刻を保存しました');
+    };
+    $('#btn-notify-test').onclick = async () => {
+      try {
+        if (Notify.permission() !== 'granted') await Notify.requestPermission();
+        const n = totalDueToday();
+        const ok = await Notify.show('テスト通知 🃏',
+          n > 0 ? `今日の学習カードが ${n} 枚あります。` : '今日の学習はすべて終わっています。');
+        setStatus(ok ? '✓ 通知を送信しました' : '通知を表示できませんでした。');
+      } catch (err) {
+        setStatus(err.message);
+      }
+    };
   }
 
   // Google 同期セクション (設定画面内)
@@ -1682,6 +1789,17 @@
   // 参照されていないメディアの掃除 (起動時のみ)
   Media.sweep(Store.referencedMediaIds()).catch(() => {});
 
+  // ---- FSRS の目標保持率と通知の初期化 ----
+  SRS.setRetention(Store.getSettings().desiredRetention || 0.9);
+  Notify.setDueCounter(totalDueToday);
+  Notify.init();
+  Notify.schedule(Store.getSettings());
+  // データが変わったらバッジと通知予定を更新する
+  const notifyRefresh = () => {
+    Notify.updateBadge();
+  };
+  window.addEventListener('focus', notifyRefresh);
+
   // ---- 自動同期の配線 ----
 
   // ヘッダーの同期インジケーター
@@ -1709,8 +1827,9 @@
   const indicator = document.getElementById('sync-indicator');
   if (indicator) indicator.onclick = () => nav('settings');
 
-  // データが変わったら数秒後に自動アップロード
+  // データが変わったら数秒後に自動アップロード + バッジ更新
   Store.setOnChange(() => {
+    Notify.updateBadge();
     if (!Sync.isApplying()) Sync.scheduleSync();
   });
   // 学習セッション中はダウンロード適用を延期 (画面が突然変わるのを防ぐ)
