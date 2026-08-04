@@ -27,7 +27,11 @@ const Store = (() => {
     return {
       decks: [],
       cards: [],
-      settings: { newPerDay: 20, reviewsPerDay: 200, autoPlayAudio: true },
+      settings: {
+        newPerDay: 20, reviewsPerDay: 200, autoPlayAudio: true,
+        desiredRetention: 0.9,
+        notifyEnabled: false, notifyTime: '20:00',
+      },
       dayStats: {},
       lastModified: 0,
     };
@@ -50,6 +54,24 @@ const Store = (() => {
       if (!c.type) c.type = 'basic';
       if (!c.noteId) c.noteId = c.id;
       if (typeof c.category !== 'string') c.category = '';
+
+      // 旧 SM-2 データ (ease + intervalDays) を FSRS の記憶状態へ移行する
+      if (c.stability === undefined) {
+        if (c.state === 'review' && c.intervalDays > 0) {
+          const m = SRS.memoryStateFromSM2(c.ease || 2.5, c.intervalDays);
+          c.stability = m.stability;
+          c.difficulty = m.difficulty;
+          if (!c.lastReview) c.lastReview = (c.due || Date.now()) - c.intervalDays * SRS.DAY;
+        } else {
+          // 学習中・再学習中・新規は次の回答で FSRS の初期値から始める
+          c.stability = 0;
+          c.difficulty = 0;
+          if (!c.lastReview) c.lastReview = 0;
+        }
+        delete c.ease;
+      }
+      if (c.lastReview === undefined) c.lastReview = 0;
+      if (c.difficulty === undefined) c.difficulty = 0;
       if (!Array.isArray(c.tags)) c.tags = [];
       if (!Array.isArray(c.frontMedia)) c.frontMedia = [];
       if (!Array.isArray(c.backMedia)) c.backMedia = [];
@@ -297,6 +319,7 @@ const Store = (() => {
 
   function updateSettings(patch) {
     Object.assign(load().settings, patch);
+    if (patch.desiredRetention !== undefined) SRS.setRetention(patch.desiredRetention);
     save();
   }
 
