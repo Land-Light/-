@@ -211,6 +211,15 @@ def api_tensakit_decide():
     if request.method == "OPTIONS":
         return ("", 204)
     data = request.get_json(force=True, silent=True) or {}
+    # 採点パネルの実際のHTMLを保存(構造調整用。/tensakit-html で確認)
+    panel_html = data.get("panel_html")
+    if panel_html:
+        try:
+            debug_dir = os.environ.get("TOSHIN_DEBUG_DIR", "/tmp")
+            with open(os.path.join(debug_dir, "tensakit_page.html"), "w", encoding="utf-8") as fh:
+                fh.write(panel_html)
+        except Exception:
+            pass
     sections = data.get("sections") or []
     if not sections:
         return jsonify({"error": "採点パネルの選択肢を受け取れませんでした。"})

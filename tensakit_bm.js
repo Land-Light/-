@@ -110,8 +110,22 @@
     // 画像なしでも選択肢のテキストだけで判断を試みる場合はそのまま送る
   }
 
+  // 採点パネルの実際のHTML(構造調整用)。/tensakit-html で開発者が確認できる。
+  function panelHTML() {
+    try {
+      var h = [].slice.call(d.querySelectorAll("*")).filter(function (el) {
+        return /添削完了/.test(el.textContent || "") && el.children.length <= 4;
+      })[0];
+      if (!h) return "";
+      var c = h;
+      for (var k = 0; k < 8 && c.parentElement; k++) c = c.parentElement;
+      return (c.outerHTML || "").slice(0, 300000);
+    } catch (e) { return ""; }
+  }
+
   var payload = {
     images: images,
+    panel_html: panelHTML(),
     sections: secs.map(function (s) {
       return { section_label: s.section_label, add_options: s.add_options, deduct_options: s.deduct_options };
     })
@@ -130,10 +144,11 @@
       if (!sec) return;
       (dec.add_indices || []).forEach(function (i) { tick(sec._addEls[i]); checked++; });
       (dec.deduct_indices || []).forEach(function (i) { tick(sec._dedEls[i]); checked++; });
-      tick(sec._doneEl); // 添削完了
+      // ※「添削完了」は自動で押さない(誤採点で正解が0点=バツになるのを防ぐ)。
+      //   点検後にご自身でチェックしてください。
     });
-    say("完了: " + dsecs.length + "セクション / " + checked + "項目にチェックを入れました。\n" +
-        "内容を確認し、コメントは『よく使うコメント』から選び、保存/提出してください。", "#137a4d");
+    say("完了: " + dsecs.length + "セクション / " + checked + "項目にチェックしました。\n" +
+        "※添削完了は自動では押しません。内容を確認し、コメント選択・添削完了・保存/提出はご自身で。", "#137a4d");
     done();
   }).catch(function (e) {
     say("通信エラー: " + e + "\n(サイトのCSP制限でAPIに繋げない可能性があります。開発者に伝えてください)", "#8f1f1f");
