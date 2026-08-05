@@ -233,7 +233,10 @@ def api_tensakit_decide():
     try:
         decisions = decide_tensakit_marks(images, sections, rubric=None)
     except Exception as e:
-        return jsonify({"error": str(e)})
+        msg = str(e)
+        if "overload" in msg.lower():
+            msg = "AIが混雑しています。少し待ってからもう一度実行してください。"
+        return jsonify({"error": msg})
     out = [
         {"section_label": d.section_label,
          "add_indices": d.add_indices, "deduct_indices": d.deduct_indices,

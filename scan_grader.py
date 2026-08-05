@@ -12,6 +12,7 @@
 
 import base64
 import io
+import time
 from typing import List, Optional
 
 import anthropic
@@ -473,7 +474,8 @@ def decide_tensakit_marks(
     """
     if not sections:
         return []
-    client = anthropic.Anthropic()
+    # AI混雑(overloaded/429/5xx)時はSDKが自動で待って再試行する
+    client = anthropic.Anthropic(max_retries=6)
     pages = list(page_images)[:6]  # 枚数を制限してメモリ・トークンを抑える
     exam_hint = _identify_exam(client, pages) if pages else ""
 
@@ -526,15 +528,32 @@ def decide_tensakit_marks(
         })
 
     # コメント生成をしない分、出力は短い。max_tokens を抑えて低コスト・低メモリに。
-    with client.with_options(timeout=800.0).messages.stream(
-        model=MODEL,
-        max_tokens=6000,
-        thinking={"type": "adaptive"},
-        output_config={"effort": "medium"},
-        system=system_blocks,
-        messages=[{"role": "user", "content": content}],
-        output_format=TensakitDecisionResult,
-    ) as stream:
-        response = stream.get_final_message()
-    out = response.parsed_output
+    # AIが混雑(Overloaded)している場合に備え、待ち時間を伸ばしながら数回再試行する。
+    response = None
+    last_err = None
+    for attempt in range(5):
+        try:
+            with client.with_options(timeout=800.0).messages.stream(
+                model=MODEL,
+                max_tokens=6000,
+                thinking={"type": "adaptive"},
+                output_config={"effort": "medium"},
+                system=system_blocks,
+                messages=[{"role": "user", "content": content}],
+                output_format=TensakitDecisionResult,
+            ) as stream:
+                response = stream.get_final_message()
+            break
+        except Exception as e:
+            last_err = e
+            msg = str(e).lower()
+            retryable = ("overload" in msg or "429" in msg or "rate" in msg
+                         or "529" in msg or "503" in msg or "500" in msg)
+            if retryable and attempt < 4:
+                time.sleep(3 * (2 ** attempt))  # 3,6,12,24秒
+                continue
+            if "overload" in msg:
+                raise RuntimeError("AIが混雑しています。少し待ってからもう一度実行してください。") from e
+            raise
+    out = response.parsed_output if response else None
     return out.sections if out else []
