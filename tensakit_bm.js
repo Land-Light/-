@@ -161,33 +161,48 @@
     });
     return res;
   }
+  function isChecked(cb) { return !!cb && (cb.checked || cb.getAttribute("aria-checked") === "true"); }
+  // 実際にチェックが入るまで複数の方法を試し、入ったか(true/false)を返す
   function clickItem(li) {
-    if (!li) return;
-    var cb = li.querySelector("input[type=checkbox]");
-    if (cb && (cb.checked || cb.getAttribute("aria-checked") === "true")) return; // 既にオン
+    var cb = li && li.querySelector("input[type=checkbox]");
+    if (!cb) return false;
+    if (isChecked(cb)) return true;
     (li.querySelector(".MuiListItemButton-root") || li).click();
+    if (!isChecked(cb)) cb.click();
+    if (!isChecked(cb)) { try { cb.dispatchEvent(new MouseEvent("click", { bubbles: true })); } catch (e) {} }
+    return isChecked(cb);
   }
-  function clickRadio(r) { if (r && !r.checked) { (r.closest("label,li,div") || r).click(); } }
+  function clickRadio(r) {
+    if (!r) return false;
+    if (r.checked) return true;
+    (r.closest("label,li,div") || r).click();
+    if (!r.checked) r.click();
+    if (!r.checked) { try { r.dispatchEvent(new MouseEvent("click", { bubbles: true })); } catch (e) {} }
+    return r.checked;
+  }
 
   async function applyDecisions(dsecs, secs) {
-    var n = 0;
+    var n = 0, hit = [], firstBody = null;
     for (var s = 0; s < dsecs.length; s++) {
       var dec = dsecs[s];
       var sec = secs.filter(function (x) { return x.section_label === dec.section_label; })[0];
       if (!sec || sec.body_index == null) continue;
       var block = await ensureIndex(sec.body_index);
       if (!block) continue;
+      var got = 0;
       var addRows = checkboxRows(block, "add");
-      (dec.add_indices || []).forEach(function (ix) { if (addRows[ix]) { clickItem(addRows[ix]); n++; } });
+      (dec.add_indices || []).forEach(function (ix) { if (addRows[ix] && clickItem(addRows[ix])) { n++; got++; } });
       var dedRows = checkboxRows(block, "ded");
-      (dec.deduct_indices || []).forEach(function (ix) { if (dedRows[ix]) { clickItem(dedRows[ix]); n++; } });
+      (dec.deduct_indices || []).forEach(function (ix) { if (dedRows[ix] && clickItem(dedRows[ix])) { n++; got++; } });
       if (dec.radio_index != null && dec.radio_index >= 0) {
         var radios = block.querySelectorAll("input[type=radio]");
-        if (radios[dec.radio_index]) { clickRadio(radios[dec.radio_index]); n++; }
+        if (radios[dec.radio_index] && clickRadio(radios[dec.radio_index])) { n++; got++; }
       }
+      if (got > 0) { hit.push(sec.section_label); if (firstBody == null) firstBody = sec.body_index; }
       await wait(120);
     }
-    return n;
+    if (firstBody != null) { await ensureIndex(firstBody); }  // 反映箇所が見えるようスクロール
+    return { n: n, hit: hit };
   }
 
   function grabImages() {
@@ -222,13 +237,18 @@
     } catch (e) { say("通信エラー: " + e + "\n(CSP制限の可能性)", "#8f1f1f"); addCopyBtn(); return fin(); }
     if (data.error) { say("サーバーエラー: " + data.error, "#8f1f1f"); addCopyBtn(); return fin(); }
 
-    var checked = 0;
-    try { checked = await applyDecisions(data.sections || [], secs); }
+    var r = { n: 0, hit: [] };
+    try { r = await applyDecisions(data.sections || [], secs); }
     catch (e) { say("反映エラー: " + e, "#8f1f1f"); addCopyBtn(); return fin(); }
 
-    say("完了: 設問 " + (data.sections || []).length + " 件 / " + checked + " 項目を選択しました。\n" +
-        "※添削完了・コメント(よく使うコメントから選択)・保存/提出はご自身で。\n" +
-        "別ページの設問は、そのページに切替えて再度実行してください。", "#137a4d");
+    var hitTxt = r.hit.length ? ("\n加点/選択した設問: " + r.hit.join(" , ")) : "";
+    if (r.n === 0) {
+      say("チェックを反映できませんでした(0項目)。読み取ったセクション " + secs.length +
+          " 件。ボタン構造が変わった可能性があります。開発用ボタンでHTMLを送ってください。", "#8f1f1f");
+    } else {
+      say("完了: " + r.n + " 項目にチェックを入れました。" + hitTxt +
+          "\n※添削完了・コメント(よく使うコメントから選択)・保存/提出はご自身で。", "#137a4d");
+    }
     addCopyBtn();
     fin();
   })();
