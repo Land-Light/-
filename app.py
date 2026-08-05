@@ -224,10 +224,28 @@ def api_tensakit_decide():
     if not sections:
         return jsonify({"error": "採点パネルの選択肢を受け取れませんでした。"})
     images = []
+    # data: URL(埋め込み画像)はその場でデコード
     for du in (data.get("images") or []):
         if isinstance(du, str) and du.startswith("data:"):
             try:
                 images.append(base64.b64decode(du.split(",", 1)[1]))
+            except Exception:
+                pass
+    # 答案画像URL(S3等)はサーバー側で取得する(ブラウザのCORS制限を受けない)
+    for u in (data.get("image_urls") or [])[:8]:
+        if not isinstance(u, str):
+            continue
+        if u.startswith("data:"):
+            try:
+                images.append(base64.b64decode(u.split(",", 1)[1]))
+            except Exception:
+                pass
+        elif u.startswith("http"):
+            try:
+                import httpx
+                r = httpx.get(u, timeout=30.0, follow_redirects=True)
+                if r.status_code == 200 and r.content:
+                    images.append(r.content)
             except Exception:
                 pass
     try:

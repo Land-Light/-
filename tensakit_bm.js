@@ -211,28 +211,42 @@
     return { n: n, hit: hit };
   }
 
-  function blobToDataURL(b) {
-    return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(b); });
+  // ページ送りナビ(「N / M ページ」の左右ボタン)
+  function pageNav() {
+    var li = [].slice.call(d.querySelectorAll("li")).filter(function (e) {
+      var t = e.textContent || ""; return /\d+\s*\/\s*\d+/.test(t) && /ページ/.test(t);
+    })[0];
+    if (!li) return null;
+    var m = (li.textContent || "").match(/(\d+)\s*\/\s*(\d+)/);
+    if (!m) return null;
+    return { cur: +m[1], total: +m[2], prev: li.previousElementSibling, next: li.nextElementSibling };
   }
-  // 答案画像を取得。Tensakitは描画用の透明canvasが重なっているので、
-  // まず実際の答案<img>をfetchしてdataURL化し、補助的にcanvasも入れる。
-  async function grabImages() {
-    var out = [];
+  async function gotoPage(target) {
+    for (var i = 0; i < 25; i++) {
+      var p = pageNav(); if (!p) return;
+      if (p.cur === target) return;
+      if (p.cur < target && p.next) p.next.click();
+      else if (p.prev) p.prev.click();
+      await wait(500);
+    }
+  }
+  function currentPageImgURL() {
     var imgs = [].slice.call(d.querySelectorAll("img"))
       .filter(function (im) { return im.naturalWidth > 300 && im.naturalHeight > 300; })
       .sort(function (a, b) { return (b.naturalWidth * b.naturalHeight) - (a.naturalWidth * a.naturalHeight); });
-    for (var j = 0; j < imgs.length && out.length < 2; j++) {
-      var src = imgs[j].src;
-      if (/^data:/.test(src)) { out.push(src); continue; }
-      try { var resp = await fetch(src); var bl = await resp.blob(); out.push(await blobToDataURL(bl)); } catch (e) {}
+    return imgs[0] ? imgs[0].src : null;
+  }
+  // 全ページの答案画像URLを集める(サーバー側で取得するのでCORSの影響を受けない)
+  async function captureAllPageURLs() {
+    var urls = [];
+    var p = pageNav();
+    if (!p) { var u = currentPageImgURL(); if (u) urls.push(u); return urls; }
+    await gotoPage(1);
+    for (var pg = 1; pg <= p.total && pg <= 8; pg++) {
+      await gotoPage(pg); await wait(500);
+      var u2 = currentPageImgURL(); if (u2 && urls.indexOf(u2) < 0) urls.push(u2);
     }
-    if (out.length === 0) {
-      var cvs = [].slice.call(d.querySelectorAll("canvas"))
-        .filter(function (c) { return c.width > 200 && c.height > 200; })
-        .sort(function (a, b) { return (b.width * b.height) - (a.width * a.height); });
-      for (var i = 0; i < cvs.length && out.length < 2; i++) { try { out.push(cvs[i].toDataURL("image/png")); } catch (e) {} }
-    }
-    return out;
+    return urls;
   }
 
   (async function main() {
@@ -241,9 +255,11 @@
     try { secs = await collectSections(); } catch (e) { say("読み取りエラー: " + e, "#8f1f1f"); addCopyBtn(); return fin(); }
     if (!secs.length) { say("採点パネルが見つかりません。採点画面で実行してください。", "#8f1f1f"); addCopyBtn(); return fin(); }
 
-    var images = await grabImages();
+    say("答案ページを取得中…(ページを送ります)");
+    var imageUrls = [];
+    try { imageUrls = await captureAllPageURLs(); } catch (e) {}
     var payload = {
-      images: images,
+      image_urls: imageUrls,
       panel_html: panelHTML(),
       sections: secs.map(function (s) {
         return { section_label: s.section_label, add_options: s.add_options, deduct_options: s.deduct_options, radio_options: s.radio_options };
