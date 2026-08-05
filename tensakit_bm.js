@@ -17,22 +17,55 @@
 
   function norm(s) { return (s || "").replace(/\s+/g, " ").trim(); }
 
+  // 採点パネルの実際のHTML(構造調整用)。開発者が設問タイプを直すために使う。
+  function panelHTML() {
+    try {
+      var h = [].slice.call(d.querySelectorAll("*")).filter(function (el) {
+        return /添削完了/.test(el.textContent || "") && el.children.length <= 4;
+      })[0];
+      if (!h) return "";
+      var c = h;
+      for (var k = 0; k < 8 && c.parentElement; k++) c = c.parentElement;
+      return (c.outerHTML || "").slice(0, 300000);
+    } catch (e) { return ""; }
+  }
+
   // ---- 画面上の小さな状態表示 ----
   var box = d.getElementById("__tk_box");
   if (!box) {
     box = d.createElement("div");
     box.id = "__tk_box";
     box.style.cssText =
-      "position:fixed;z-index:2147483647;right:12px;bottom:12px;max-width:340px;" +
+      "position:fixed;z-index:2147483647;right:12px;bottom:12px;max-width:360px;" +
       "background:#0d2a4d;color:#fff;font:13px/1.6 sans-serif;padding:12px 14px;" +
       "border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.4);white-space:pre-wrap;";
     d.body.appendChild(box);
   }
+  box.innerHTML = "";
+  var txt = d.createElement("div");
+  box.appendChild(txt);
   function say(msg, color) {
     box.style.background = color || "#0d2a4d";
-    box.textContent = "【AI採点】" + msg;
+    txt.textContent = "【AI採点】" + msg;
   }
   function done() { window.__tk_running = false; }
+
+  // 採点パネルの実HTMLをコピーするボタン(開発用)。say()で消えないよう box 直下に置く。
+  function addCopyBtn(getText) {
+    var b = d.createElement("button");
+    b.textContent = "パネルHTMLをコピー(開発用)";
+    b.style.cssText =
+      "margin-top:10px;display:block;padding:7px 12px;font:12px sans-serif;" +
+      "border:0;border-radius:6px;background:#fff;color:#0d2a4d;font-weight:700;";
+    b.onclick = function () {
+      var s = getText() || "";
+      try {
+        navigator.clipboard.writeText(s).then(function () { b.textContent = "コピーしました"; },
+          function () { b.textContent = "コピー失敗(手動選択してください)"; });
+      } catch (e) { b.textContent = "コピー失敗: " + e; }
+    };
+    box.appendChild(b);
+  }
 
   // ---- 採点パネルの読み取り(要素の参照も保持しておく) ----
   function scrape() {
@@ -101,26 +134,14 @@
   var secs;
   try { secs = scrape(); } catch (e) { say("パネル読み取りでエラー: " + e, "#8f1f1f"); return done(); }
   if (!secs.length) {
-    say("採点パネルが見つかりませんでした。採点画面(加点項目が見える状態)で実行してください。", "#8f1f1f");
+    say("採点パネルが見つかりませんでした。採点画面(加点項目・添削完了が見える状態)で実行してください。", "#8f1f1f");
+    addCopyBtn(panelHTML);
     return done();
   }
   var images = grabImages();
   if (!images.length) {
     say("答案画像を取得できませんでした(canvas無し)。この画面を開発者に伝えてください。", "#b25900");
     // 画像なしでも選択肢のテキストだけで判断を試みる場合はそのまま送る
-  }
-
-  // 採点パネルの実際のHTML(構造調整用)。/tensakit-html で開発者が確認できる。
-  function panelHTML() {
-    try {
-      var h = [].slice.call(d.querySelectorAll("*")).filter(function (el) {
-        return /添削完了/.test(el.textContent || "") && el.children.length <= 4;
-      })[0];
-      if (!h) return "";
-      var c = h;
-      for (var k = 0; k < 8 && c.parentElement; k++) c = c.parentElement;
-      return (c.outerHTML || "").slice(0, 300000);
-    } catch (e) { return ""; }
   }
 
   var payload = {
@@ -149,9 +170,11 @@
     });
     say("完了: " + dsecs.length + "セクション / " + checked + "項目にチェックしました。\n" +
         "※添削完了は自動では押しません。内容を確認し、コメント選択・添削完了・保存/提出はご自身で。", "#137a4d");
+    addCopyBtn(panelHTML);
     done();
   }).catch(function (e) {
     say("通信エラー: " + e + "\n(サイトのCSP制限でAPIに繋げない可能性があります。開発者に伝えてください)", "#8f1f1f");
+    addCopyBtn(panelHTML);
     done();
   });
 })();
