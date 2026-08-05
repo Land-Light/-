@@ -17,17 +17,33 @@
 
   function norm(s) { return (s || "").replace(/\s+/g, " ").trim(); }
 
-  // 採点パネルの実際のHTML(構造調整用)。開発者が設問タイプを直すために使う。
+  // 採点パネルの実際のHTML(構造調整用)。チェックボックス/ラジオを起点に
+  // 採点パネルだけを取り出し、巨大なCSSは除去する。冒頭にマーカーを付ける。
+  function clean(el) {
+    var html = (el && el.outerHTML) || "";
+    html = html.replace(/<style[\s\S]*?<\/style>/gi, "");
+    return html.slice(0, 250000);
+  }
   function panelHTML() {
     try {
-      var h = [].slice.call(d.querySelectorAll("*")).filter(function (el) {
-        return /添削完了/.test(el.textContent || "") && el.children.length <= 4;
-      })[0];
-      if (!h) return "";
-      var c = h;
-      for (var k = 0; k < 8 && c.parentElement; k++) c = c.parentElement;
-      return (c.outerHTML || "").slice(0, 300000);
-    } catch (e) { return ""; }
+      var ins = [].slice.call(d.querySelectorAll("input[type=checkbox],input[type=radio]"));
+      var body = "";
+      if (ins.length) {
+        var anc = ins[0];
+        ins.forEach(function (n) { while (anc && !anc.contains(n)) anc = anc.parentElement; });
+        for (var k = 0; k < 3 && anc && anc.parentElement; k++) anc = anc.parentElement;
+        body = clean(anc);
+      } else {
+        var h = [].slice.call(d.querySelectorAll("*")).filter(function (el) {
+          return /添削完了|加点項目|生徒の回答/.test(el.textContent || "") && el.children.length <= 6;
+        })[0];
+        if (h) { var c = h; for (var j = 0; j < 10 && c.parentElement; j++) c = c.parentElement; body = clean(c); }
+        else body = "(checkbox/radioもテキストも見つかりません。パネルはiframe内の可能性)";
+      }
+      var frames = d.querySelectorAll("iframe").length;
+      return "=== TENSAKIT PANEL (bookmarklet capture) inputs=" + ins.length +
+             " iframes=" + frames + " ===\n" + body;
+    } catch (e) { return "panelHTML error: " + e; }
   }
 
   // ---- 画面上の小さな状態表示 ----
