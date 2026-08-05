@@ -236,7 +236,8 @@ def api_tensakit_decide():
         return jsonify({"error": str(e)})
     out = [
         {"section_label": d.section_label,
-         "add_indices": d.add_indices, "deduct_indices": d.deduct_indices}
+         "add_indices": d.add_indices, "deduct_indices": d.deduct_indices,
+         "radio_index": d.radio_index}
         for d in decisions
     ]
     return jsonify({"sections": out})

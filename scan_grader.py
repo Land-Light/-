@@ -431,6 +431,9 @@ class TensakitSectionInput(BaseModel):
     section_label: str = Field(description="セクション見出し(例: 第一問 / 一 / コ)")
     add_options: List[TensakitPanelOption] = Field(default_factory=list, description="加点項目の選択肢")
     deduct_options: List[TensakitPanelOption] = Field(default_factory=list, description="減点項目の選択肢")
+    radio_options: List[TensakitPanelOption] = Field(
+        default_factory=list, description="記号選択(生徒の回答: A〜H・未回答)のラジオ選択肢"
+    )
 
 
 class TensakitSectionDecision(BaseModel):
@@ -442,6 +445,11 @@ class TensakitSectionDecision(BaseModel):
     )
     deduct_indices: List[int] = Field(
         default_factory=list, description="チェックする減点項目の index(該当が無ければ空)"
+    )
+    radio_index: Optional[int] = Field(
+        default=None,
+        description="記号選択問題で、生徒が解答した記号のラジオ選択肢 index を1つだけ選ぶ。"
+        "空欄・無記入なら『未回答』の index。記号問題でなければ null",
     )
 
 
@@ -480,25 +488,30 @@ def decide_tensakit_marks(
     if rubric:
         content.append({"type": "text", "text": f"【利用者提供の採点基準】(最優先)\n{rubric}"})
 
-    panel_text = "\n\n".join(
-        "■セクション: " + s["section_label"] + "\n"
-        + "  加点項目:\n" + "".join(
-            f"    [{o['index']}] {o['label']}\n" for o in s.get("add_options", [])
-        )
-        + "  減点項目:\n" + "".join(
-            f"    [{o['index']}] {o['label']}\n" for o in s.get("deduct_options", [])
-        )
-        for s in sections
-    )
+    def _sec_text(s):
+        t = "■セクション: " + s["section_label"] + "\n"
+        if s.get("add_options"):
+            t += "  加点項目:\n" + "".join(
+                f"    [{o['index']}] {o['label']}\n" for o in s["add_options"])
+        if s.get("deduct_options"):
+            t += "  減点項目:\n" + "".join(
+                f"    [{o['index']}] {o['label']}\n" for o in s["deduct_options"])
+        if s.get("radio_options"):
+            t += "  記号選択(生徒の回答):\n" + "".join(
+                f"    [{o['index']}] {o['label']}\n" for o in s["radio_options"])
+        return t
+
+    panel_text = "\n\n".join(_sec_text(s) for s in sections)
     content.append({
         "type": "text",
         "text": (
             "以下は東進オンライン採点(Tensakit)の採点パネルに実際に表示されている、"
-            "設問ごとの加点項目・減点項目の選択肢です。上の答案を読み、各セクションについて"
-            "『どの加点項目・減点項目にチェックを入れるべきか』を index で選んでください。"
-            "採点基準そのものなので、勝手な加点減点はせず、該当する項目だけを選ぶこと。"
-            "漢字・記号は正解した小問の加点項目のみ選ぶ。記述問題も該当する加点/減点項目だけを選ぶ。"
-            "コメントは扱いません(選択のみ)。該当が無いセクションは空のまま返すこと。\n\n"
+            "設問ごとの選択肢です。上の答案を読み、各セクションについて次を判断してください。\n"
+            "・加点項目/減点項目(チェックボックス)がある設問: 該当する項目の index を "
+            "add_indices/deduct_indices に入れる(採点基準そのものなので勝手な加点減点はしない)。\n"
+            "・記号選択(生徒の回答: A〜H・未回答 等のラジオ)がある設問: 生徒が実際に解答した"
+            "記号の選択肢 index を radio_index に1つだけ入れる。空欄・無記入なら『未回答』の index。\n"
+            "コメントは扱いません(選択のみ)。該当が無い項目は空/ null のまま返すこと。\n\n"
             + panel_text
         ),
     })
