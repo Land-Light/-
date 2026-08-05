@@ -156,7 +156,9 @@
       if (kind === "add" && !/加点/.test(head)) return;
       if (kind === "ded" && !/減点/.test(head)) return;
       [].slice.call(ul.querySelectorAll("li.MuiListItem-root")).forEach(function (li) {
-        if (li.querySelector("input[type=checkbox]")) res.push(li);
+        if (!li.querySelector("input[type=checkbox]")) return;
+        if (/添削完了/.test(li.textContent || "")) return; // 添削完了は絶対に触らない
+        res.push(li);
       });
     });
     return res;
@@ -195,8 +197,12 @@
       var dedRows = checkboxRows(block, "ded");
       (dec.deduct_indices || []).forEach(function (ix) { if (dedRows[ix] && clickItem(dedRows[ix])) { n++; got++; } });
       if (dec.radio_index != null && dec.radio_index >= 0) {
-        var radios = block.querySelectorAll("input[type=radio]");
-        if (radios[dec.radio_index] && clickRadio(radios[dec.radio_index])) { n++; got++; }
+        var opt = (sec.radio_options || [])[dec.radio_index];
+        // 「未回答」は自動選択しない(誤って正解を未回答にする事故を防ぐ)。人が判断。
+        if (!(opt && /未回答/.test(opt.label))) {
+          var radios = block.querySelectorAll("input[type=radio]");
+          if (radios[dec.radio_index] && clickRadio(radios[dec.radio_index])) { n++; got++; }
+        }
       }
       if (got > 0) { hit.push(sec.section_label); if (firstBody == null) firstBody = sec.body_index; }
       await wait(120);
@@ -205,12 +211,27 @@
     return { n: n, hit: hit };
   }
 
-  function grabImages() {
+  function blobToDataURL(b) {
+    return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(b); });
+  }
+  // 答案画像を取得。Tensakitは描画用の透明canvasが重なっているので、
+  // まず実際の答案<img>をfetchしてdataURL化し、補助的にcanvasも入れる。
+  async function grabImages() {
     var out = [];
-    var cvs = [].slice.call(d.querySelectorAll("canvas"))
-      .filter(function (c) { return c.width > 200 && c.height > 200; })
-      .sort(function (a, b) { return (b.width * b.height) - (a.width * a.height); });
-    for (var i = 0; i < cvs.length && out.length < 2; i++) { try { out.push(cvs[i].toDataURL("image/png")); } catch (e) {} }
+    var imgs = [].slice.call(d.querySelectorAll("img"))
+      .filter(function (im) { return im.naturalWidth > 300 && im.naturalHeight > 300; })
+      .sort(function (a, b) { return (b.naturalWidth * b.naturalHeight) - (a.naturalWidth * a.naturalHeight); });
+    for (var j = 0; j < imgs.length && out.length < 2; j++) {
+      var src = imgs[j].src;
+      if (/^data:/.test(src)) { out.push(src); continue; }
+      try { var resp = await fetch(src); var bl = await resp.blob(); out.push(await blobToDataURL(bl)); } catch (e) {}
+    }
+    if (out.length === 0) {
+      var cvs = [].slice.call(d.querySelectorAll("canvas"))
+        .filter(function (c) { return c.width > 200 && c.height > 200; })
+        .sort(function (a, b) { return (b.width * b.height) - (a.width * a.height); });
+      for (var i = 0; i < cvs.length && out.length < 2; i++) { try { out.push(cvs[i].toDataURL("image/png")); } catch (e) {} }
+    }
     return out;
   }
 
@@ -220,7 +241,7 @@
     try { secs = await collectSections(); } catch (e) { say("読み取りエラー: " + e, "#8f1f1f"); addCopyBtn(); return fin(); }
     if (!secs.length) { say("採点パネルが見つかりません。採点画面で実行してください。", "#8f1f1f"); addCopyBtn(); return fin(); }
 
-    var images = grabImages();
+    var images = await grabImages();
     var payload = {
       images: images,
       panel_html: panelHTML(),
