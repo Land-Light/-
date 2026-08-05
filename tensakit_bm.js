@@ -53,16 +53,29 @@
   // 採点パネルの実HTMLをコピーするボタン(開発用)。say()で消えないよう box 直下に置く。
   function addCopyBtn(getText) {
     var b = d.createElement("button");
-    b.textContent = "パネルHTMLをコピー(開発用)";
+    b.textContent = "パネルHTMLを表示してコピー(開発用)";
     b.style.cssText =
       "margin-top:10px;display:block;padding:7px 12px;font:12px sans-serif;" +
       "border:0;border-radius:6px;background:#fff;color:#0d2a4d;font-weight:700;";
     b.onclick = function () {
       var s = getText() || "";
-      try {
-        navigator.clipboard.writeText(s).then(function () { b.textContent = "コピーしました"; },
-          function () { b.textContent = "コピー失敗(手動選択してください)"; });
-      } catch (e) { b.textContent = "コピー失敗: " + e; }
+      var ta = d.getElementById("__tk_ta");
+      if (!ta) {
+        ta = d.createElement("textarea");
+        ta.id = "__tk_ta";
+        ta.style.cssText =
+          "margin-top:8px;width:100%;height:120px;font:11px monospace;" +
+          "color:#111;background:#fff;border-radius:6px;padding:6px;";
+        box.appendChild(ta);
+      }
+      ta.value = s;
+      ta.focus();
+      ta.select();
+      try { ta.setSelectionRange(0, s.length); } catch (e) {}
+      var ok = false;
+      try { ok = d.execCommand("copy"); } catch (e) {}
+      if (!ok && navigator.clipboard) { try { navigator.clipboard.writeText(s); ok = true; } catch (e) {} }
+      b.textContent = (ok ? "コピーしました" : "下の枠を長押し→全選択→コピー") + " (" + s.length + "文字)";
     };
     box.appendChild(b);
   }
