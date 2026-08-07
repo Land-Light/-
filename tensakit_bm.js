@@ -247,33 +247,59 @@
   function bigCanvases() {
     return [].slice.call(d.querySelectorAll("canvas")).filter(function (c) { return c.width > 300 && c.height > 300; });
   }
+  function svgImages() { return [].slice.call(d.querySelectorAll("image")); }  // SVG内<image>(HTMLの<img>と別物)
+  function svgHref(el) { return el.getAttribute("href") || el.getAttribute("xlink:href") || ""; }
+  function blobToDataURL(b) {
+    return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(b); });
+  }
+  async function srcToData(u) {  // blob:/http/data を可能ならdataURL化(同一オリジンのblobは確実)
+    if (!u) return null;
+    if (/^data:/.test(u)) return u;
+    try { var r = await fetch(u); var b = await r.blob(); return await blobToDataURL(b); } catch (e) { return null; }
+  }
   // 答案がどの要素で描画されているかを調べる(取得できない原因の切り分け用)
   function domInfo() {
-    var cs = [].slice.call(d.querySelectorAll("canvas"));
-    var big = cs.slice().sort(function (a, b) { return b.width * b.height - a.width * a.height; })[0];
-    var taint = "-";
-    if (big) { try { big.toDataURL("image/jpeg", 0.5); taint = "OK取得可"; } catch (e) { taint = "taint取得不可"; } }
-    var is = [].slice.call(d.querySelectorAll("img")).filter(function (im) { return im.naturalWidth > 100; });
-    var bi = is.slice().sort(function (a, b) { return b.naturalWidth * b.naturalHeight - a.naturalWidth * a.naturalHeight; })[0];
-    return "canvas=" + cs.length + (big ? ("(" + big.width + "x" + big.height + "," + taint + ")") : "") +
-      " / img=" + is.length + (bi ? ("(" + bi.naturalWidth + "x" + bi.naturalHeight + " " + (bi.src || "").slice(0, 28) + ")") : "");
+    var cs = d.querySelectorAll("canvas").length;
+    var im = d.querySelectorAll("img").length;
+    var sv = d.querySelectorAll("svg").length;
+    var si = svgImages();
+    var href = si[0] ? svgHref(si[0]).slice(0, 34) : "";
+    var bg = 0, bgU = "";
+    var els = d.querySelectorAll("div,section,figure,span");
+    for (var i = 0; i < els.length && bg < 1; i++) {
+      var b = getComputedStyle(els[i]).backgroundImage;
+      if (b && b !== "none" && /url\(/.test(b)) { bg++; bgU = b.slice(0, 40); }
+    }
+    var obj = d.querySelectorAll("object,embed,iframe").length;
+    return "canvas=" + cs + " img=" + im + " svg=" + sv + " svgimage=" + si.length +
+      (href ? "(" + href + ")" : "") + " bg=" + bg + (bgU ? "(" + bgU + ")" : "") + " obj=" + obj;
   }
-  // 全ページの答案画像を dataURL で集める(canvas優先、無ければdata:のimg)
-  async function captureAllImages() {
-    var out = [];
-    var p = pageNav();
-    var pages = p ? p.total : 1;
-    if (p) await gotoPage(1);
-    for (var pg = 1; pg <= pages && pg <= 8 && out.length < 8; pg++) {
-      if (p) { await gotoPage(pg); await wait(700); }
-      var cvs = bigCanvases();
-      for (var i = 0; i < cvs.length && out.length < 8; i++) { var du = canvasToData(cvs[i]); if (du) out.push(du); }
-      if (cvs.length === 0) {
-        var imgs = [].slice.call(d.querySelectorAll("img")).filter(function (im) { return im.naturalWidth > 300 && /^data:/.test(im.src); });
-        if (imgs[0]) out.push(imgs[0].src);
+  // 全ページの答案画像を集める。canvas/SVG image/img を対象に、
+  // dataURL化できるものは images へ、http(s)はサーバー取得用に urls へ。
+  async function captureAll() {
+    var images = [], urls = [];
+    async function grabPage() {
+      bigCanvases().forEach(function (c) { var du = canvasToData(c); if (du) images.push(du); });
+      var si = svgImages();
+      for (var k = 0; k < si.length; k++) {
+        var h = svgHref(si[k]); if (!h) continue;
+        if (/^https?:/.test(h)) urls.push(h);
+        var du2 = await srcToData(h); if (du2) images.push(du2);
+      }
+      var im = [].slice.call(d.querySelectorAll("img")).filter(function (x) { return x.naturalWidth > 200; });
+      for (var m = 0; m < im.length; m++) {
+        var s = im[m].src;
+        if (/^data:/.test(s)) images.push(s);
+        else { if (/^https?:/.test(s)) urls.push(s); var du3 = await srcToData(s); if (du3) images.push(du3); }
       }
     }
-    return out;
+    var p = pageNav(); var pages = p ? p.total : 1;
+    if (p) await gotoPage(1);
+    for (var pg = 1; pg <= pages && pg <= 8 && images.length < 8; pg++) {
+      if (p) { await gotoPage(pg); await wait(700); }
+      await grabPage();
+    }
+    return { images: images.slice(0, 8), urls: urls.slice(0, 8) };
   }
 
   (async function main() {
@@ -283,15 +309,16 @@
     if (!secs.length) { say("採点パネルが見つかりません。採点画面で実行してください。", "#8f1f1f"); addCopyBtn(); return fin(); }
 
     say("答案ページを取得中…(ページを送ります)");
-    var images = [];
-    try { images = await captureAllImages(); } catch (e) {}
-    if (images.length === 0) {
+    var cap = { images: [], urls: [] };
+    try { cap = await captureAll(); } catch (e) {}
+    if (cap.images.length === 0 && cap.urls.length === 0) {
       say("答案画像を取得できませんでした。以下を開発者に伝えてください:\n" + domInfo(), "#b25900");
       addCopyBtn();
       return fin();  // 答案が無いままAIに投げても誤採点になるので中止
     }
     var payload = {
-      images: images,
+      images: cap.images,
+      image_urls: cap.urls,
       panel_html: panelHTML(),
       sections: secs.map(function (s) {
         return { section_label: s.section_label, add_options: s.add_options, deduct_options: s.deduct_options, radio_options: s.radio_options };
