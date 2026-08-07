@@ -183,6 +183,49 @@
     return r.checked;
   }
 
+  // ---- 減点(「＋」で開いて -1 の番号行を選ぶ) ----
+  function toAsciiNum(s) { return (s || "").replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }); }
+  function deductPlusButton(block) {  // 減点項目 見出しの「＋」ボタン
+    var uls = block.querySelectorAll("ul.MuiList-root");
+    for (var i = 0; i < uls.length; i++) {
+      var sub = uls[i].querySelector("li.MuiListSubheader-root");
+      if (sub && /減点項目/.test(sub.textContent || "")) return sub.querySelector("button");
+    }
+    return null;
+  }
+  function deductRows(block) {  // 開いた減点一覧の各行(番号と押す要素)
+    var rows = [];
+    [].slice.call(block.querySelectorAll(".MuiCollapse-root li.MuiListItem-root")).forEach(function (li) {
+      var h6 = li.querySelector("h6");
+      if (!h6 || !/-1/.test(h6.textContent || "")) return;
+      var p = li.querySelector("p");
+      var num = parseInt(toAsciiNum(p ? p.textContent : ""), 10);
+      if (!isNaN(num)) rows.push({ num: num, el: li.querySelector(".MuiListItemButton-root") || li });
+    });
+    return rows;
+  }
+  async function applyDeductions(bodyIndex, numbers) {
+    var got = 0;
+    var block = await ensureIndex(bodyIndex);
+    if (!block) return 0;
+    if (deductRows(block).length === 0) {  // まだ開いていなければ「＋」を押す
+      var plus = deductPlusButton(block);
+      if (!plus) return 0;
+      plus.click(); await wait(450);
+      block = d.querySelector('[data-index="' + bodyIndex + '"]') || block;
+    }
+    for (var i = 0; i < numbers.length; i++) {
+      block = d.querySelector('[data-index="' + bodyIndex + '"]') || block;
+      var row = deductRows(block).filter(function (r) { return r.num === numbers[i]; })[0];
+      if (row && row.el) { row.el.click(); got++; await wait(300); }
+    }
+    // 閉じる
+    block = d.querySelector('[data-index="' + bodyIndex + '"]') || block;
+    var close = [].slice.call(block.querySelectorAll("button")).filter(function (b) { return /閉じる/.test(b.textContent || ""); })[0];
+    if (close) { close.click(); await wait(200); }
+    return got;
+  }
+
   async function applyDecisions(dsecs, secs) {
     var n = 0, hit = [], firstBody = null;
     function nl(x) { return (x || "").replace(/\s+/g, ""); }  // 空白差を無視して照合
@@ -195,8 +238,6 @@
       var got = 0;
       var addRows = checkboxRows(block, "add");
       (dec.add_indices || []).forEach(function (ix) { if (addRows[ix] && clickItem(addRows[ix])) { n++; got++; } });
-      var dedRows = checkboxRows(block, "ded");
-      (dec.deduct_indices || []).forEach(function (ix) { if (dedRows[ix] && clickItem(dedRows[ix])) { n++; got++; } });
       if (dec.radio_index != null && dec.radio_index >= 0) {
         var opt = (sec.radio_options || [])[dec.radio_index];
         // 「未回答」は自動選択しない(誤って正解を未回答にする事故を防ぐ)。人が判断。
@@ -204,6 +245,12 @@
           var radios = block.querySelectorAll("input[type=radio]");
           if (radios[dec.radio_index] && clickRadio(radios[dec.radio_index])) { n++; got++; }
         }
+      }
+      // 減点(採点基準の番号に対応する -1 を「＋」→行クリック→閉じる)
+      var dn = (dec.deduct_numbers || []).filter(function (x) { return typeof x === "number" && x > 0; });
+      if (dn.length) {
+        var dg = await applyDeductions(sec.body_index, dn);
+        n += dg; got += dg;
       }
       if (got > 0) { hit.push(sec.section_label); if (firstBody == null) firstBody = sec.body_index; }
       await wait(120);
