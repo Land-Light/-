@@ -279,11 +279,18 @@
     catch (e) { say("反映エラー: " + e, "#8f1f1f"); addCopyBtn(); return fin(); }
 
     var hitTxt = r.hit.length ? ("\n加点/選択した設問: " + r.hit.join(" , ")) : "";
+    var dbg = data.debug || {};
+    var dbgTxt = "\n[診断] 答案画像 " + (dbg.images_ok != null ? dbg.images_ok : "?") +
+      "/" + (dbg.img_urls != null ? dbg.img_urls : "?") + "枚取得, AI選択した設問 " +
+      (dbg.with_selection != null ? dbg.with_selection : "?") + "/" + (dbg.decided != null ? dbg.decided : "?") +
+      (dbg.fetch_fail && dbg.fetch_fail.length ? ", 取得失敗:" + dbg.fetch_fail.join("/") : "");
     if (r.n === 0) {
-      say("チェックを反映できませんでした(0項目)。読み取ったセクション " + secs.length +
-          " 件。ボタン構造が変わった可能性があります。開発用ボタンでHTMLを送ってください。", "#8f1f1f");
+      var why = (dbg.images_ok === 0)
+        ? "答案画像をサーバーが取得できていません(画像がログイン必須の可能性)。"
+        : (dbg.with_selection === 0 ? "AIが選択を返しませんでした(答案を読めていない可能性)。" : "チェックの反映に失敗しました。");
+      say("反映できませんでした(0項目)。" + why + dbgTxt, "#8f1f1f");
     } else {
-      say("完了: " + r.n + " 項目にチェックを入れました。" + hitTxt +
+      say("完了: " + r.n + " 項目にチェックを入れました。" + hitTxt + dbgTxt +
           "\n※添削完了・コメント(よく使うコメントから選択)・保存/提出はご自身で。", "#137a4d");
     }
     addCopyBtn();

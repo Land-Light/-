@@ -224,6 +224,7 @@ def api_tensakit_decide():
     if not sections:
         return jsonify({"error": "採点パネルの選択肢を受け取れませんでした。"})
     images = []
+    fetch_fail = []  # 取得に失敗したURLの状況(診断用)
     # data: URL(埋め込み画像)はその場でデコード
     for du in (data.get("images") or []):
         if isinstance(du, str) and du.startswith("data:"):
@@ -231,23 +232,24 @@ def api_tensakit_decide():
                 images.append(base64.b64decode(du.split(",", 1)[1]))
             except Exception:
                 pass
+    url_list = [u for u in (data.get("image_urls") or []) if isinstance(u, str)][:8]
     # 答案画像URL(S3等)はサーバー側で取得する(ブラウザのCORS制限を受けない)
-    for u in (data.get("image_urls") or [])[:8]:
-        if not isinstance(u, str):
-            continue
+    for u in url_list:
         if u.startswith("data:"):
             try:
                 images.append(base64.b64decode(u.split(",", 1)[1]))
             except Exception:
-                pass
+                fetch_fail.append("data:decode")
         elif u.startswith("http"):
             try:
                 import httpx
                 r = httpx.get(u, timeout=30.0, follow_redirects=True)
                 if r.status_code == 200 and r.content:
                     images.append(r.content)
-            except Exception:
-                pass
+                else:
+                    fetch_fail.append("HTTP " + str(r.status_code))
+            except Exception as e:
+                fetch_fail.append(type(e).__name__)
     try:
         decisions = decide_tensakit_marks(images, sections, rubric=None)
     except Exception as e:
@@ -261,7 +263,17 @@ def api_tensakit_decide():
          "radio_index": d.radio_index}
         for d in decisions
     ]
-    return jsonify({"sections": out})
+    with_sel = sum(1 for d in decisions
+                   if d.add_indices or d.deduct_indices or d.radio_index is not None)
+    debug = {
+        "images_ok": len(images),
+        "img_urls": len(url_list),
+        "fetch_fail": fetch_fail[:6],
+        "sections_in": len(sections),
+        "decided": len(decisions),
+        "with_selection": with_sel,
+    }
+    return jsonify({"sections": out, "debug": debug})
 
 
 @app.route("/tensakit-bm.js")
