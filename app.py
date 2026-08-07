@@ -195,7 +195,7 @@ def _require_password():
 @app.after_request
 def _cors(resp):
     """ブックマークレット(Tensakit画面から)がAPI/スクリプトを呼べるようにCORSを許可。"""
-    if request.path.startswith("/api/") or request.path == "/tensakit-bm.js":
+    if request.path.startswith("/api/") or request.path in ("/tensakit-bm.js", "/tensakit-dump.js"):
         resp.headers["Access-Control-Allow-Origin"] = "*"
         resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
         resp.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
@@ -286,6 +286,15 @@ def tensakit_bm_js():
     return Response(js, mimetype="application/javascript")
 
 
+@app.route("/tensakit-dump.js")
+def tensakit_dump_js():
+    """構造取得(開発用)ブックマークレット本体を配信する(採点せずHTMLをコピー)。"""
+    path = os.path.join(app.root_path, "tensakit_dump.js")
+    with open(path, encoding="utf-8") as fh:
+        js = fh.read()
+    return Response(js, mimetype="application/javascript")
+
+
 @app.route("/bookmarklet")
 def bookmarklet_page():
     """ブックマークレットの登録手順を表示するページ。"""
@@ -296,7 +305,12 @@ def bookmarklet_page():
         "s.onerror=function(){alert('スクリプトを読み込めませんでした(サイトのCSP制限の可能性)');};"
         "d.body.appendChild(s);})();"
     )
-    return render_template("bookmarklet.html", loader=loader, base=base)
+    dump_loader = (
+        "javascript:(function(){var d=document,s=d.createElement('script');"
+        "s.src='" + base + "tensakit-dump.js?t='+Date.now();"
+        "d.body.appendChild(s);})();"
+    )
+    return render_template("bookmarklet.html", loader=loader, dump_loader=dump_loader, base=base)
 
 
 @app.route("/healthz")

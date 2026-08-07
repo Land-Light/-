@@ -38,6 +38,17 @@
     サイトのセキュリティ設定(CSP)により外部スクリプトや通信が制限されている場合は、別の方法に切り替えます。
   </p>
 
+  <h3 class="section">(開発用) 構造取得ブックマークレット</h3>
+  <p class="notice">
+    採点はせず、今表示されている採点パネルのHTMLをコピーするだけのツールです。
+    減点項目を「＋」で開いた状態など、特定の画面を開発者に送るときに使います。
+    上と同じ手順で、これも別のブックマークとして登録してください。
+  </p>
+  <textarea id="dumpcode" readonly rows="3"
+    style="width:100%;font-family:monospace;font-size:0.8rem;">{{ dump_loader }}</textarea>
+  <button type="button" onclick="copyDump()">構造取得コードをコピー</button>
+  <span id="dcopied" style="display:none;color:var(--accent);margin-left:0.6rem;">コピーしました</span>
+
   <p><a class="btn-back" href="/">戻る</a></p>
 </div>
 
@@ -51,6 +62,12 @@ function copyCode(){
     document.execCommand('copy');
   }
   document.getElementById('copied').style.display = 'inline';
+}
+function copyDump(){
+  var t = document.getElementById('dumpcode');
+  t.select(); t.setSelectionRange(0, 99999);
+  try { navigator.clipboard.writeText(t.value); } catch(e) { document.execCommand('copy'); }
+  document.getElementById('dcopied').style.display = 'inline';
 }
 </script>
 {% endblock %}
