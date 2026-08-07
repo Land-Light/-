@@ -185,9 +185,10 @@
 
   async function applyDecisions(dsecs, secs) {
     var n = 0, hit = [], firstBody = null;
+    function nl(x) { return (x || "").replace(/\s+/g, ""); }  // 空白差を無視して照合
     for (var s = 0; s < dsecs.length; s++) {
       var dec = dsecs[s];
-      var sec = secs.filter(function (x) { return x.section_label === dec.section_label; })[0];
+      var sec = secs.filter(function (x) { return nl(x.section_label) === nl(dec.section_label); })[0];
       if (!sec || sec.body_index == null) continue;
       var block = await ensureIndex(sec.body_index);
       if (!block) continue;
@@ -230,23 +231,38 @@
       await wait(500);
     }
   }
-  function currentPageImgURL() {
-    var imgs = [].slice.call(d.querySelectorAll("img"))
-      .filter(function (im) { return im.naturalWidth > 300 && im.naturalHeight > 300; })
-      .sort(function (a, b) { return (b.naturalWidth * b.naturalHeight) - (a.naturalWidth * a.naturalHeight); });
-    return imgs[0] ? imgs[0].src : null;
+  // canvas を(縮小して)dataURL化。答案はcanvasに描画されているため。
+  function canvasToData(c) {
+    try {
+      var scale = Math.min(1, 1400 / Math.max(c.width, c.height));
+      if (scale < 1) {
+        var t = d.createElement("canvas");
+        t.width = Math.round(c.width * scale); t.height = Math.round(c.height * scale);
+        t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
+        return t.toDataURL("image/jpeg", 0.85);
+      }
+      return c.toDataURL("image/jpeg", 0.85);
+    } catch (e) { return null; }  // taintで失敗する場合あり
   }
-  // 全ページの答案画像URLを集める(サーバー側で取得するのでCORSの影響を受けない)
-  async function captureAllPageURLs() {
-    var urls = [];
+  function bigCanvases() {
+    return [].slice.call(d.querySelectorAll("canvas")).filter(function (c) { return c.width > 300 && c.height > 300; });
+  }
+  // 全ページの答案画像を dataURL で集める(canvas優先、無ければdata:のimg)
+  async function captureAllImages() {
+    var out = [];
     var p = pageNav();
-    if (!p) { var u = currentPageImgURL(); if (u) urls.push(u); return urls; }
-    await gotoPage(1);
-    for (var pg = 1; pg <= p.total && pg <= 8; pg++) {
-      await gotoPage(pg); await wait(500);
-      var u2 = currentPageImgURL(); if (u2 && urls.indexOf(u2) < 0) urls.push(u2);
+    var pages = p ? p.total : 1;
+    if (p) await gotoPage(1);
+    for (var pg = 1; pg <= pages && pg <= 8 && out.length < 8; pg++) {
+      if (p) { await gotoPage(pg); await wait(700); }
+      var cvs = bigCanvases();
+      for (var i = 0; i < cvs.length && out.length < 8; i++) { var du = canvasToData(cvs[i]); if (du) out.push(du); }
+      if (cvs.length === 0) {
+        var imgs = [].slice.call(d.querySelectorAll("img")).filter(function (im) { return im.naturalWidth > 300 && /^data:/.test(im.src); });
+        if (imgs[0]) out.push(imgs[0].src);
+      }
     }
-    return urls;
+    return out;
   }
 
   (async function main() {
@@ -256,10 +272,10 @@
     if (!secs.length) { say("採点パネルが見つかりません。採点画面で実行してください。", "#8f1f1f"); addCopyBtn(); return fin(); }
 
     say("答案ページを取得中…(ページを送ります)");
-    var imageUrls = [];
-    try { imageUrls = await captureAllPageURLs(); } catch (e) {}
+    var images = [];
+    try { images = await captureAllImages(); } catch (e) {}
     var payload = {
-      image_urls: imageUrls,
+      images: images,
       panel_html: panelHTML(),
       sections: secs.map(function (s) {
         return { section_label: s.section_label, add_options: s.add_options, deduct_options: s.deduct_options, radio_options: s.radio_options };
@@ -281,9 +297,8 @@
     var hitTxt = r.hit.length ? ("\n加点/選択した設問: " + r.hit.join(" , ")) : "";
     var dbg = data.debug || {};
     var dbgTxt = "\n[診断] 答案画像 " + (dbg.images_ok != null ? dbg.images_ok : "?") +
-      "/" + (dbg.img_urls != null ? dbg.img_urls : "?") + "枚取得, AI選択した設問 " +
-      (dbg.with_selection != null ? dbg.with_selection : "?") + "/" + (dbg.decided != null ? dbg.decided : "?") +
-      (dbg.fetch_fail && dbg.fetch_fail.length ? ", 取得失敗:" + dbg.fetch_fail.join("/") : "");
+      "枚, AI選択した設問 " + (dbg.with_selection != null ? dbg.with_selection : "?") +
+      "/" + (dbg.decided != null ? dbg.decided : "?") + ", 読取セクション " + secs.length;
     if (r.n === 0) {
       var why = (dbg.images_ok === 0)
         ? "答案画像をサーバーが取得できていません(画像がログイン必須の可能性)。"
