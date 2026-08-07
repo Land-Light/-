@@ -7,22 +7,27 @@
   var d = document;
   function clean(el) {
     var h = (el && el.outerHTML) || "";
-    return h.replace(/<style[\s\S]*?<\/style>/gi, "").slice(0, 250000);
+    h = h.replace(/<style[\s\S]*?<\/style>/gi, "");
+    // 巨大なbase64画像データを除去(これが容量を食って肝心のパネルが切れる)
+    h = h.replace(/(href|src|xlink:href)="data:[^"]*"/gi, '$1="data:..."');
+    return h.slice(0, 200000);
   }
-  var ins = [].slice.call(d.querySelectorAll("input[type=checkbox],input[type=radio]"));
-  var el;
-  if (ins.length) {
-    el = ins[0];
-    ins.forEach(function (n) { while (el && !el.contains(n)) el = el.parentElement; });
-    for (var k = 0; k < 4 && el && el.parentElement; k++) el = el.parentElement;
-  } else {
-    // チェックボックスが無い状態(減点ダイアログ等)は、'減点項目'を含む塊を拾う
-    el = [].slice.call(d.querySelectorAll("*")).filter(function (x) {
-      return /減点項目|加点項目|添削完了/.test(x.textContent || "") && x.children.length <= 30;
-    })[0] || d.body;
-    for (var j = 0; j < 4 && el && el.parentElement; j++) el = el.parentElement;
+  function txt(x) { return x.textContent || ""; }
+  var el = null, tag = "";
+  // (1) 減点の「＋」を開いた状態(減点項目 と 閉じる を両方含む最小要素)を最優先
+  var open = [].slice.call(d.querySelectorAll("div,section,ul,li"))
+    .filter(function (x) { return /減点項目/.test(txt(x)) && /閉じる/.test(txt(x)) && x.children.length <= 80; })
+    .sort(function (a, b) { return a.children.length - b.children.length; });
+  if (open.length) { el = open[0]; tag = "減点ダイアログ"; }
+  // (2) 通常の採点パネル(減点項目/加点項目を含む塊)
+  if (!el) {
+    var pan = [].slice.call(d.querySelectorAll("div,section,ul"))
+      .filter(function (x) { return /減点項目|加点項目/.test(txt(x)) && x.children.length <= 60; })
+      .sort(function (a, b) { return b.children.length - a.children.length; });
+    if (pan.length) { el = pan[0]; for (var k = 0; k < 3 && el.parentElement; k++) el = el.parentElement; tag = "採点パネル"; }
   }
-  var html = "=== TENSAKIT DUMP inputs=" + ins.length + " ===\n" + clean(el);
+  if (!el) { el = d.body; tag = "body"; }
+  var html = "=== TENSAKIT DUMP (" + tag + ") ===\n" + clean(el);
 
   var old = d.getElementById("__tk_dump"); if (old) old.remove();
   var box = d.createElement("div");
