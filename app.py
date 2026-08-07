@@ -260,7 +260,7 @@ def api_tensakit_decide():
     out = [
         {"section_label": d.section_label,
          "add_indices": d.add_indices, "deduct_indices": d.deduct_indices,
-         "radio_index": d.radio_index}
+         "radio_index": d.radio_index, "deduct_numbers": d.deduct_numbers}
         for d in decisions
     ]
     with_sel = sum(1 for d in decisions
