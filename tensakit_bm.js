@@ -28,9 +28,20 @@
     d.body.appendChild(box);
   }
   box.innerHTML = "";
+  box.style.position = "fixed";
+  // 右上に「×」閉じるボタン(いつでも手動で消せる)
+  var xbtn = d.createElement("button");
+  xbtn.textContent = "×";
+  xbtn.setAttribute("aria-label", "閉じる");
+  xbtn.style.cssText = "position:absolute;top:4px;right:6px;background:transparent;border:0;color:#fff;font-size:20px;line-height:1;cursor:pointer;padding:2px 6px;";
+  xbtn.onclick = function () { box.remove(); };
+  box.appendChild(xbtn);
   var txt = d.createElement("div");
+  txt.style.paddingRight = "18px";
   box.appendChild(txt);
+  var _closeTimer = null;
   function say(msg, color) { box.style.background = color || "#0d2a4d"; txt.textContent = "【AI採点】" + msg; }
+  function autoClose(ms) { if (_closeTimer) clearTimeout(_closeTimer); _closeTimer = setTimeout(function () { if (box) box.remove(); }, ms); }
   function fin() { window.__tk_running = false; }
 
   function clean(el) {
@@ -397,8 +408,10 @@
     } else {
       say("完了: " + r.n + " 項目にチェックを入れました。" + hitTxt + dbgTxt +
           "\n※添削完了・コメント(よく使うコメントから選択)・保存/提出はご自身で。", "#137a4d");
+      autoClose(12000);  // 成功時は12秒で自動的に消える(×でも即閉じられる)
+      return fin();
     }
-    addCopyBtn();
+    addCopyBtn();  // 0項目など問題時のみ開発用ボタンを出す
     fin();
   })();
 })();
