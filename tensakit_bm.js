@@ -247,6 +247,17 @@
   function bigCanvases() {
     return [].slice.call(d.querySelectorAll("canvas")).filter(function (c) { return c.width > 300 && c.height > 300; });
   }
+  // 答案がどの要素で描画されているかを調べる(取得できない原因の切り分け用)
+  function domInfo() {
+    var cs = [].slice.call(d.querySelectorAll("canvas"));
+    var big = cs.slice().sort(function (a, b) { return b.width * b.height - a.width * a.height; })[0];
+    var taint = "-";
+    if (big) { try { big.toDataURL("image/jpeg", 0.5); taint = "OK取得可"; } catch (e) { taint = "taint取得不可"; } }
+    var is = [].slice.call(d.querySelectorAll("img")).filter(function (im) { return im.naturalWidth > 100; });
+    var bi = is.slice().sort(function (a, b) { return b.naturalWidth * b.naturalHeight - a.naturalWidth * a.naturalHeight; })[0];
+    return "canvas=" + cs.length + (big ? ("(" + big.width + "x" + big.height + "," + taint + ")") : "") +
+      " / img=" + is.length + (bi ? ("(" + bi.naturalWidth + "x" + bi.naturalHeight + " " + (bi.src || "").slice(0, 28) + ")") : "");
+  }
   // 全ページの答案画像を dataURL で集める(canvas優先、無ければdata:のimg)
   async function captureAllImages() {
     var out = [];
@@ -274,6 +285,11 @@
     say("答案ページを取得中…(ページを送ります)");
     var images = [];
     try { images = await captureAllImages(); } catch (e) {}
+    if (images.length === 0) {
+      say("答案画像を取得できませんでした。以下を開発者に伝えてください:\n" + domInfo(), "#b25900");
+      addCopyBtn();
+      return fin();  // 答案が無いままAIに投げても誤採点になるので中止
+    }
     var payload = {
       images: images,
       panel_html: panelHTML(),
