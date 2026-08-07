@@ -540,7 +540,8 @@ def decide_tensakit_marks(
             "cache_control": {"type": "ephemeral"},
         })
 
-    # コメント生成をしない分、出力は短い。max_tokens を抑えて低コスト・低メモリに。
+    # 出力(選択のindex/番号)自体は短いが、思考(thinking)で多くのトークンを使うため、
+    # 設問数が多いと 6000 では途中で切れて JSON が壊れる。余裕を持たせる。
     # AIが混雑(Overloaded)している場合に備え、待ち時間を伸ばしながら数回再試行する。
     response = None
     last_err = None
@@ -548,7 +549,7 @@ def decide_tensakit_marks(
         try:
             with client.with_options(timeout=800.0).messages.stream(
                 model=MODEL,
-                max_tokens=6000,
+                max_tokens=24000,
                 thinking={"type": "adaptive"},
                 output_config={"effort": "medium"},
                 system=system_blocks,
@@ -567,6 +568,13 @@ def decide_tensakit_marks(
                 continue
             if "overload" in msg:
                 raise RuntimeError("AIが混雑しています。少し待ってからもう一度実行してください。") from e
+            if "eof" in msg or "invalid json" in msg or "json_invalid" in msg:
+                raise RuntimeError(
+                    "採点結果が長すぎて途中で切れました。もう一度お試しください"
+                    "(繰り返す場合はページを分けてください)。"
+                ) from e
             raise
+    if response is not None and getattr(response, "stop_reason", None) == "max_tokens":
+        raise RuntimeError("採点結果が長すぎて途中で切れました。もう一度お試しください。")
     out = response.parsed_output if response else None
     return out.sections if out else []
