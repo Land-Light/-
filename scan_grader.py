@@ -544,33 +544,35 @@ def decide_tensakit_marks(
         "設問により『加点式』『減点式』『記号選択』のいずれかです。加点項目の内容と採点基準を見て見分けてください。\n"
         "【加点式】加点項目に得点要素が複数ある設問: 答案に含まれる得点要素だけ add_indices で選ぶ(部分点)。\n"
         "【減点式】加点項目が『+N 配点』1つ+減点項目がある設問: add_indices に配点(満点=index 0)を入れ、"
-        "★採点基準の減点項目を『一つずつ』答案と照合し、該当する誤り・不足があれば必ず deduct_numbers に列挙する"
-        "(例[2,4])。減点番号は採点基準の減点項目の番号に対応させる。"
-        "★重要: 安易に満点(減点なし)にしないこと。実際の答案は模範解答と細部が異なることが多く、"
-        "多くの設問で何らかの減点が生じます。各減点項目について『この誤り・不足があるか』を必ず確認し、"
-        "根拠があるものだけを選ぶ(該当が無ければ空でよいが、確認は必ず行う)。白紙・大きく的外れは加点しない。\n"
+        "採点基準の減点項目を一つずつ答案と照合し、該当する誤り・不足があれば deduct_numbers に列挙する"
+        "(例[2,4])。減点番号は採点基準の減点項目の番号に対応させる。白紙・大きく的外れは加点しない。\n"
         "【記号選択】生徒の回答(ア〜ク・未回答等のラジオ): 生徒が書いた記号の index を radio_index に1つ。"
         "記入があるのに『未回答』を選ばない。\n"
         "採点基準に厳密に従い、勝手な加減点はしない。コメントは扱わない。該当が無い項目は空/null。\n\n"
     )
     kanji_instr = (
         "以下は漢字書き取り・読み・単語・抜き出しなどの『短答小問』だけを集めたものです。"
-        "各小問の加点項目のラベルには『正解』が書かれています(例: 『+1 はいかい』『+2 熟知』)。"
-        "答案画像の該当する解答欄(小問記号 ア,イ,ウ… や番号で対応)の生徒の字を一つずつ丁寧に読み取り、"
-        "正解と一致する小問について add_indices=[0] を返してください。\n"
-        "★全ての小問を必ず一つずつ判定し、正解のものは省略せず出力すること(省略すると0点になります)。\n"
-        "読み問題は読み(ひらがな)、書き取りは漢字で判定。誤字・別字・空欄は加点しない。減点・コメントは扱わない。\n\n"
+        "各小問の加点項目のラベルには『正解』が書かれています(例: 『+1 はいかい』『+2 熟知』『+3 古事記』)。\n"
+        "★手順(必ず全小問について実行): 1) section_label の小問記号(ア,イ,ウ… や 二・五 等)を手掛かりに、"
+        "答案画像の対応する解答欄を特定する。2) その欄の生徒の手書き文字を丁寧に読み取る。"
+        "3) 読み取った文字が『正解』ラベルと一致(読み問題は読み仮名、書き取りは漢字、抜き出しは該当語句)するか判定する。\n"
+        "★出力規則: 入力に列挙された『全ての』section_label について、必ず1つずつ TensakitSectionDecision を返すこと"
+        "(section_label は入力と完全一致させる)。正解と判断したら add_indices=[0]、"
+        "誤答・空欄・判読不能なら add_indices=[](空)。省略は禁止(省略された小問は0点になります)。\n"
+        "受験生の答案は大半が正解のことが多い。多少字が崩れていても正解と読めるなら加点する。"
+        "明確な誤字・別字・無記入だけを不正解とすること。減点・コメントは扱わない。\n\n"
     )
 
     decisions = []
     if other_secs:
-        # 記述の減点は採点基準との丁寧な照合が要るので effort 高めにする。
+        # コスト優先: effort は medium。減点は指示文で積極的に促す(記述の減点は甘め)。
         content = img_content + [{"type": "text", "text": main_instr + "\n\n".join(_sec_text(s) for s in other_secs)}]
-        decisions += _stream_decide(client, system_blocks, content, effort="high")
-    if kanji_secs:
-        # 漢字・単語の照合は軽い。medium で速く。
-        content = img_content + [{"type": "text", "text": kanji_instr + "\n\n".join(_sec_text(s) for s in kanji_secs)}]
         decisions += _stream_decide(client, system_blocks, content, effort="medium")
+    if kanji_secs:
+        # 漢字・単語の短答はまとめ採点だと飛ばされやすい。専用パスを effort=high にして
+        # 「全小問を一つずつ判定」を確実にする。出力が小さいのでコスト増は限定的。
+        content = img_content + [{"type": "text", "text": kanji_instr + "\n\n".join(_sec_text(s) for s in kanji_secs)}]
+        decisions += _stream_decide(client, system_blocks, content, effort="high")
     return decisions
 
 
@@ -580,7 +582,7 @@ def _stream_decide(client, system_blocks, content, effort="medium"):
         try:
             with client.with_options(timeout=800.0).messages.stream(
                 model=MODEL,
-                max_tokens=20000,
+                max_tokens=16000,
                 thinking={"type": "adaptive"},
                 output_config={"effort": effort},
                 system=system_blocks,
