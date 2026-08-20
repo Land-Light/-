@@ -513,6 +513,10 @@ def decide_tensakit_marks(
         "type": "text",
         "text": (
             "以下は東進オンライン採点(Tensakit)の採点パネルに表示されている設問ごとの選択肢です。"
+            "★重要: 下に列挙した全セクションについて、一つも飛ばさず順番に判断すること。"
+            "特に漢字・読み・単語の小問(第X問/一/ア,イ,ウ… のように多数並ぶもの)を省略しないこと。\n"
+            "★重要: 加点項目のラベルはその小問の『正解』です(生徒が書いた答えではありません)。"
+            "答案の該当欄に生徒が書いた字を読み取り、その正解ラベルと一致するかで加点を判断してください。\n\n"
             "設問により採点方式が『加点式』『減点式』『記号選択』のいずれかになります。"
             "各設問の加点項目の内容と採点基準(参照実例)を見て、方式を見分けて判断してください。\n\n"
             "【加点式】加点項目に得点要素が複数ある設問(例: 『+2 要素1』『+2 要素2』『+1 要素3』のように"
@@ -555,9 +559,9 @@ def decide_tensakit_marks(
         try:
             with client.with_options(timeout=800.0).messages.stream(
                 model=MODEL,
-                max_tokens=24000,
+                max_tokens=32000,
                 thinking={"type": "adaptive"},
-                output_config={"effort": "medium"},
+                output_config={"effort": "high"},  # 全小問(漢字含む)を丁寧に判定させる
                 system=system_blocks,
                 messages=[{"role": "user", "content": content}],
                 output_format=TensakitDecisionResult,
