@@ -533,7 +533,10 @@ def decide_tensakit_marks(
             "(例:『+1 とむら(う)』『+2 熟知』)。答案の該当する解答欄(小問記号 ア,イ,ウ… で対応)の文字を"
             "丁寧に読み取り、正解(加点項目のラベル、または採点基準の解答)と一致していれば、その加点項目を"
             "add_indices でチェックする。読み問題は読み(ひらがな)が合っているか、書き取りは漢字が合っているかで判断する。"
-            "誤字・別字・空欄は加点しない。\n\n"
+            "誤字・別字・空欄は加点しない。\n"
+            "  例: セクション『第1問/一/ア』の加点項目が『+1 はいかい』で、答案のアの欄に『はいかい』と"
+            "書かれていれば、そのセクションについて add_indices=[0] を返す。正解でも出力を省略しないこと"
+            "(省略すると0点になってしまう)。ア〜コの各小問を必ず一つずつこの要領で判定する。\n\n"
             "採点基準に厳密に従い、勝手な加減点はしないこと。減点番号は採点基準の減点項目の番号(1,2,3…)に対応させる。"
             "各設問(漢字・単語の小問も含め)を飛ばさず判断すること。"
             "コメントは扱いません。該当が無い項目は空/ null のまま返すこと。\n\n"
@@ -559,9 +562,9 @@ def decide_tensakit_marks(
         try:
             with client.with_options(timeout=800.0).messages.stream(
                 model=MODEL,
-                max_tokens=32000,
+                max_tokens=16000,
                 thinking={"type": "adaptive"},
-                output_config={"effort": "high"},  # 全小問(漢字含む)を丁寧に判定させる
+                output_config={"effort": "medium"},  # 軽さ優先(effort高は効果が無かった)
                 system=system_blocks,
                 messages=[{"role": "user", "content": content}],
                 output_format=TensakitDecisionResult,
