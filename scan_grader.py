@@ -544,7 +544,11 @@ def decide_tensakit_marks(
         "設問により『加点式』『減点式』『記号選択』のいずれかです。加点項目の内容と採点基準を見て見分けてください。\n"
         "【加点式】加点項目に得点要素が複数ある設問: 答案に含まれる得点要素だけ add_indices で選ぶ(部分点)。\n"
         "【減点式】加点項目が『+N 配点』1つ+減点項目がある設問: add_indices に配点(満点=index 0)を入れ、"
-        "採点基準の減点項目に照らして該当する減点番号を deduct_numbers に列挙(例[2,4])。白紙・大きく的外れは加点しない。\n"
+        "★採点基準の減点項目を『一つずつ』答案と照合し、該当する誤り・不足があれば必ず deduct_numbers に列挙する"
+        "(例[2,4])。減点番号は採点基準の減点項目の番号に対応させる。"
+        "★重要: 安易に満点(減点なし)にしないこと。実際の答案は模範解答と細部が異なることが多く、"
+        "多くの設問で何らかの減点が生じます。各減点項目について『この誤り・不足があるか』を必ず確認し、"
+        "根拠があるものだけを選ぶ(該当が無ければ空でよいが、確認は必ず行う)。白紙・大きく的外れは加点しない。\n"
         "【記号選択】生徒の回答(ア〜ク・未回答等のラジオ): 生徒が書いた記号の index を radio_index に1つ。"
         "記入があるのに『未回答』を選ばない。\n"
         "採点基準に厳密に従い、勝手な加減点はしない。コメントは扱わない。該当が無い項目は空/null。\n\n"
@@ -560,23 +564,25 @@ def decide_tensakit_marks(
 
     decisions = []
     if other_secs:
+        # 記述の減点は採点基準との丁寧な照合が要るので effort 高めにする。
         content = img_content + [{"type": "text", "text": main_instr + "\n\n".join(_sec_text(s) for s in other_secs)}]
-        decisions += _stream_decide(client, system_blocks, content)
+        decisions += _stream_decide(client, system_blocks, content, effort="high")
     if kanji_secs:
+        # 漢字・単語の照合は軽い。medium で速く。
         content = img_content + [{"type": "text", "text": kanji_instr + "\n\n".join(_sec_text(s) for s in kanji_secs)}]
-        decisions += _stream_decide(client, system_blocks, content)
+        decisions += _stream_decide(client, system_blocks, content, effort="medium")
     return decisions
 
 
-def _stream_decide(client, system_blocks, content):
+def _stream_decide(client, system_blocks, content, effort="medium"):
     """1回分の採点判断をストリーミングで実行(混雑時リトライ・途中切れ処理付き)。"""
     for attempt in range(5):
         try:
             with client.with_options(timeout=800.0).messages.stream(
                 model=MODEL,
-                max_tokens=16000,
+                max_tokens=20000,
                 thinking={"type": "adaptive"},
-                output_config={"effort": "medium"},
+                output_config={"effort": effort},
                 system=system_blocks,
                 messages=[{"role": "user", "content": content}],
                 output_format=TensakitDecisionResult,
