@@ -9,6 +9,11 @@
  */
 (function () {
   var API = "__API_BASE__api/tensakit-decide";
+  // 混在コンテンツ対策: https ページから http API を叩くとブラウザにブロックされる。
+  // 古いブックマークレットが http:// を焼き込んでいても https へ昇格する。
+  if (location.protocol === "https:" && API.indexOf("http://") === 0) {
+    API = "https://" + API.slice("http://".length);
+  }
   var d = document;
   if (window.__tk_running) { return; }
   window.__tk_running = true;
@@ -384,11 +389,23 @@
     };
 
     say("AIが採点中…(数十秒)  設問 " + secs.length + " 件");
-    var data;
-    try {
-      var res = await fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      data = await res.json();
-    } catch (e) { say("通信エラー: " + e + "\n(CSP制限の可能性)", "#8f1f1f"); addCopyBtn(); return fin(); }
+    var data, lastErr;
+    // サーバー(無料プラン)がスリープから復帰する間、通信が失敗することがある。
+    // 数回リトライして自動で起こす。
+    for (var att = 0; att < 4; att++) {
+      try {
+        if (att > 0) say("サーバー起動待ち…再試行 " + att + "/3(最大1分)");
+        var res = await fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        data = await res.json();
+        lastErr = null;
+        break;
+      } catch (e) { lastErr = e; await wait(4000 * (att + 1)); }
+    }
+    if (lastErr || !data) {
+      say("通信エラー: " + lastErr + "\nサーバーに接続できません。数十秒おいて再実行してください" +
+          "(無料プランは初回起動に時間がかかります)。\nAPI: " + API, "#8f1f1f");
+      addCopyBtn(); return fin();
+    }
     if (data.error) { say("サーバーエラー: " + data.error, "#8f1f1f"); addCopyBtn(); return fin(); }
 
     var r = { n: 0, hit: [] };

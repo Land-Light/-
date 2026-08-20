@@ -282,11 +282,29 @@ def api_tensakit_decide():
 @app.route("/tensakit-bm.js")
 def tensakit_bm_js():
     """ブックマークレット本体(Tensakit画面に注入されるスクリプト)を配信する。"""
-    base = request.host_url  # 末尾 / 付き
+    base = _public_base_url()
     path = os.path.join(app.root_path, "tensakit_bm.js")
     with open(path, encoding="utf-8") as fh:
         js = fh.read().replace("__API_BASE__", base)
     return Response(js, mimetype="application/javascript")
+
+
+def _public_base_url():
+    """ブックマークレットが叩くAPIのベースURL(末尾/付き)を返す。
+
+    Tensakit(https)から fetch するため、必ず https にする。Render など
+    TLS終端プロキシの背後では request.host_url が http になり、https ページからの
+    呼び出しが混在コンテンツ(mixed content)としてブラウザにブロックされるため、
+    X-Forwarded-Proto を優先し、公開ホストでは http→https に強制昇格する。
+    """
+    host = request.headers.get("X-Forwarded-Host") or request.host
+    proto = request.headers.get("X-Forwarded-Proto", "").split(",")[0].strip()
+    if not proto:
+        proto = request.scheme
+    # localhost 以外は https を強制(混在コンテンツ回避)
+    if proto != "https" and not host.startswith(("localhost", "127.0.0.1")):
+        proto = "https"
+    return proto + "://" + host + "/"
 
 
 @app.route("/tensakit-dump.js")
