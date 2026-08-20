@@ -12,6 +12,7 @@
 
 import base64
 import io
+import re
 import time
 from typing import List, Optional
 
@@ -484,16 +485,19 @@ def decide_tensakit_marks(
     pages = list(page_images)[:6]  # 枚数を制限してメモリ・トークンを抑える
     exam_hint = _identify_exam(client, pages) if pages else ""
 
-    content: list = []
+    # 答案画像(両方の採点パスで共有。末尾にキャッシュ点を置き2回目を安くする)
+    img_content: list = []
     for i, png in enumerate(pages):
-        content.append({"type": "text", "text": f"【答案 {i + 1}/{len(pages)}ページ目】"})
-        content.append({
+        img_content.append({"type": "text", "text": f"【答案 {i + 1}/{len(pages)}ページ目】"})
+        img_content.append({
             "type": "image",
             "source": {"type": "base64", "media_type": "image/png",
                        "data": base64.standard_b64encode(png).decode()},
         })
     if rubric:
-        content.append({"type": "text", "text": f"【利用者提供の採点基準】(最優先)\n{rubric}"})
+        img_content.append({"type": "text", "text": f"【利用者提供の採点基準】(最優先)\n{rubric}"})
+    if img_content:
+        img_content[-1]["cache_control"] = {"type": "ephemeral"}  # 画像プレフィックスを再利用
 
     def _sec_text(s):
         t = "■セクション: " + s["section_label"] + "\n"
@@ -508,42 +512,6 @@ def decide_tensakit_marks(
                 f"    [{o['index']}] {o['label']}\n" for o in s["radio_options"])
         return t
 
-    panel_text = "\n\n".join(_sec_text(s) for s in sections)
-    content.append({
-        "type": "text",
-        "text": (
-            "以下は東進オンライン採点(Tensakit)の採点パネルに表示されている設問ごとの選択肢です。"
-            "★重要: 下に列挙した全セクションについて、一つも飛ばさず順番に判断すること。"
-            "特に漢字・読み・単語の小問(第X問/一/ア,イ,ウ… のように多数並ぶもの)を省略しないこと。\n"
-            "★重要: 加点項目のラベルはその小問の『正解』です(生徒が書いた答えではありません)。"
-            "答案の該当欄に生徒が書いた字を読み取り、その正解ラベルと一致するかで加点を判断してください。\n\n"
-            "設問により採点方式が『加点式』『減点式』『記号選択』のいずれかになります。"
-            "各設問の加点項目の内容と採点基準(参照実例)を見て、方式を見分けて判断してください。\n\n"
-            "【加点式】加点項目に得点要素が複数ある設問(例: 『+2 要素1』『+2 要素2』『+1 要素3』のように"
-            "内容の異なる項目が並ぶ): 答案に実際に含まれている得点要素だけを add_indices で選ぶ(部分点を積み上げる)。"
-            "含まれていない要素は選ばない。減点は使わない。\n"
-            "【減点式】加点項目が『+N 配点』の1項目だけで、減点項目がある設問: add_indices に配点(満点=index 0)を入れ、"
-            "採点基準の減点項目に照らして、該当する誤り・不足の減点番号を deduct_numbers に列挙する"
-            "(例: 減点項目の2と4が該当 → deduct_numbers=[2,4])。白紙や大きく的外れな答案は加点しない(add空)。\n"
-            "【記号選択】生徒の回答(ア〜ク・未回答 等のラジオ)がある設問: 答案の該当する解答欄(記号 a,b,c… や"
-            "小問番号で対応)を見て生徒が書いた記号を読み取り、その選択肢 index を radio_index に1つ入れる。"
-            "はっきり記入があるのに『未回答』を選ばない。明らかに空欄のときだけ『未回答』にする。\n"
-            "【漢字の読み書き・単語で答える設問】(問一 ア〜コ の漢字書き取り・読み、抜き出し、短答など): "
-            "これらも必ず採点すること(飛ばさない)。多くは加点項目のラベルに正解そのものが書かれている"
-            "(例:『+1 とむら(う)』『+2 熟知』)。答案の該当する解答欄(小問記号 ア,イ,ウ… で対応)の文字を"
-            "丁寧に読み取り、正解(加点項目のラベル、または採点基準の解答)と一致していれば、その加点項目を"
-            "add_indices でチェックする。読み問題は読み(ひらがな)が合っているか、書き取りは漢字が合っているかで判断する。"
-            "誤字・別字・空欄は加点しない。\n"
-            "  例: セクション『第1問/一/ア』の加点項目が『+1 はいかい』で、答案のアの欄に『はいかい』と"
-            "書かれていれば、そのセクションについて add_indices=[0] を返す。正解でも出力を省略しないこと"
-            "(省略すると0点になってしまう)。ア〜コの各小問を必ず一つずつこの要領で判定する。\n\n"
-            "採点基準に厳密に従い、勝手な加減点はしないこと。減点番号は採点基準の減点項目の番号(1,2,3…)に対応させる。"
-            "各設問(漢字・単語の小問も含め)を飛ばさず判断すること。"
-            "コメントは扱いません。該当が無い項目は空/ null のまま返すこと。\n\n"
-            + panel_text
-        ),
-    })
-
     system_blocks = [{"type": "text", "text": SYSTEM_PROMPT}]
     reference = select_reference(exam_hint) if exam_hint and exam_hint != "不明" else _load_reference()
     if reference:
@@ -553,41 +521,81 @@ def decide_tensakit_marks(
             "cache_control": {"type": "ephemeral"},
         })
 
-    # 出力(選択のindex/番号)自体は短いが、思考(thinking)で多くのトークンを使うため、
-    # 設問数が多いと 6000 では途中で切れて JSON が壊れる。余裕を持たせる。
-    # AIが混雑(Overloaded)している場合に備え、待ち時間を伸ばしながら数回再試行する。
-    response = None
-    last_err = None
+    # 漢字・単語などの短答(加点項目のラベルが『配点』でなく実際の正解語)は、
+    # まとめ採点だとAIが飛ばすため、専用パスに分けて確実に判定する。
+    def _is_short_answer(s):
+        # 短答(漢字・読み・単語)= 加点項目が1つで、そのラベルが実際の正解語(日本語)。
+        # 『+N 配点』(減点式)や『+N 1/2/3』(加点式の要素番号)は除外する。
+        if s.get("radio_options"):
+            return False
+        adds = s.get("add_options") or []
+        if len(adds) != 1:
+            return False
+        lab = re.sub(r"^\s*[+＋]?\s*\d+\s*", "", str(adds[0].get("label", ""))).strip()
+        if not lab or lab == "配点" or re.fullmatch(r"\d+", lab):
+            return False
+        return bool(re.search(r"[ぁ-んァ-ヶ一-龥]", lab))
+
+    kanji_secs = [s for s in sections if _is_short_answer(s)]
+    other_secs = [s for s in sections if not _is_short_answer(s)]
+
+    main_instr = (
+        "以下は東進オンライン採点(Tensakit)の採点パネルの設問です。全セクションを飛ばさず判断すること。\n"
+        "設問により『加点式』『減点式』『記号選択』のいずれかです。加点項目の内容と採点基準を見て見分けてください。\n"
+        "【加点式】加点項目に得点要素が複数ある設問: 答案に含まれる得点要素だけ add_indices で選ぶ(部分点)。\n"
+        "【減点式】加点項目が『+N 配点』1つ+減点項目がある設問: add_indices に配点(満点=index 0)を入れ、"
+        "採点基準の減点項目に照らして該当する減点番号を deduct_numbers に列挙(例[2,4])。白紙・大きく的外れは加点しない。\n"
+        "【記号選択】生徒の回答(ア〜ク・未回答等のラジオ): 生徒が書いた記号の index を radio_index に1つ。"
+        "記入があるのに『未回答』を選ばない。\n"
+        "採点基準に厳密に従い、勝手な加減点はしない。コメントは扱わない。該当が無い項目は空/null。\n\n"
+    )
+    kanji_instr = (
+        "以下は漢字書き取り・読み・単語・抜き出しなどの『短答小問』だけを集めたものです。"
+        "各小問の加点項目のラベルには『正解』が書かれています(例: 『+1 はいかい』『+2 熟知』)。"
+        "答案画像の該当する解答欄(小問記号 ア,イ,ウ… や番号で対応)の生徒の字を一つずつ丁寧に読み取り、"
+        "正解と一致する小問について add_indices=[0] を返してください。\n"
+        "★全ての小問を必ず一つずつ判定し、正解のものは省略せず出力すること(省略すると0点になります)。\n"
+        "読み問題は読み(ひらがな)、書き取りは漢字で判定。誤字・別字・空欄は加点しない。減点・コメントは扱わない。\n\n"
+    )
+
+    decisions = []
+    if other_secs:
+        content = img_content + [{"type": "text", "text": main_instr + "\n\n".join(_sec_text(s) for s in other_secs)}]
+        decisions += _stream_decide(client, system_blocks, content)
+    if kanji_secs:
+        content = img_content + [{"type": "text", "text": kanji_instr + "\n\n".join(_sec_text(s) for s in kanji_secs)}]
+        decisions += _stream_decide(client, system_blocks, content)
+    return decisions
+
+
+def _stream_decide(client, system_blocks, content):
+    """1回分の採点判断をストリーミングで実行(混雑時リトライ・途中切れ処理付き)。"""
     for attempt in range(5):
         try:
             with client.with_options(timeout=800.0).messages.stream(
                 model=MODEL,
                 max_tokens=16000,
                 thinking={"type": "adaptive"},
-                output_config={"effort": "medium"},  # 軽さ優先(effort高は効果が無かった)
+                output_config={"effort": "medium"},
                 system=system_blocks,
                 messages=[{"role": "user", "content": content}],
                 output_format=TensakitDecisionResult,
             ) as stream:
                 response = stream.get_final_message()
-            break
+            if getattr(response, "stop_reason", None) == "max_tokens":
+                raise RuntimeError("採点結果が長すぎて途中で切れました。もう一度お試しください。")
+            out = response.parsed_output
+            return out.sections if out else []
         except Exception as e:
-            last_err = e
             msg = str(e).lower()
             retryable = ("overload" in msg or "429" in msg or "rate" in msg
                          or "529" in msg or "503" in msg or "500" in msg)
             if retryable and attempt < 4:
-                time.sleep(3 * (2 ** attempt))  # 3,6,12,24秒
+                time.sleep(3 * (2 ** attempt))
                 continue
             if "overload" in msg:
                 raise RuntimeError("AIが混雑しています。少し待ってからもう一度実行してください。") from e
             if "eof" in msg or "invalid json" in msg or "json_invalid" in msg:
-                raise RuntimeError(
-                    "採点結果が長すぎて途中で切れました。もう一度お試しください"
-                    "(繰り返す場合はページを分けてください)。"
-                ) from e
+                raise RuntimeError("採点結果が長すぎて途中で切れました。もう一度お試しください。") from e
             raise
-    if response is not None and getattr(response, "stop_reason", None) == "max_tokens":
-        raise RuntimeError("採点結果が長すぎて途中で切れました。もう一度お試しください。")
-    out = response.parsed_output if response else None
-    return out.sections if out else []
+    return []
