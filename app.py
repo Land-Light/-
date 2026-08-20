@@ -16,7 +16,8 @@ from annotator import Mark, annotate_pdf
 from grader import GENRE_LABELS, GRADER_NAME, QuestionInput, grade_answers
 from pdf_generator import build_pdf
 from scan_grader import (
-    build_marks, decide_tensakit_marks, grade_scanned_pdf, render_pages_png,
+    build_marks, decide_tensakit_marks, grade_scanned_pdf,
+    is_short_answer_section, render_pages_png,
 )
 from toshin_fetcher import (
     ToshinFetchError, batch_grade_on_tensakit, fetch_answers,
@@ -265,11 +266,13 @@ def api_tensakit_decide():
     ]
     with_sel = sum(1 for d in decisions
                    if d.add_indices or d.deduct_indices or d.radio_index is not None)
+    short_skipped = sum(1 for s in sections if is_short_answer_section(s))
     debug = {
         "images_ok": len(images),
         "img_urls": len(url_list),
         "fetch_fail": fetch_fail[:6],
         "sections_in": len(sections),
+        "short_skipped": short_skipped,  # 漢字・短答(手動採点。AI対象外)
         "decided": len(decisions),
         "with_selection": with_sel,
     }

@@ -464,6 +464,24 @@ class TensakitDecisionResult(BaseModel):
     sections: List[TensakitSectionDecision]
 
 
+def is_short_answer_section(s: dict) -> bool:
+    """短答(漢字書き取り・読み・単語)の小問かどうかを判定する。
+
+    加点項目が1つで、そのラベルが実際の正解語(日本語)になっているもの。
+    『+N 配点』(減点式)や『+N 1/2/3』(加点式の要素番号)は短答ではない。
+    手書き文字のOCR精度が出ないため、これらはAI採点の対象から外す(手動採点)。
+    """
+    if s.get("radio_options"):
+        return False
+    adds = s.get("add_options") or []
+    if len(adds) != 1:
+        return False
+    lab = re.sub(r"^\s*[+＋]?\s*\d+\s*", "", str(adds[0].get("label", ""))).strip()
+    if not lab or lab == "配点" or re.fullmatch(r"\d+", lab):
+        return False
+    return bool(re.search(r"[ぁ-んァ-ヶ一-龥]", lab))
+
+
 def decide_tensakit_marks(
     page_images: List[bytes],
     sections: List[dict],
@@ -521,23 +539,9 @@ def decide_tensakit_marks(
             "cache_control": {"type": "ephemeral"},
         })
 
-    # 漢字・単語などの短答(加点項目のラベルが『配点』でなく実際の正解語)は、
-    # まとめ採点だとAIが飛ばすため、専用パスに分けて確実に判定する。
-    def _is_short_answer(s):
-        # 短答(漢字・読み・単語)= 加点項目が1つで、そのラベルが実際の正解語(日本語)。
-        # 『+N 配点』(減点式)や『+N 1/2/3』(加点式の要素番号)は除外する。
-        if s.get("radio_options"):
-            return False
-        adds = s.get("add_options") or []
-        if len(adds) != 1:
-            return False
-        lab = re.sub(r"^\s*[+＋]?\s*\d+\s*", "", str(adds[0].get("label", ""))).strip()
-        if not lab or lab == "配点" or re.fullmatch(r"\d+", lab):
-            return False
-        return bool(re.search(r"[ぁ-んァ-ヶ一-龥]", lab))
-
-    kanji_secs = [s for s in sections if _is_short_answer(s)]
-    other_secs = [s for s in sections if not _is_short_answer(s)]
+    # 漢字・単語などの短答は手書き文字のOCR精度が出ず自動採点が機能しないため、
+    # AI採点の対象から外す(手動採点)。記述・記号・減点式だけをAIで採点する。
+    other_secs = [s for s in sections if not is_short_answer_section(s)]
 
     main_instr = (
         "以下は東進オンライン採点(Tensakit)の採点パネルの設問です。全セクションを飛ばさず判断すること。\n"
@@ -550,29 +554,11 @@ def decide_tensakit_marks(
         "記入があるのに『未回答』を選ばない。\n"
         "採点基準に厳密に従い、勝手な加減点はしない。コメントは扱わない。該当が無い項目は空/null。\n\n"
     )
-    kanji_instr = (
-        "以下は漢字書き取り・読み・単語・抜き出しなどの『短答小問』だけを集めたものです。"
-        "各小問の加点項目のラベルには『正解』が書かれています(例: 『+1 はいかい』『+2 熟知』『+3 古事記』)。\n"
-        "★手順(必ず全小問について実行): 1) section_label の小問記号(ア,イ,ウ… や 二・五 等)を手掛かりに、"
-        "答案画像の対応する解答欄を特定する。2) その欄の生徒の手書き文字を丁寧に読み取る。"
-        "3) 読み取った文字が『正解』ラベルと一致(読み問題は読み仮名、書き取りは漢字、抜き出しは該当語句)するか判定する。\n"
-        "★出力規則: 入力に列挙された『全ての』section_label について、必ず1つずつ TensakitSectionDecision を返すこと"
-        "(section_label は入力と完全一致させる)。正解と判断したら add_indices=[0]、"
-        "誤答・空欄・判読不能なら add_indices=[](空)。省略は禁止(省略された小問は0点になります)。\n"
-        "受験生の答案は大半が正解のことが多い。多少字が崩れていても正解と読めるなら加点する。"
-        "明確な誤字・別字・無記入だけを不正解とすること。減点・コメントは扱わない。\n\n"
-    )
-
     decisions = []
     if other_secs:
         # コスト優先: effort は medium。減点は指示文で積極的に促す(記述の減点は甘め)。
         content = img_content + [{"type": "text", "text": main_instr + "\n\n".join(_sec_text(s) for s in other_secs)}]
         decisions += _stream_decide(client, system_blocks, content, effort="medium")
-    if kanji_secs:
-        # 漢字・単語の短答はまとめ採点だと飛ばされやすい。専用パスを effort=high にして
-        # 「全小問を一つずつ判定」を確実にする。出力が小さいのでコスト増は限定的。
-        content = img_content + [{"type": "text", "text": kanji_instr + "\n\n".join(_sec_text(s) for s in kanji_secs)}]
-        decisions += _stream_decide(client, system_blocks, content, effort="high")
     return decisions
 
 

@@ -397,9 +397,10 @@
 
     var hitTxt = r.hit.length ? ("\n加点/選択した設問: " + r.hit.join(" , ")) : "";
     var dbg = data.debug || {};
+    var manualTxt = (dbg.short_skipped ? "、漢字・短答 " + dbg.short_skipped + "問は手動" : "");
     var dbgTxt = "\n[診断] 答案画像 " + (dbg.images_ok != null ? dbg.images_ok : "?") +
       "枚, AI選択した設問 " + (dbg.with_selection != null ? dbg.with_selection : "?") +
-      "/" + (dbg.decided != null ? dbg.decided : "?") + ", 読取セクション " + secs.length;
+      "/" + (dbg.decided != null ? dbg.decided : "?") + ", 読取セクション " + secs.length + manualTxt;
     if (r.n === 0) {
       var why = (dbg.images_ok === 0)
         ? "答案画像をサーバーが取得できていません(画像がログイン必須の可能性)。"
