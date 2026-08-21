@@ -97,10 +97,12 @@
   function parseBlock(el) {
     var t = norm(el.textContent || "");
     if (/添削完了/.test(t)) return { header: true, label: norm(t.replace("添削完了", "")) };
-    var add = [], ded = [], radios = [];
+    var add = [], ded = [], radios = [], hasDeduct = false;
     [].slice.call(el.querySelectorAll("ul.MuiList-root")).forEach(function (ul) {
       var sub = ul.querySelector("li.MuiListSubheader-root");
       var head = sub ? norm(sub.textContent) : "";
+      // 減点項目の見出しに「＋」ボタンがある = この設問は減点式(減点リストを展開できる)
+      if (/減点項目/.test(head) && sub && sub.querySelector("button")) hasDeduct = true;
       [].slice.call(ul.querySelectorAll("li.MuiListItem-root")).forEach(function (li) {
         if (!li.querySelector("input[type=checkbox]")) return; // ボタン(適切な理由/減点なし)は除外
         var lab = norm(li.textContent);
@@ -112,7 +114,7 @@
       var row = r.closest("label,li,div") || r.parentElement;
       radios.push(norm(row ? row.textContent : ""));
     });
-    return { header: false, add: add, ded: ded, radios: radios };
+    return { header: false, add: add, ded: ded, radios: radios, hasDeduct: hasDeduct };
   }
 
   // パネルをスクロールしながら全 data-index を収集し、セクションを組み立てる
@@ -136,9 +138,10 @@
     var secs = [], cur = null;
     keys.forEach(function (k) {
       var r = recs[k];
-      if (r.header) { cur = { section_label: r.label, body_index: null, add_options: [], deduct_options: [], radio_options: [] }; secs.push(cur); }
+      if (r.header) { cur = { section_label: r.label, body_index: null, add_options: [], deduct_options: [], radio_options: [], has_deduct: false }; secs.push(cur); }
       else if (cur) {
         if (cur.body_index === null) cur.body_index = k;
+        if (r.hasDeduct) cur.has_deduct = true;
         r.add.forEach(function (l) { cur.add_options.push({ index: cur.add_options.length, label: l }); });
         r.ded.forEach(function (l) { cur.deduct_options.push({ index: cur.deduct_options.length, label: l }); });
         r.radios.forEach(function (l) { cur.radio_options.push({ index: cur.radio_options.length, label: l }); });
@@ -213,7 +216,10 @@
     var rows = [];
     [].slice.call(block.querySelectorAll(".MuiCollapse-root li.MuiListItem-root")).forEach(function (li) {
       var h6 = li.querySelector("h6");
-      if (!h6 || !/-1/.test(h6.textContent || "")) return;
+      // 減点値の行だけ拾う。-1 固定ではなく -1/-2/-3… の可変配点にも対応する
+      // (2016千葉のように「三点減点」等がある設問は行が -3/-2 になる)。
+      var hv = toAsciiNum(h6 ? (h6.textContent || "") : "");
+      if (!/-\s*\d/.test(hv)) return;
       var p = li.querySelector("p");
       var num = parseInt(toAsciiNum(p ? p.textContent : ""), 10);
       if (!isNaN(num)) rows.push({ num: num, el: li.querySelector(".MuiListItemButton-root") || li });
@@ -384,7 +390,7 @@
       image_urls: cap.urls,
       panel_html: panelHTML(),
       sections: secs.map(function (s) {
-        return { section_label: s.section_label, add_options: s.add_options, deduct_options: s.deduct_options, radio_options: s.radio_options };
+        return { section_label: s.section_label, add_options: s.add_options, deduct_options: s.deduct_options, radio_options: s.radio_options, has_deduct: !!s.has_deduct };
       })
     };
 

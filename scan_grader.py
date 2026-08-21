@@ -436,6 +436,11 @@ class TensakitSectionInput(BaseModel):
     radio_options: List[TensakitPanelOption] = Field(
         default_factory=list, description="記号選択(生徒の回答: A〜H・未回答)のラジオ選択肢"
     )
+    has_deduct: bool = Field(
+        default=False,
+        description="減点項目に『＋』ボタンがあり減点リストを展開できる設問か"
+        "(True=減点式。採点基準の減点項目と照合して deduct_numbers を出す)",
+    )
 
 
 class TensakitSectionDecision(BaseModel):
@@ -528,6 +533,10 @@ def decide_tensakit_marks(
         if s.get("radio_options"):
             t += "  記号選択(生徒の回答):\n" + "".join(
                 f"    [{o['index']}] {o['label']}\n" for o in s["radio_options"])
+        # 減点リストは『＋』展開前なので選択肢は取得できないが、減点式かどうかは分かる。
+        if s.get("has_deduct") and not s.get("deduct_options"):
+            t += ("  ※この設問は減点式です(減点リストは『＋』で展開)。採点基準の減点項目を"
+                  "一つずつ答案と照合し、該当する誤り・不足の番号を deduct_numbers に入れること。\n")
         return t
 
     system_blocks = [{"type": "text", "text": SYSTEM_PROMPT}]
@@ -545,6 +554,9 @@ def decide_tensakit_marks(
 
     main_instr = (
         "以下は東進オンライン採点(Tensakit)の採点パネルの設問です。全セクションを飛ばさず判断すること。\n"
+        "★各設問は必ず答案画像の『その設問の実際の記述』を読み取ってから判断すること。"
+        "設問番号や配点だけで機械的に満点にしない。答案が採点基準を満たさない箇所は必ず減点する"
+        "(答案が違えば結果も変わる)。\n"
         "設問により『加点式』『減点式』『記号選択』のいずれかです。加点項目の内容と採点基準を見て見分けてください。\n"
         "【加点式】加点項目に得点要素が複数ある設問: 答案に含まれる得点要素だけ add_indices で選ぶ(部分点)。\n"
         "【減点式】加点項目が『+N 配点』1つ+減点項目がある設問: add_indices に配点(満点=index 0)を入れ、"
