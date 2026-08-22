@@ -567,9 +567,14 @@ def decide_tensakit_marks(
         "採点基準に厳密に従い、勝手な加減点はしない。コメントは扱わない。該当が無い項目は空/null。\n\n"
     )
     decisions = []
-    if other_secs:
+    # 設問が多い大問(例: 千葉2016 第1問)は1回の出力が max_tokens を超えて
+    # 途中で切れることがある。8問ずつに分割して確実に採点する(画像・参照実例は
+    # プロンプトキャッシュで再利用されるので分割してもコスト増は小さい)。
+    CHUNK = 8
+    for i in range(0, len(other_secs), CHUNK):
+        chunk = other_secs[i:i + CHUNK]
         # コスト優先: effort は medium。減点は指示文で積極的に促す(記述の減点は甘め)。
-        content = img_content + [{"type": "text", "text": main_instr + "\n\n".join(_sec_text(s) for s in other_secs)}]
+        content = img_content + [{"type": "text", "text": main_instr + "\n\n".join(_sec_text(s) for s in chunk)}]
         decisions += _stream_decide(client, system_blocks, content, effort="medium")
     return decisions
 
@@ -580,7 +585,9 @@ def _stream_decide(client, system_blocks, content, effort="medium"):
         try:
             with client.with_options(timeout=800.0).messages.stream(
                 model=MODEL,
-                max_tokens=16000,
+                # max_tokens は「上限」でありコストではない(実生成分だけ課金)。
+                # 設問が多い大問で思考+出力が上限を超えると途中で切れるため広めに取る。
+                max_tokens=32000,
                 thinking={"type": "adaptive"},
                 output_config={"effort": effort},
                 system=system_blocks,
