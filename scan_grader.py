@@ -491,6 +491,7 @@ def decide_tensakit_marks(
     page_images: List[bytes],
     sections: List[dict],
     rubric: Optional[str] = None,
+    debug_out: Optional[dict] = None,
 ) -> List[TensakitSectionDecision]:
     """Tensakit 採点パネルの選択肢を、答案に照らしてどう選ぶか判断する。
 
@@ -540,7 +541,16 @@ def decide_tensakit_marks(
         return t
 
     system_blocks = [{"type": "text", "text": SYSTEM_PROMPT}]
-    reference = select_reference(exam_hint) if exam_hint and exam_hint != "不明" else _load_reference()
+    matched = bool(exam_hint) and exam_hint != "不明"
+    reference = select_reference(exam_hint) if matched else _load_reference()
+    # どの答案と判別し、どの採点基準を参照したかを呼び出し側に伝える(検証用)。
+    if debug_out is not None:
+        debug_out["exam_hint"] = exam_hint or "(判別なし)"
+        # 参照実例の先頭見出し(=== ... ===)を拾って「実際に見た基準」を示す
+        heads = re.findall(r"=== (.*?) ===", reference or "")
+        debug_out["reference_heads"] = heads[:6]
+        debug_out["reference_scope"] = ("該当年度に絞込" if matched and heads and len(heads) <= 6
+                                        else ("全コーパス(該当基準なし)" if reference else "基準なし"))
     if reference:
         system_blocks.append({
             "type": "text",

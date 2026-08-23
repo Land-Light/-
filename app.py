@@ -251,8 +251,9 @@ def api_tensakit_decide():
                     fetch_fail.append("HTTP " + str(r.status_code))
             except Exception as e:
                 fetch_fail.append(type(e).__name__)
+    ai_dbg: dict = {}
     try:
-        decisions = decide_tensakit_marks(images, sections, rubric=None)
+        decisions = decide_tensakit_marks(images, sections, rubric=None, debug_out=ai_dbg)
     except Exception as e:
         msg = str(e)
         if "overload" in msg.lower():
@@ -275,6 +276,9 @@ def api_tensakit_decide():
         "short_skipped": short_skipped,  # 漢字・短答(手動採点。AI対象外)
         "decided": len(decisions),
         "with_selection": with_sel,
+        "exam_hint": ai_dbg.get("exam_hint"),          # AIが判別した大学・年度・大問
+        "reference_heads": ai_dbg.get("reference_heads"),  # 実際に参照した採点基準の見出し
+        "reference_scope": ai_dbg.get("reference_scope"),
     }
     return jsonify({"sections": out, "debug": debug})
 
