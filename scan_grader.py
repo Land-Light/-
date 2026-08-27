@@ -542,15 +542,18 @@ def decide_tensakit_marks(
 
     system_blocks = [{"type": "text", "text": SYSTEM_PROMPT}]
     matched = bool(exam_hint) and exam_hint != "不明"
-    reference = select_reference(exam_hint) if matched else _load_reference()
-    # どの答案と判別し、どの採点基準を参照したかを呼び出し側に伝える(検証用)。
+    reference = select_reference(exam_hint) if matched else ""
+    heads = re.findall(r"=== (.*?) ===", reference or "")
+    # コスト対策: 特定の試験(数セクション)に絞れた時だけ採点基準を渡す。
+    # 判別できず全コーパス(数十セクション・十数万トークン)になる場合は、送っても
+    # 該当基準を見つけられず高コストなだけなので渡さない(＝毎回の消費を大幅削減)。
+    if not (matched and 1 <= len(heads) <= 4):
+        reference = ""
+        heads = []
     if debug_out is not None:
         debug_out["exam_hint"] = exam_hint or "(判別なし)"
-        # 参照実例の先頭見出し(=== ... ===)を拾って「実際に見た基準」を示す
-        heads = re.findall(r"=== (.*?) ===", reference or "")
         debug_out["reference_heads"] = heads[:6]
-        debug_out["reference_scope"] = ("該当年度に絞込" if matched and heads and len(heads) <= 6
-                                        else ("全コーパス(該当基準なし)" if reference else "基準なし"))
+        debug_out["reference_scope"] = "該当年度に絞込" if reference else "該当基準なし(基準を渡さず採点)"
     if reference:
         system_blocks.append({
             "type": "text",
@@ -595,9 +598,9 @@ def _stream_decide(client, system_blocks, content, effort="medium"):
         try:
             with client.with_options(timeout=800.0).messages.stream(
                 model=MODEL,
-                # max_tokens は「上限」でありコストではない(実生成分だけ課金)。
-                # 設問が多い大問で思考+出力が上限を超えると途中で切れるため広めに取る。
-                max_tokens=32000,
+                # 上限。8問ずつに分割済みなので出力は小さく、14000で十分収まる。
+                # (32000だと adaptive thinking が伸びて消費が増えるため抑える)
+                max_tokens=14000,
                 thinking={"type": "adaptive"},
                 output_config={"effort": effort},
                 system=system_blocks,
