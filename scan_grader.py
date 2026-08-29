@@ -27,6 +27,7 @@ from grader import (
     GradingResult,
     QuestionInput,
     SYSTEM_PROMPT,
+    _UNIVERSITIES,
     _load_reference,
     resolve_comment,
     select_reference,
@@ -207,7 +208,7 @@ def _identify_exam(client, pages: List[bytes]) -> str:
     採点基準コーパスを絞り込むためのヒント文字列を返す(失敗時は空文字)。
     """
     content: list = []
-    for png in pages[:1]:  # ヘッダーは先頭ページにある(1枚で判別・高速化)
+    for png in pages[:2]:  # ヘッダー(大学名)は各ページ上部にある。2枚見て確実に
         content.append(
             {
                 "type": "image",
@@ -218,13 +219,18 @@ def _identify_exam(client, pages: List[bytes]) -> str:
                 },
             }
         )
+    unis = "・".join(_UNIVERSITIES)
     content.append(
         {
             "type": "text",
             "text": (
-                "この答案用紙のヘッダーや印字から、大学名・年度・大問(学部が分かれば学部も)を"
-                "短く一行で答えてください。例: 千葉大学 2018年度 文系 第1問。"
-                "判別できなければ「不明」とだけ答えてください。"
+                "この答案用紙のヘッダー印字から、大学名・年度・大問を短く一行で答えてください。\n"
+                f"★大学名は必ず次のいずれかです: {unis}。\n"
+                "『東進』『東進衛星予備校』『過去問演習講座』などは予備校名・講座名であって"
+                "大学名ではありません。これらを大学名として答えないこと。\n"
+                "ヘッダーに書かれた実際の大学名(例: 奈良女子大学全学部…)を採用してください。\n"
+                "例: 奈良女子大学 2019年度 第2問 / 千葉大学 2018年度 文系 第1問。\n"
+                "上記のどの大学にも該当しなければ「不明」とだけ答えてください。"
             ),
         }
     )
