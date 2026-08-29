@@ -593,15 +593,15 @@ def decide_tensakit_marks(
         "記入があるのに『未回答』を選ばない。\n"
         "採点基準に厳密に従い、勝手な加減点はしない。コメントは扱わない。該当が無い項目は空/null。\n\n"
     )
-    # 設問が多い大問(例: 千葉2016 第1問)は1回の出力が max_tokens を超えて
-    # 途中で切れることがある。8問ずつに分割する(画像・参照実例はプロンプト
-    # キャッシュで再利用されるので分割してもコスト増は小さい)。
-    CHUNK = 8
+    # 設問が多い大問(例: 学芸2023 第1問=200点)は1回の思考+出力が max_tokens を
+    # 超えて途中で切れることがある。4問ずつに小さく分割し、各回の出力を確実に
+    # 収める(画像・参照実例はプロンプトキャッシュで再利用されるので分割コストは小)。
+    CHUNK = 4
     chunks = [other_secs[i:i + CHUNK] for i in range(0, len(other_secs), CHUNK)]
 
     def _run(chunk):
         # 加点式の要素対応づけには読解が要るため effort は medium。速度は並列化・
-        # 参照実例の絞り込み・max_tokens縮小・判別1枚化で確保する。
+        # 参照実例の絞り込み・判別最適化で確保する。
         content = img_content + [{"type": "text", "text": main_instr + "\n\n".join(_sec_text(s) for s in chunk)}]
         return _stream_decide(client, system_blocks, content, effort="medium")
 
@@ -611,7 +611,7 @@ def decide_tensakit_marks(
             decisions += _run(c)
     else:
         # 複数チャンクは並列実行して待ち時間を短縮(順次だと足し算で遅い)。
-        with ThreadPoolExecutor(max_workers=min(3, len(chunks))) as ex:
+        with ThreadPoolExecutor(max_workers=min(4, len(chunks))) as ex:
             for res in ex.map(_run, chunks):
                 decisions += res
     return decisions
@@ -623,9 +623,9 @@ def _stream_decide(client, system_blocks, content, effort="medium"):
         try:
             with client.with_options(timeout=800.0).messages.stream(
                 model=MODEL,
-                # 上限。8問ずつに分割済みで出力は小さい。medium思考でも切れない
-                # 程度に抑えつつ、32000のような膨張は避ける(速度・消費のバランス)。
-                max_tokens=12000,
+                # 上限。4問ずつに分割済みなので1回の出力は小さく、14000あれば
+                # medium思考でも途中で切れない。32000のような膨張は避ける。
+                max_tokens=14000,
                 thinking={"type": "adaptive"},
                 output_config={"effort": effort},
                 system=system_blocks,
