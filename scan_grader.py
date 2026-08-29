@@ -572,7 +572,14 @@ def decide_tensakit_marks(
         "設問番号や配点だけで機械的に満点にしない。答案が採点基準を満たさない箇所は必ず減点する"
         "(答案が違えば結果も変わる)。\n"
         "設問により『加点式』『減点式』『記号選択』のいずれかです。加点項目の内容と採点基準を見て見分けてください。\n"
-        "【加点式】加点項目に得点要素が複数ある設問: 答案に含まれる得点要素だけ add_indices で選ぶ(部分点)。\n"
+        "【加点式】加点項目に得点要素が複数ある設問: パネルの加点要素は画面上『番号だけ』"
+        "(+2 の横に 1,2,3 等)で内容が書かれていない。採点基準でその設問の得点要素を確認し、"
+        "パネルの上から順(1番目→2番目→3番目…)に対応させること。"
+        "★採点基準の通し番号(9,10,11 等)ではなく、その設問内の『並び順』で対応させる"
+        "(例: 採点基準の問二が 9,10,11 なら、パネルの要素1=9、要素2=10、要素3=11)。\n"
+        "  各得点要素の『内容』を採点基準で確認し、答案にその内容が明確に含まれる要素だけを"
+        "add_indices(0始まりの位置)で選ぶ。最初の要素へ安易に付けない。2番目・3番目でも"
+        "該当すれば必ず選び、該当しない要素は外すこと。\n"
         "【減点式】加点項目が『+N 配点』1つ+減点項目がある設問: add_indices に配点(満点=index 0)を入れ、"
         "採点基準の減点項目を一つずつ答案と照合し、該当する誤り・不足があれば deduct_numbers に列挙する"
         "(例[2,4])。減点番号は採点基準の減点項目の番号に対応させる。白紙・大きく的外れは加点しない。\n"
@@ -587,9 +594,10 @@ def decide_tensakit_marks(
     chunks = [other_secs[i:i + CHUNK] for i in range(0, len(other_secs), CHUNK)]
 
     def _run(chunk):
-        # 速度・コスト優先: effort は low(採点基準が明示されているので十分)。
+        # 加点式の要素対応づけには読解が要るため effort は medium。速度は並列化・
+        # 参照実例の絞り込み・max_tokens縮小・判別1枚化で確保する。
         content = img_content + [{"type": "text", "text": main_instr + "\n\n".join(_sec_text(s) for s in chunk)}]
-        return _stream_decide(client, system_blocks, content, effort="low")
+        return _stream_decide(client, system_blocks, content, effort="medium")
 
     decisions = []
     if len(chunks) <= 1:
@@ -609,9 +617,9 @@ def _stream_decide(client, system_blocks, content, effort="medium"):
         try:
             with client.with_options(timeout=800.0).messages.stream(
                 model=MODEL,
-                # 上限。8問ずつに分割済みで出力は小さい。低めにして adaptive
-                # thinking の膨張を抑え、速度・消費の両方を改善する。
-                max_tokens=9000,
+                # 上限。8問ずつに分割済みで出力は小さい。medium思考でも切れない
+                # 程度に抑えつつ、32000のような膨張は避ける(速度・消費のバランス)。
+                max_tokens=12000,
                 thinking={"type": "adaptive"},
                 output_config={"effort": effort},
                 system=system_blocks,
