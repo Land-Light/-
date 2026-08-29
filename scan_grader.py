@@ -208,7 +208,7 @@ def _identify_exam(client, pages: List[bytes]) -> str:
     採点基準コーパスを絞り込むためのヒント文字列を返す(失敗時は空文字)。
     """
     content: list = []
-    for png in pages[:2]:  # ヘッダー(大学名)は各ページ上部にある。2枚見て確実に
+    for png in pages[:1]:  # ヘッダー(大学名)は先頭ページ上部にある(1枚で判別・低コスト)
         content.append(
             {
                 "type": "image",
@@ -593,17 +593,17 @@ def decide_tensakit_marks(
         "記入があるのに『未回答』を選ばない。\n"
         "採点基準に厳密に従い、勝手な加減点はしない。コメントは扱わない。該当が無い項目は空/null。\n\n"
     )
-    # 設問が多い大問(例: 学芸2023 第1問=200点)は1回の思考+出力が max_tokens を
-    # 超えて途中で切れることがある。4問ずつに小さく分割し、各回の出力を確実に
-    # 収める(画像・参照実例はプロンプトキャッシュで再利用されるので分割コストは小)。
-    CHUNK = 4
+    # 設問が多い大問は1回の思考+出力が max_tokens を超えて途中で切れることがある。
+    # 6問ずつに分割し各回の出力を確実に収める(画像・参照実例はプロンプトキャッシュ
+    # で再利用されるので分割コストは小)。effort=low なので6問でも上限に余裕がある。
+    CHUNK = 6
     chunks = [other_secs[i:i + CHUNK] for i in range(0, len(other_secs), CHUNK)]
 
     def _run(chunk):
-        # 加点式の要素対応づけには読解が要るため effort は medium。速度は並列化・
-        # 参照実例の絞り込み・判別最適化で確保する。
+        # コスト最優先: effort は low。加点式の対応づけは指示文(番号でなく並び順+
+        # 内容で対応)で担保する。速度は並列化・参照実例の絞り込みで確保。
         content = img_content + [{"type": "text", "text": main_instr + "\n\n".join(_sec_text(s) for s in chunk)}]
-        return _stream_decide(client, system_blocks, content, effort="medium")
+        return _stream_decide(client, system_blocks, content, effort="low")
 
     decisions = []
     if len(chunks) <= 1:
@@ -611,7 +611,7 @@ def decide_tensakit_marks(
             decisions += _run(c)
     else:
         # 複数チャンクは並列実行して待ち時間を短縮(順次だと足し算で遅い)。
-        with ThreadPoolExecutor(max_workers=min(4, len(chunks))) as ex:
+        with ThreadPoolExecutor(max_workers=min(3, len(chunks))) as ex:
             for res in ex.map(_run, chunks):
                 decisions += res
     return decisions
@@ -623,9 +623,9 @@ def _stream_decide(client, system_blocks, content, effort="medium"):
         try:
             with client.with_options(timeout=800.0).messages.stream(
                 model=MODEL,
-                # 上限。4問ずつに分割済みなので1回の出力は小さく、14000あれば
-                # medium思考でも途中で切れない。32000のような膨張は避ける。
-                max_tokens=14000,
+                # 上限。effort=low+6問分割なので思考・出力とも小さく、10000で十分。
+                # 低く抑えることで adaptive thinking の膨張を防ぎ消費を抑える。
+                max_tokens=10000,
                 thinking={"type": "adaptive"},
                 output_config={"effort": effort},
                 system=system_blocks,
