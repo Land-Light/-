@@ -217,41 +217,59 @@
 
   // ---- 減点(「＋」で開いて -1 の番号行を選ぶ) ----
   function toAsciiNum(s) { return (s || "").replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }); }
+  var PLUS_PATH = "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z";  // ＋アイコンのSVGパス
   function deductPlusButton(block) {  // 減点項目 見出しの「＋」ボタン
+    // (1) 減点項目 見出し(subheader)内のボタン
     var uls = block.querySelectorAll("ul.MuiList-root");
     for (var i = 0; i < uls.length; i++) {
       var sub = uls[i].querySelector("li.MuiListSubheader-root");
-      if (sub && /減点項目/.test(sub.textContent || "")) return sub.querySelector("button");
+      if (sub && /減点項目/.test(sub.textContent || "")) {
+        var b = sub.querySelector("button");
+        if (b) return b;
+      }
+    }
+    // (2) 予備: ブロック内で ＋アイコン(SVGパス一致)を持つボタン
+    var btns = [].slice.call(block.querySelectorAll("button"));
+    for (var j = 0; j < btns.length; j++) {
+      if (btns[j].querySelector('path[d="' + PLUS_PATH + '"]')) return btns[j];
     }
     return null;
   }
   function deductRows(block) {  // 開いた減点一覧の各行(番号と押す要素)
     var rows = [];
-    [].slice.call(block.querySelectorAll(".MuiCollapse-root li.MuiListItem-root")).forEach(function (li) {
+    // MuiCollapse内に限らずブロック全体から拾う(構造差に強くする)。
+    // 減点値(-1/-2/-3…)の h6 を持つ行だけ(加点の +N は除外される)。
+    [].slice.call(block.querySelectorAll("li.MuiListItem-root")).forEach(function (li) {
       var h6 = li.querySelector("h6");
-      // 減点値の行だけ拾う。-1 固定ではなく -1/-2/-3… の可変配点にも対応する
-      // (2016千葉のように「三点減点」等がある設問は行が -3/-2 になる)。
       var hv = toAsciiNum(h6 ? (h6.textContent || "") : "");
       if (!/-\s*\d/.test(hv)) return;
+      if (/添削完了/.test(li.textContent || "")) return;
       var p = li.querySelector("p");
       var num = parseInt(toAsciiNum(p ? p.textContent : ""), 10);
-      if (!isNaN(num)) rows.push({ num: num, el: li.querySelector(".MuiListItemButton-root") || li });
+      rows.push({ num: isNaN(num) ? null : num, el: li.querySelector(".MuiListItemButton-root") || li });
     });
     return rows;
   }
-  async function applyDeductions(bodyIndex, numbers) {
+  async function applyDeductions(bodyIndex, numbers, ded) {
     var got = 0;
+    if (ded) ded.want += numbers.length;
     var block = await ensureIndex(bodyIndex);
     if (!block) return 0;
     if (deductRows(block).length === 0) {  // まだ開いていなければ「＋」を押す
       var plus = deductPlusButton(block);
-      if (!plus) return 0;
+      if (!plus) { if (ded) ded.noplus++; return 0; }
       plus.click(); await wait(450);
       block = d.querySelector('[data-index="' + bodyIndex + '"]') || block;
     }
+    if (ded) ded.found += deductRows(block).length;
     for (var i = 0; i < numbers.length; i++) {
       block = d.querySelector('[data-index="' + bodyIndex + '"]') || block;
-      var row = deductRows(block).filter(function (r) { return r.num === numbers[i]; })[0];
+      var rows = deductRows(block);
+      // (1) 番号(p の数字)一致で探す
+      var row = rows.filter(function (r) { return r.num === numbers[i]; })[0];
+      // (2) 予備: 番号が一致しなければ、その順番(numbers[i]番目)の行を使う
+      //     採点基準の減点項目の並び順=パネルの減点行の並び順、を前提にした対応。
+      if (!row && numbers[i] >= 1 && numbers[i] <= rows.length) row = rows[numbers[i] - 1];
       if (row && row.el) { row.el.click(); got++; await wait(300); }
     }
     // 閉じる
@@ -263,6 +281,7 @@
 
   async function applyDecisions(dsecs, secs) {
     var n = 0, hit = [], firstBody = null;
+    var ded = { want: 0, found: 0, hit: 0, noplus: 0 };  // 減点反映の診断
     function nl(x) { return (x || "").replace(/\s+/g, ""); }  // 空白差を無視して照合
     for (var s = 0; s < dsecs.length; s++) {
       var dec = dsecs[s];
@@ -284,14 +303,14 @@
       // 減点(採点基準の番号に対応する -1 を「＋」→行クリック→閉じる)
       var dn = (dec.deduct_numbers || []).filter(function (x) { return typeof x === "number" && x > 0; });
       if (dn.length) {
-        var dg = await applyDeductions(sec.body_index, dn);
-        n += dg; got += dg;
+        var dg = await applyDeductions(sec.body_index, dn, ded);
+        ded.hit += dg; n += dg; got += dg;
       }
       if (got > 0) { hit.push(sec.section_label); if (firstBody == null) firstBody = sec.body_index; }
       await wait(120);
     }
     if (firstBody != null) { await ensureIndex(firstBody); }  // 反映箇所が見えるようスクロール
-    return { n: n, hit: hit };
+    return { n: n, hit: hit, ded: ded };
   }
 
   // ページ送りナビ(「N / M ページ」の左右ボタン)
@@ -443,6 +462,10 @@
       else if (dbg.reference_scope) refTxt += "\n[採点基準] " + dbg.reference_scope;
     }
     var dedTxt = (dbg.deduct_out != null ? "\n[AIが減点を出した設問] " + dbg.deduct_out + "件" : "");
+    if (r.ded && r.ded.want) {
+      dedTxt += "\n[減点の反映] 反映 " + r.ded.hit + "/" + r.ded.want +
+        " (減点行の検出 " + r.ded.found + (r.ded.noplus ? ", ＋ボタン無し " + r.ded.noplus : "") + ")";
+    }
     var verTxt = (dbg.build ? "\n[版] " + dbg.build : "");
     var dbgTxt = "\n[診断] 答案画像 " + (dbg.images_ok != null ? dbg.images_ok : "?") +
       "枚, AI選択した設問 " + (dbg.with_selection != null ? dbg.with_selection : "?") +
