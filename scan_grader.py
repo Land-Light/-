@@ -36,6 +36,9 @@ from grader import (
 # コスト重視で sonnet を既定にする(精度重視なら claude-opus-4-8)。
 MODEL = "claude-sonnet-5"
 
+# 稼働中コードの版(診断表示用。変更のたびに更新して反映済みか判別できるように)
+GRADER_BUILD = "strict-deduct-3"
+
 _RENDER_SCALE = 2.0  # 手書き判読用に高めの解像度で描画する
 
 

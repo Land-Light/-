@@ -16,7 +16,7 @@ from annotator import Mark, annotate_pdf
 from grader import GENRE_LABELS, GRADER_NAME, QuestionInput, grade_answers
 from pdf_generator import build_pdf
 from scan_grader import (
-    build_marks, decide_tensakit_marks, grade_scanned_pdf,
+    GRADER_BUILD, build_marks, decide_tensakit_marks, grade_scanned_pdf,
     is_short_answer_section, render_pages_png,
 )
 from toshin_fetcher import (
@@ -269,8 +269,11 @@ def api_tensakit_decide():
     ]
     with_sel = sum(1 for d in decisions
                    if d.add_indices or d.deduct_indices or d.radio_index is not None)
+    # AIが減点(deduct_numbers)を出した設問数=「AIが減点を出しているか」の切り分け用
+    deduct_out = sum(1 for d in decisions if d.deduct_numbers)
     short_skipped = sum(1 for s in sections if is_short_answer_section(s))
     debug = {
+        "build": GRADER_BUILD,  # 稼働中のコード版(反映確認用)
         "images_ok": len(images),
         "img_urls": len(url_list),
         "fetch_fail": fetch_fail[:6],
@@ -278,6 +281,7 @@ def api_tensakit_decide():
         "short_skipped": short_skipped,  # 漢字・短答(手動採点。AI対象外)
         "decided": len(decisions),
         "with_selection": with_sel,
+        "deduct_out": deduct_out,  # AIが減点を出した設問数
         "exam_hint": ai_dbg.get("exam_hint"),          # AIが判別した大学・年度・大問
         "reference_heads": ai_dbg.get("reference_heads"),  # 実際に参照した採点基準の見出し
         "reference_scope": ai_dbg.get("reference_scope"),
