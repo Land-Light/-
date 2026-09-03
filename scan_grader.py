@@ -626,16 +626,18 @@ def decide_tensakit_marks(
         "採点基準に厳密に従い、勝手な加減点はしない。コメントは扱わない。該当が無い項目は空/null。\n\n"
     )
     # 設問が多い大問は1回の思考+出力が max_tokens を超えて途中で切れることがある。
-    # 6問ずつに分割し各回の出力を確実に収める(画像・参照実例はプロンプトキャッシュ
-    # で再利用されるので分割コストは小)。effort=low なので6問でも上限に余裕がある。
-    CHUNK = 6
+    # 5問ずつに分割し各回の出力を確実に収める(画像・参照実例はプロンプトキャッシュ
+    # で再利用されるので分割コストは小)。medium思考でも5問なら上限に収まる。
+    CHUNK = 5
     chunks = [other_secs[i:i + CHUNK] for i in range(0, len(other_secs), CHUNK)]
 
     def _run(chunk):
-        # コスト最優先: effort は low。加点式の対応づけは指示文(番号でなく並び順+
-        # 内容で対応)で担保する。速度は並列化・参照実例の絞り込みで確保。
+        # 減点式の減点検出・加点式の要素対応づけには答案と基準の1項目ずつの
+        # 照合(=読解)が必要なため effort は medium。low だと減点を検出できず
+        # 満点素通りになる。コストは参照実例の絞り込み・タイトル判別(Haiku削減)・
+        # max_tokens縮小・並列化で抑える。
         content = img_content + [{"type": "text", "text": main_instr + "\n\n".join(_sec_text(s) for s in chunk)}]
-        return _stream_decide(client, system_blocks, content, effort="low")
+        return _stream_decide(client, system_blocks, content, effort="medium")
 
     decisions = []
     if len(chunks) <= 1:
@@ -655,9 +657,8 @@ def _stream_decide(client, system_blocks, content, effort="medium"):
         try:
             with client.with_options(timeout=800.0).messages.stream(
                 model=MODEL,
-                # 上限。effort=low+6問分割なので思考・出力とも小さく、10000で十分。
-                # 低く抑えることで adaptive thinking の膨張を防ぎ消費を抑える。
-                max_tokens=10000,
+                # 上限。medium思考+5問分割で収まる範囲。32000のような膨張は避ける。
+                max_tokens=12000,
                 thinking={"type": "adaptive"},
                 output_config={"effort": effort},
                 system=system_blocks,
