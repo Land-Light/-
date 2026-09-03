@@ -252,8 +252,10 @@ def api_tensakit_decide():
             except Exception as e:
                 fetch_fail.append(type(e).__name__)
     ai_dbg: dict = {}
+    exam_title = data.get("exam_title") or ""
     try:
-        decisions = decide_tensakit_marks(images, sections, rubric=None, debug_out=ai_dbg)
+        decisions = decide_tensakit_marks(
+            images, sections, rubric=None, debug_out=ai_dbg, exam_title=exam_title)
     except Exception as e:
         msg = str(e)
         if "overload" in msg.lower():

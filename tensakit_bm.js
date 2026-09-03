@@ -20,6 +20,19 @@
 
   function norm(s) { return (s || "").replace(/\s+/g, " ").trim(); }
   function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  // 画面タイトル(例: 千葉_国語_2_2013_第3問)から大学・年度・大問を取得する。
+  // AI判別より正確・無料なので、これをサーバーの出典判別に優先させる。
+  function examTitle() {
+    var re = /\S+_国語_[^_\s]*_20\d{2}_第[0-9一二三四五六七八九十]+問/;
+    var els = [].slice.call(d.querySelectorAll("h1,h2,h3,h4,h5,h6,div,span,p,input,title"));
+    for (var i = 0; i < els.length; i++) {
+      var t = (els[i].value || els[i].textContent || "").trim();
+      var m = t.match(re);
+      if (m) return m[0];
+    }
+    var mt = (d.title || "").match(re);
+    return mt ? mt[0] : "";
+  }
 
   // ---- 状態表示オーバーレイ ----
   var box = d.getElementById("__tk_box");
@@ -389,6 +402,7 @@
       images: cap.images,
       image_urls: cap.urls,
       panel_html: panelHTML(),
+      exam_title: examTitle(),
       sections: secs.map(function (s) {
         return { section_label: s.section_label, add_options: s.add_options, deduct_options: s.deduct_options, radio_options: s.radio_options, has_deduct: !!s.has_deduct };
       })

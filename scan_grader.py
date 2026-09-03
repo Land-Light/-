@@ -494,11 +494,40 @@ def is_short_answer_section(s: dict) -> bool:
     return bool(re.search(r"[ぁ-んァ-ヶ一-龥]", lab))
 
 
+def _hint_from_title(title: str) -> str:
+    """Tensakit の画面タイトル(例: 千葉_国語_2_2013_第3問)から
+    『大学名 年度 第N問』のヒント文字列を組み立てる。AI判別より正確・無料。
+
+    合致しなければ空文字を返す(呼び出し側でAI判別にフォールバック)。
+    """
+    if not title:
+        return ""
+    m_year = re.search(r"(20\d{2})", title)
+    m_dai = re.search(r"第\s*([0-9一二三四五六七八九十]+)\s*問", title)
+    # 長い略称から先にマッチ(「学芸」より「東京学芸」等)
+    aliases = [
+        ("東京学芸", "東京学芸大学"), ("学芸", "東京学芸大学"),
+        ("東京都立", "東京都立大学"), ("都立", "東京都立大学"),
+        ("奈良女子", "奈良女子大学"), ("奈良", "奈良女子大学"),
+        ("千葉", "千葉大学"), ("埼玉", "埼玉大学"),
+    ]
+    uni = ""
+    for short, full in aliases:
+        if short in title:
+            uni = full
+            break
+    if not (uni and m_year):
+        return ""
+    dai = f"第{m_dai.group(1)}問" if m_dai else ""
+    return f"{uni} {m_year.group(1)}年度 {dai}".strip()
+
+
 def decide_tensakit_marks(
     page_images: List[bytes],
     sections: List[dict],
     rubric: Optional[str] = None,
     debug_out: Optional[dict] = None,
+    exam_title: Optional[str] = None,
 ) -> List[TensakitSectionDecision]:
     """Tensakit 採点パネルの選択肢を、答案に照らしてどう選ぶか判断する。
 
@@ -514,7 +543,10 @@ def decide_tensakit_marks(
     # AI混雑(overloaded/429/5xx)時はSDKが自動で待って再試行する
     client = anthropic.Anthropic(max_retries=6)
     pages = list(page_images)[:6]  # 枚数を制限してメモリ・トークンを抑える
-    exam_hint = _identify_exam(client, pages) if pages else ""
+    # 出典判別: 画面タイトル(正確・無料)を最優先。無ければAI判別にフォールバック。
+    exam_hint = _hint_from_title(exam_title or "")
+    if not exam_hint:
+        exam_hint = _identify_exam(client, pages) if pages else ""
 
     # 答案画像(両方の採点パスで共有。末尾にキャッシュ点を置き2回目を安くする)
     img_content: list = []
