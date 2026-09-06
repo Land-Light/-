@@ -37,7 +37,7 @@ from grader import (
 MODEL = "claude-sonnet-5"
 
 # 稼働中コードの版(診断表示用。変更のたびに更新して反映済みか判別できるように)
-GRADER_BUILD = "balanced-deduct-5"
+GRADER_BUILD = "faster-6"
 
 _RENDER_SCALE = 2.0  # 手書き判読用に高めの解像度で描画する
 
@@ -633,10 +633,10 @@ def decide_tensakit_marks(
         "記入があるのに『未回答』を選ばない。\n"
         "採点基準に厳密に従い、勝手な加減点はしない。コメントは扱わない。該当が無い項目は空/null。\n\n"
     )
-    # 設問が多い大問は1回の思考+出力が max_tokens を超えて途中で切れることがある。
-    # 5問ずつに分割し各回の出力を確実に収める(画像・参照実例はプロンプトキャッシュ
-    # で再利用されるので分割コストは小)。medium思考でも5問なら上限に収まる。
-    CHUNK = 5
+    # 高速化: 3問ずつに小分けして並列実行する。1回が扱う問題数を減らすと生成が
+    # 速く、複数チャンクが同時に走るので待ち時間(壁時計)が縮む。設問が独立なので
+    # 精度は落ちない。画像・参照実例はプロンプトキャッシュで再利用され分割コストは小。
+    CHUNK = 3
     chunks = [other_secs[i:i + CHUNK] for i in range(0, len(other_secs), CHUNK)]
 
     def _run(chunk):
@@ -645,7 +645,7 @@ def decide_tensakit_marks(
         # 満点素通りになる。コストは参照実例の絞り込み・タイトル判別(Haiku削減)・
         # max_tokens縮小・並列化で抑える。
         content = img_content + [{"type": "text", "text": main_instr + "\n\n".join(_sec_text(s) for s in chunk)}]
-        return _stream_decide(client, system_blocks, content, effort="medium")
+        return _stream_decide(client, system_blocks, content, effort="medium", max_tokens=8000)
 
     decisions = []
     if len(chunks) <= 1:
@@ -653,20 +653,20 @@ def decide_tensakit_marks(
             decisions += _run(c)
     else:
         # 複数チャンクは並列実行して待ち時間を短縮(順次だと足し算で遅い)。
-        with ThreadPoolExecutor(max_workers=min(3, len(chunks))) as ex:
+        with ThreadPoolExecutor(max_workers=min(4, len(chunks))) as ex:
             for res in ex.map(_run, chunks):
                 decisions += res
     return decisions
 
 
-def _stream_decide(client, system_blocks, content, effort="medium"):
+def _stream_decide(client, system_blocks, content, effort="medium", max_tokens=12000):
     """1回分の採点判断をストリーミングで実行(混雑時リトライ・途中切れ処理付き)。"""
     for attempt in range(5):
         try:
             with client.with_options(timeout=800.0).messages.stream(
                 model=MODEL,
-                # 上限。medium思考+5問分割で収まる範囲。32000のような膨張は避ける。
-                max_tokens=12000,
+                # 上限。3問分割なら8000で収まり、低いほど生成が速く消費も減る。
+                max_tokens=max_tokens,
                 thinking={"type": "adaptive"},
                 output_config={"effort": effort},
                 system=system_blocks,
