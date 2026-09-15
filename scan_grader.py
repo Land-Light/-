@@ -37,7 +37,7 @@ from grader import (
 MODEL = "claude-sonnet-5"
 
 # 稼働中コードの版(診断表示用。変更のたびに更新して反映済みか判別できるように)
-GRADER_BUILD = "cost-7"
+GRADER_BUILD = "cost-7b"
 
 _RENDER_SCALE = 2.0  # 手書き判読用に高めの解像度で描画する
 
@@ -586,10 +586,12 @@ def decide_tensakit_marks(
     matched = bool(exam_hint) and exam_hint != "不明"
     reference = select_reference(exam_hint) if matched else ""
     heads = re.findall(r"=== (.*?) ===", reference or "")
-    # コスト対策: 特定の試験(数セクション)に絞れた時だけ採点基準を渡す。
+    # コスト対策: 特定の試験(その年度の数セクション)に絞れた時だけ採点基準を渡す。
     # 判別できず全コーパス(数十セクション・十数万トークン)になる場合は、送っても
     # 該当基準を見つけられず高コストなだけなので渡さない(＝毎回の消費を大幅削減)。
-    if not (matched and 1 <= len(heads) <= 4):
+    # 上限は8。同一大学・同一年度で国語1/国語2など複数コース×大問があると
+    # 4を超えることがあるため(年度が一致すればその年度分だけに絞られる)。
+    if not (matched and 1 <= len(heads) <= 8):
         reference = ""
         heads = []
     if debug_out is not None:
