@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/
+preview*.png
+assets/_src/tiles/
+assets/_src/montage.png
+assets/_src/check.png
