@@ -5,14 +5,11 @@ services:
     container_name: smash-bingo-bot
     restart: unless-stopped
     env_file: .env
-    volumes:
-      # 作ったカードを再起動後も残す
-      - bingo-data:/app/data
+    ports:
+      # 外からはリバースプロキシ(Caddy等)でHTTPS化して渡す
+      - "127.0.0.1:8080:8080"
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-
-volumes:
-  bingo-data:

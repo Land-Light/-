@@ -1,89 +1,106 @@
-# スマブラ キャラビンゴ Discord ボット
+# スマブラ キャラビンゴ LINE ボット
 
-スマブラSPのファイターをランダムに並べたビンゴカードを作る Discord ボットです。
-マスはキャラアイコン付きの画像で表示され、カード下のボタンを押すとマークできます。
+トークで「ビンゴ」と送ると、スマブラSPのファイターをランダムに並べた
+ビンゴカードの画像を返す LINE ボットです。
 
 ![カードの例](docs/example.png)
 
-## できること
+- 全86ファイターから重複なしで 5×5 を抽選（FREEマスなし・Miiファイターは除外）
+- 画像はキャラアイコン付き
+- グループトークでも1対1でも動きます
 
-- `/bingo` … ビンゴカードを作る（3×3 〜 5×5）
-- `/reroll` … 同じ設定で引き直す
-- `/reset` … マークを全部消す
-- `/fighters` … 抽選候補のキャラ一覧を見る
-- `/bingohelp` … 使い方を見る
+## 使い方
 
-`/bingo` のオプション:
+トークに **「ビンゴ」** と送るだけです（「ビンゴやろう」のように含まれていればOK）。
+2チームぶん欲しいときは2回送ってください。毎回ちがうカードが出ます。
 
-| オプション | 既定 | 内容 |
-| --- | --- | --- |
-| `マス` | 5 | 1辺のマス数（3〜5） |
-| `追加ファイター` | 入れる | パックンフラワー以降のDLC |
-| `ダッシュファイター` | 入れる | ルキナ・クロム・ケンなど |
-| `mii` | 入れない | Miiファイター3種 |
-| `まんなかfree` | しない | 中央をFREEマスにする |
-| `除外` | なし | 例: `マリオ, カズヤ, ソラ` |
-| `みんなで` | しない | 他の人もマークできるようにする |
-| `seed` | なし | 同じ文字で同じカードが出る |
+## 仕組み
 
-マークはボタンを押すたびに付け外しでき、縦横斜めがそろうと自動で知らせます。
+カードはシード文字列から毎回まったく同じものを組み立て直せるので、
+**画像を保存しておく必要がありません**。
 
-## 準備
+1. 「ビンゴ」を受け取ったら、ランダムなシードを作る
+2. `https://<サーバー>/c/<シード>.png` という画像メッセージを返す
+3. LINEがその画像を取りに来たタイミングで、その場で描いて返す
 
-1. [Discord Developer Portal](https://discord.com/developers/applications) で
-   アプリケーションを作り、Bot のトークンを取得します。
-2. OAuth2 の招待URLを作ってサーバーに入れます。必要なのは次の2つだけです。
-   - スコープ: `bot`, `applications.commands`
-   - 権限: `Send Messages`, `Attach Files`
-   - メッセージ内容の読み取り（Message Content Intent）は不要です。
+状態を持たないので、サーバーレス（Cloud Run など）にそのまま載ります。
 
-## 手元で動かす
+## 1. LINE側の準備
+
+1. [LINE Developers](https://developers.line.biz/console/) にログイン
+2. プロバイダーを作る（無ければ）→ **Messaging API** チャネルを作成
+3. **「Messaging API設定」** タブ
+   - **チャネルアクセストークン（長期）** を発行してコピー → `LINE_CHANNEL_ACCESS_TOKEN`
+   - **応答メッセージ** を「オフ」、**あいさつメッセージ** は好みで
+   - **Webhook の利用** を「オン」
+4. **「チャネル基本設定」** タブの **Channel secret** をコピー → `LINE_CHANNEL_SECRET`
+5. グループで使う場合は「Messaging API設定」の
+   **グループ・複数人チャットへの参加を許可する** をオンにする
+
+Webhook URL は、サーバーを動かしてから（手順2のあと）
+`https://<サーバーのURL>/callback` を設定します。
+
+## 2. 動かす
+
+### Cloud Run（おすすめ・無料枠で収まる）
+
+HTTPSのURLが自動でもらえるので、ドメインも証明書も要りません。
 
 ```bash
-cd smash-bingo-bot
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-
-cp .env.example .env     # .env にトークンを書く
-set -a && . ./.env && set +a
-.venv/bin/python -m smashbingo
+gcloud run deploy smash-bingo \
+  --source . \
+  --region asia-northeast1 \
+  --allow-unauthenticated \
+  --set-env-vars "LINE_CHANNEL_SECRET=xxxx,LINE_CHANNEL_ACCESS_TOKEN=yyyy"
 ```
 
-## VPSで常時動かす（Docker）
+表示された `https://smash-bingo-....run.app` の末尾に `/callback` を付けたものを、
+LINE Developers の Webhook URL に設定して「検証」を押します。
 
-Docker と Docker Compose が入っている Linux サーバーなら、これだけで動きます。
+> しばらく誰も使わないとインスタンスが落ちるため、久しぶりの1回目だけ
+> 反応が数秒遅れることがあります。気になる場合は
+> [cron-job.org](https://cron-job.org) などから `/healthz` を10分おきに
+> 叩いておくと、無料枠のまま常に温まった状態を保てます。
+
+### VPS（Docker）
 
 ```bash
-git clone <このリポジトリ> && cd smash-bingo-bot
-cp .env.example .env          # DISCORD_TOKEN と GUILD_ID を書く
+cp .env.example .env     # トークンとシークレットを書く
 docker compose up -d --build
 ```
 
-状態の確認とログ:
+`127.0.0.1:8080` で待ち受けます。LINEはHTTPSでしか画像を取りに来ないので、
+**前段に Caddy や Nginx を置いてHTTPS化**し、ドメインを当ててください。
+Caddy なら `Caddyfile` はこれだけです。
 
-```bash
-docker compose ps
-docker compose logs -f        # 「ログインしました: ...」が出れば成功
+```
+bingo.example.com {
+    reverse_proxy 127.0.0.1:8080
+}
 ```
 
-- `restart: unless-stopped` なので、落ちても再起動し、**サーバー再起動後も自動で立ち上がります**
-  （`sudo systemctl enable docker` だけ済ませておいてください）
-- 日本語フォント（IPAゴシック）はイメージに入れてあるので、別途の用意は不要です
-- カードの状態は `bingo-data` という名前付きボリュームに残ります
-
-更新したいとき:
+### 手元で試す
 
 ```bash
-git pull && docker compose up -d --build
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+set -a && . ./.env && set +a
+.venv/bin/python -m linebingo
 ```
 
-カードの保存データを見たい・バックアップしたいとき:
+`http://127.0.0.1:8080/c/test123.png` を開くとカード画像が見られます。
+LINEと繋ぐには ngrok などで外から見えるようにしてください。
 
-```bash
-docker compose cp bot:/app/data/cards.json ./cards.json
-```
+## 環境変数
 
-メモリは 200MB 程度あれば足ります。一番安いVPSや Oracle Cloud の無料枠でも十分です。
+| 名前 | 必須 | 内容 |
+| --- | --- | --- |
+| `LINE_CHANNEL_ACCESS_TOKEN` | ○ | チャネルアクセストークン（長期） |
+| `LINE_CHANNEL_SECRET` | ○ | チャネルシークレット（署名の検証に使う） |
+| `BASE_URL` | | 画像URLの組み立てを固定したいときだけ。ふだんはリクエストから自動判定 |
+| `BINGO_SIZE` | | 1辺のマス数（既定 5） |
+| `BINGO_FONT` | | 日本語フォントのパス（既定ではOSの標準フォントを探す） |
+| `PORT` | | 待ち受けポート（既定 8080。Cloud Runが自動で設定します） |
 
 ## キャラアイコンについて
 
@@ -101,21 +118,36 @@ python3 scripts/extract_icons.py
 
 ## カードの画像だけ試す
 
-Discord を使わずに画像の出来を確認できます。
+LINEを使わずに画像の出来を確認できます。
 
 ```bash
 .venv/bin/python scripts/preview.py preview.png 5
 ```
 
+## Discord版も入っています
+
+同じカードを Discord でも使えます。そちらはボタンでマスをマークでき、
+ビンゴになると知らせます。
+
+```bash
+DISCORD_TOKEN=... .venv/bin/python -m smashbingo
+```
+
+詳しくは `smashbingo/bot.py` を見てください。Dockerで動かす場合は
+`Dockerfile` の `CMD` を `["python", "-m", "smashbingo"]` に変えます。
+LINEだけ使うなら `smashbingo/bot.py` `smashbingo/storage.py` と
+requirements.txt の `discord.py` は消してしまって構いません。
+
 ## ファイル
 
 | パス | 役割 |
 | --- | --- |
+| `linebingo/main.py` | LINEのWebhookと画像を返すサーバー |
+| `linebingo/line_api.py` | 署名の検証とメッセージ送信 |
 | `smashbingo/fighters.py` | 全86ファイターのデータとアイコンの対応 |
 | `smashbingo/bingo.py` | カードの抽選・マーク・ビンゴ判定 |
 | `smashbingo/render.py` | カード画像の描画 |
-| `smashbingo/storage.py` | カードの保存・読み込み |
-| `smashbingo/bot.py` | スラッシュコマンドとボタン |
-| `Dockerfile` / `docker-compose.yml` | 常時稼働用のコンテナ設定 |
+| `smashbingo/bot.py` | Discord版のボット |
+| `Dockerfile` / `docker-compose.yml` | コンテナ設定 |
 | `scripts/extract_icons.py` | アイコンシートの切り出し |
 | `scripts/preview.py` | 画像の試し描き |
