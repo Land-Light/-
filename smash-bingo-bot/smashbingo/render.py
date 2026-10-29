@@ -224,6 +224,9 @@ def render_card(card: Card) -> bytes:
         foot += f" / seed: {card.seed}"
     draw.text((PAD, height - FOOTER + 8), foot, font=_font(22), fill=TEXT_DIM)
 
+    # 256色に減色してから保存する。見た目はほぼ変わらないのにファイルは
+    # 1/3ほどになり、無料枠の通信量やアップロードの待ち時間に効く。
     buf = io.BytesIO()
-    base.save(buf, format="PNG", optimize=True)
+    base.quantize(colors=256, method=Image.MEDIANCUT, dither=Image.NONE).save(
+        buf, format="PNG", optimize=True)
     return buf.getvalue()
