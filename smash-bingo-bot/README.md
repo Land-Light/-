@@ -46,13 +46,27 @@ Webhook URL は、サーバーを動かしてから（手順2のあと）
 
 HTTPSのURLが自動でもらえるので、ドメインも証明書も要りません。
 
+まず、鍵を書いたファイルを**リポジトリの外**に作ります。
+
 ```bash
-gcloud run deploy smash-bingo \
-  --source . \
-  --region asia-northeast1 \
-  --allow-unauthenticated \
-  --set-env-vars "LINE_CHANNEL_SECRET=xxxx,LINE_CHANNEL_ACCESS_TOKEN=yyyy"
+nano ~/env.yaml
 ```
+
+```yaml
+LINE_CHANNEL_SECRET: "チャネルシークレット"
+LINE_CHANNEL_ACCESS_TOKEN: "チャネルアクセストークン"
+```
+
+保存は Ctrl+O → Enter → Ctrl+X。そのままデプロイします。
+
+```bash
+gcloud run deploy smash-bingo --source . --region asia-northeast1 \
+  --allow-unauthenticated --env-vars-file ~/env.yaml
+```
+
+> 鍵を `--set-env-vars` で直接渡すのは避けてください。チャネルアクセス
+> トークンには `=` や `/` が含まれることがあり、区切り文字と誤解されて
+> 失敗します。シェルの履歴にも残ります。
 
 表示された `https://smash-bingo-....run.app` の末尾に `/callback` を付けたものを、
 LINE Developers の Webhook URL に設定して「検証」を押します。

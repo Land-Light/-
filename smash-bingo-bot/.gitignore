@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 .env
+env.yaml
+*.env.yaml
 data/
 preview*.png
 assets/_src/tiles/
