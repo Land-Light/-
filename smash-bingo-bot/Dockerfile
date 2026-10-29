@@ -19,12 +19,9 @@ COPY smashbingo/ ./smashbingo/
 COPY linebingo/ ./linebingo/
 COPY assets/icons/ ./assets/icons/
 
-RUN mkdir -p /app/data && useradd --create-home --uid 1000 bingo \
-    && chown -R bingo:bingo /app
+RUN useradd --create-home --uid 1000 bingo && chown -R bingo:bingo /app
 USER bingo
 
 EXPOSE 8080
 
-# LINE版のサーバー。Discord版を動かすなら CMD を
-# ["python", "-m", "smashbingo"] に変える
 CMD ["python", "-m", "linebingo"]

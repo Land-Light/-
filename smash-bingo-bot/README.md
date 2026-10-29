@@ -124,20 +124,6 @@ LINEを使わずに画像の出来を確認できます。
 .venv/bin/python scripts/preview.py preview.png 5
 ```
 
-## Discord版も入っています
-
-同じカードを Discord でも使えます。そちらはボタンでマスをマークでき、
-ビンゴになると知らせます。
-
-```bash
-DISCORD_TOKEN=... .venv/bin/python -m smashbingo
-```
-
-詳しくは `smashbingo/bot.py` を見てください。Dockerで動かす場合は
-`Dockerfile` の `CMD` を `["python", "-m", "smashbingo"]` に変えます。
-LINEだけ使うなら `smashbingo/bot.py` `smashbingo/storage.py` と
-requirements.txt の `discord.py` は消してしまって構いません。
-
 ## ファイル
 
 | パス | 役割 |
@@ -147,7 +133,6 @@ requirements.txt の `discord.py` は消してしまって構いません。
 | `smashbingo/fighters.py` | 全86ファイターのデータとアイコンの対応 |
 | `smashbingo/bingo.py` | カードの抽選・マーク・ビンゴ判定 |
 | `smashbingo/render.py` | カード画像の描画 |
-| `smashbingo/bot.py` | Discord版のボット |
 | `Dockerfile` / `docker-compose.yml` | コンテナ設定 |
 | `scripts/extract_icons.py` | アイコンシートの切り出し |
 | `scripts/preview.py` | 画像の試し描き |
