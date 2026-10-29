@@ -224,6 +224,8 @@ ICON_IDS: dict[str, str] = {
     "スティーブ": "steve",
     "セフィロス": "sephiroth",
     "ホムラ/ヒカリ": "pyra_mythra",
+    "カズヤ": "kazuya",
+    "ソラ": "sora",
 }
 
 BY_NAME: dict[str, Fighter] = {f.name: f for f in FIGHTERS}

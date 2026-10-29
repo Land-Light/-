@@ -54,22 +54,17 @@ set -a && . ./.env && set +a
 
 ## キャラアイコンについて
 
-`assets/icons/` のアイコンは、元のアイコンシート（`assets/_src/sheet.jpg`）から
+`assets/icons/` のアイコンは、元のアイコンシート（`assets/_src/`）から
 `scripts/extract_icons.py` で切り出したものです。シートを差し替えたときは:
 
 ```bash
-python3 scripts/extract_icons.py assets/_src/sheet.jpg
+python3 scripts/extract_icons.py
 ```
 
-シートにはカズヤとソラが含まれていないため、この2体だけはアイコンではなく
-名前での表示になります。アイコンを追加する場合は
-`assets/icons/kazuya.png` / `assets/icons/sora.png`（160×160・黒背景）を置き、
-`smashbingo/fighters.py` の `ICON_IDS` に次の2行を足してください。
-
-```python
-"カズヤ": "kazuya",
-"ソラ": "sora",
-```
+シートは2枚あります。`sheet.jpg`（7列×16行）が本体で、カズヤとソラだけは
+これに入っていないため `sheet2.jpg`（8列×15行）の最終行から取っています。
+どちらもカラーバリエーション（ナナ、ポケモン、コクッパ、勇者の別主人公など）が
+1枠ずつ入っているので、代表の1枚だけを各ファイターに割り当てています。
 
 ## カードの画像だけ試す
 
