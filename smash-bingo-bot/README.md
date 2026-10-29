@@ -37,7 +37,7 @@
    - 権限: `Send Messages`, `Attach Files`
    - メッセージ内容の読み取り（Message Content Intent）は不要です。
 
-## 動かす
+## 手元で動かす
 
 ```bash
 cd smash-bingo-bot
@@ -49,8 +49,41 @@ set -a && . ./.env && set +a
 .venv/bin/python -m smashbingo
 ```
 
-常時動かすなら systemd や Docker、各種ホスティングに載せてください。
-カードの状態は `data/cards.json` に保存されるので、再起動してもボタンは動きます。
+## VPSで常時動かす（Docker）
+
+Docker と Docker Compose が入っている Linux サーバーなら、これだけで動きます。
+
+```bash
+git clone <このリポジトリ> && cd smash-bingo-bot
+cp .env.example .env          # DISCORD_TOKEN と GUILD_ID を書く
+docker compose up -d --build
+```
+
+状態の確認とログ:
+
+```bash
+docker compose ps
+docker compose logs -f        # 「ログインしました: ...」が出れば成功
+```
+
+- `restart: unless-stopped` なので、落ちても再起動し、**サーバー再起動後も自動で立ち上がります**
+  （`sudo systemctl enable docker` だけ済ませておいてください）
+- 日本語フォント（IPAゴシック）はイメージに入れてあるので、別途の用意は不要です
+- カードの状態は `bingo-data` という名前付きボリュームに残ります
+
+更新したいとき:
+
+```bash
+git pull && docker compose up -d --build
+```
+
+カードの保存データを見たい・バックアップしたいとき:
+
+```bash
+docker compose cp bot:/app/data/cards.json ./cards.json
+```
+
+メモリは 200MB 程度あれば足ります。一番安いVPSや Oracle Cloud の無料枠でも十分です。
 
 ## キャラアイコンについて
 
@@ -83,5 +116,6 @@ Discord を使わずに画像の出来を確認できます。
 | `smashbingo/render.py` | カード画像の描画 |
 | `smashbingo/storage.py` | カードの保存・読み込み |
 | `smashbingo/bot.py` | スラッシュコマンドとボタン |
+| `Dockerfile` / `docker-compose.yml` | 常時稼働用のコンテナ設定 |
 | `scripts/extract_icons.py` | アイコンシートの切り出し |
 | `scripts/preview.py` | 画像の試し描き |
