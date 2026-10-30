@@ -76,6 +76,25 @@ LINE Developers の Webhook URL に設定して「検証」を押します。
 > [cron-job.org](https://cron-job.org) などから `/healthz` を10分おきに
 > 叩いておくと、無料枠のまま常に温まった状態を保てます。
 
+#### デプロイが権限エラーで失敗するとき
+
+`does not have storage.objects.get access` や `Invalid build request` が出る場合は、
+Cloud Build が使うサービスアカウントに権限が足りていません。新しい
+プロジェクトでは自動で付かないことがあります。
+
+```bash
+PROJECT_ID=$(gcloud config get-value project)
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
+
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/cloudbuild.builds.builder"
+```
+
+権限が行き渡るまで1分ほど待ってから、もう一度デプロイしてください。
+
 ### VPS（Docker）
 
 ```bash
