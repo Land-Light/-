@@ -16,7 +16,7 @@ import re
 import secrets
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from smashbingo.bingo import Card
 from smashbingo.render import render_card
@@ -47,6 +47,28 @@ def public_base(request: Request) -> str:
     proto = request.headers.get("x-forwarded-proto") or request.url.scheme
     host = request.headers.get("x-forwarded-host") or request.headers.get("host")
     return f"{proto}://{host}"
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index() -> str:
+    """動作確認用。見本のカードを出すだけのページ。"""
+    return """<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>スマブラ キャラビンゴ</title>
+<style>
+ body { background:#121318; color:#eef0f5; margin:0; padding:24px 16px 48px;
+        font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+        text-align:center; }
+ h1 { font-size:20px; margin:0 0 6px; }
+ p { color:#8e94a2; font-size:13px; margin:0 0 20px; line-height:1.7; }
+ img { max-width:min(100%,520px); border-radius:14px; }
+</style></head>
+<body>
+<h1>スマブラ キャラビンゴ</h1>
+<p>サーバーは動いています。<br>LINEのトークで「ビンゴ」と送るとカードが届きます。</p>
+<img src="/c/sample01.png" alt="カードの見本">
+</body></html>"""
 
 
 @app.get("/healthz")
