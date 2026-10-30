@@ -12,8 +12,10 @@ import httpx
 
 log = logging.getLogger("linebingo.line")
 
-CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")
-CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+# 貼り付けのときに前後へ改行や空白が入りがちなので、必ず落としておく。
+# 残っているとHTTPヘッダーに使えず httpx が例外を投げる。
+CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "").strip()
+CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "").strip()
 
 REPLY_URL = "https://api.line.me/v2/bot/message/reply"
 

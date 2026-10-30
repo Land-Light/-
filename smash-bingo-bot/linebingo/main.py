@@ -26,9 +26,9 @@ log = logging.getLogger("linebingo")
 
 # 公開URL。ふだんはリクエストのヘッダーから分かるので設定不要。
 # リバースプロキシの構成によっては BASE_URL で上書きする。
-BASE_URL = os.environ.get("BASE_URL", "").rstrip("/")
+BASE_URL = os.environ.get("BASE_URL", "").strip().rstrip("/")
 
-SIZE = int(os.environ.get("BINGO_SIZE", "5"))
+SIZE = int(os.environ.get("BINGO_SIZE", "5").strip())
 SEED_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 
 app = FastAPI(title="スマブラ キャラビンゴ (LINE)")
