@@ -1,7 +1,7 @@
 """スマブラ キャラビンゴ（LINE版）。
 
-トークで「ビンゴ」と送ると、ランダムなキャラが並んだビンゴカードの画像を
-返すだけのボット。
+トークで「ビンゴ」と送るとビンゴカードの画像を、「おまかせ」と送ると
+ランダムなキャラ5人の画像を返すボット。
 
 カードはシード文字列から毎回同じものを組み立て直せるので、画像を保存して
 おく必要がない。LINEは画像URLを取りに来るだけなので、/c/<シード>.png で
@@ -18,8 +18,8 @@ import secrets
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
-from smashbingo.bingo import Card
-from smashbingo.render import render_card
+from smashbingo.bingo import Card, pick_fighters
+from smashbingo.render import render_card, render_lineup
 from . import line_api
 
 log = logging.getLogger("linebingo")
@@ -29,6 +29,7 @@ log = logging.getLogger("linebingo")
 BASE_URL = os.environ.get("BASE_URL", "").strip().rstrip("/")
 
 SIZE = int(os.environ.get("BINGO_SIZE", "5").strip())
+PICK_COUNT = int(os.environ.get("OMAKASE_COUNT", "5").strip())
 SEED_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 
 app = FastAPI(title="スマブラ キャラビンゴ (LINE)")
@@ -66,14 +67,26 @@ async def index() -> str:
 </style></head>
 <body>
 <h1>スマブラ キャラビンゴ</h1>
-<p>サーバーは動いています。<br>LINEのトークで「ビンゴ」と送るとカードが届きます。</p>
+<p>サーバーは動いています。<br>
+LINEのトークで「ビンゴ」でビンゴカード、「おまかせ」でランダムなキャラが届きます。</p>
 <img src="/c/sample01.png" alt="カードの見本">
+<img src="/p/sample01.png" alt="おまかせの見本">
 </body></html>"""
 
 
 @app.get("/healthz")
 async def healthz() -> dict:
     return {"ok": True}
+
+
+@app.get("/p/{seed}.png")
+async def lineup_image(seed: str) -> Response:
+    """おまかせ（ランダムなキャラ数人）の画像。"""
+    if not SEED_RE.match(seed):
+        raise HTTPException(status_code=404, detail="not found")
+    png = render_lineup(pick_fighters(PICK_COUNT, seed=seed, include_mii=False))
+    return Response(content=png, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @app.get("/c/{seed}.png")
@@ -104,15 +117,21 @@ async def callback(request: Request, background: BackgroundTasks,
                                 event["message"].get("text", ""), base)
         elif kind in ("join", "follow"):
             background.add_task(line_api.reply, token, [line_api.text(
-                "スマブラ キャラビンゴです。\n「ビンゴ」と送るとカードを作ります。")])
+                "スマブラ キャラビンゴです。\n"
+                "「ビンゴ」でビンゴカード、「おまかせ」でランダムな"
+                f"キャラ{PICK_COUNT}人を出します。")])
     return JSONResponse({"ok": True})
 
 
 async def handle_text(reply_token: str, message: str, base: str) -> None:
-    if "ビンゴ" not in message:
+    if "おまかせ" in message:
+        path = "p"
+    elif "ビンゴ" in message:
+        path = "c"
+    else:
         return
     seed = secrets.token_urlsafe(6)
-    await line_api.reply(reply_token, [line_api.image(f"{base}/c/{seed}.png")])
+    await line_api.reply(reply_token, [line_api.image(f"{base}/{path}/{seed}.png")])
 
 
 def main() -> None:

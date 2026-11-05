@@ -121,11 +121,10 @@ def _has_icon(name: str) -> bool:
                 and (ICON_DIR / f"{fighter.icon_id}.png").exists())
 
 
-def _draw_cell(base: Image.Image, draw: ImageDraw.ImageDraw, card: Card,
-               index: int, x: int, y: int) -> None:
-    name = card.cells[index]
-    marked = index in card.marked
-    is_free = index == card.free_index
+def _draw_tile(base: Image.Image, draw: ImageDraw.ImageDraw, name: str,
+               x: int, y: int, marked: bool = False,
+               is_free: bool = False) -> None:
+    """1マスぶんを描く。ビンゴのマスにも、おまかせの1人にも使う。"""
     icon_area = CELL - NAME_AREA
 
     draw.rounded_rectangle((x, y, x + CELL, y + CELL), radius=14, fill=CELL_BG,
@@ -169,6 +168,60 @@ def _draw_cell(base: Image.Image, draw: ImageDraw.ImageDraw, card: Card,
                    color=(255, 196, 200) if marked else TEXT)
 
 
+def _draw_cell(base: Image.Image, draw: ImageDraw.ImageDraw, card: Card,
+               index: int, x: int, y: int) -> None:
+    _draw_tile(base, draw, card.cells[index], x, y,
+               marked=index in card.marked,
+               is_free=index == card.free_index)
+
+
+def _draw_header(draw: ImageDraw.ImageDraw, width: int, title: str,
+                 status: str, status_color) -> None:
+    """見出しと右肩の文字。幅が足りなければ見出しを縮める。"""
+    sf = _font(26)
+    sw = _text_width(draw, status, sf)
+    for title_size in range(44, 21, -2):
+        tf = _font(title_size)
+        if _text_width(draw, title, tf) + sw + 40 <= width - PAD * 2:
+            break
+    draw.text((PAD, 24 + (44 - title_size) // 2), title, font=tf, fill=TEXT)
+    draw.text((width - PAD - sw, 40), status, font=sf, fill=status_color)
+
+
+def _finish(base: Image.Image) -> bytes:
+    """256色に減色してPNGにする。
+
+    見た目はほぼ変わらないのにファイルは1/3ほどになり、無料枠の通信量と
+    アップロードの待ち時間の両方に効く。
+    """
+    buf = io.BytesIO()
+    base.quantize(colors=256, method=Image.MEDIANCUT, dither=Image.NONE).save(
+        buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+def render_lineup(names: list[str], title: str = "おまかせ",
+                  note: str = "") -> bytes:
+    """キャラを横一列に並べた画像。おまかせ用。"""
+    n = len(names)
+    strip = n * CELL + (n - 1) * GAP
+    width = strip + PAD * 2
+    height = HEADER + CELL + FOOTER + PAD
+
+    base = Image.new("RGB", (width, height), BG)
+    draw = ImageDraw.Draw(base)
+    draw.rounded_rectangle((PAD - 12, HEADER - 14, width - PAD + 12,
+                            HEADER + CELL + 14), radius=20, fill=PANEL)
+
+    _draw_header(draw, width, title, f"{n}人", FREE_GOLD)
+    for i, name in enumerate(names):
+        _draw_tile(base, draw, name, PAD + i * (CELL + GAP), HEADER)
+
+    draw.text((PAD, height - FOOTER + 8), note or "ランダムに選びました",
+              font=_font(22), fill=TEXT_DIM)
+    return _finish(base)
+
+
 def render_card(card: Card) -> bytes:
     """カードをPNGのバイト列にして返す。"""
     n = card.size
@@ -182,18 +235,10 @@ def render_card(card: Card) -> bytes:
                             HEADER + grid + 14), radius=20, fill=PANEL)
 
     # ヘッダー
-    title = "スマブラ キャラビンゴ"
     done = len(card.completed_lines())
     status = f"ビンゴ {done}" if done else f"リーチ {card.reach_count()}"
-    sf = _font(26)
-    sw = _text_width(draw, status, sf)
-    for title_size in range(44, 21, -2):
-        tf = _font(title_size)
-        if _text_width(draw, title, tf) + sw + 40 <= width - PAD * 2:
-            break
-    draw.text((PAD, 24 + (44 - title_size) // 2), title, font=tf, fill=TEXT)
-    draw.text((width - PAD - sw, 40), status, font=sf,
-              fill=FREE_GOLD if done else TEXT_DIM)
+    _draw_header(draw, width, "スマブラ キャラビンゴ", status,
+                 FREE_GOLD if done else TEXT_DIM)
 
     # マス目
     for index in range(n * n):
@@ -224,9 +269,4 @@ def render_card(card: Card) -> bytes:
         foot += f" / seed: {card.seed}"
     draw.text((PAD, height - FOOTER + 8), foot, font=_font(22), fill=TEXT_DIM)
 
-    # 256色に減色してから保存する。見た目はほぼ変わらないのにファイルは
-    # 1/3ほどになり、無料枠の通信量やアップロードの待ち時間に効く。
-    buf = io.BytesIO()
-    base.quantize(colors=256, method=Image.MEDIANCUT, dither=Image.NONE).save(
-        buf, format="PNG", optimize=True)
-    return buf.getvalue()
+    return _finish(base)

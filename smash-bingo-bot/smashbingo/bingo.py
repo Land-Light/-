@@ -150,3 +150,15 @@ class Card:
         data["marked"] = set(data.get("marked", []))
         known = cls.__dataclass_fields__.keys()
         return cls(**{k: v for k, v in data.items() if k in known})
+
+
+def pick_fighters(count: int, seed: str | None = None, include_dlc: bool = True,
+                  include_echo: bool = True, include_mii: bool = False,
+                  exclude: list[str] | None = None) -> list[str]:
+    """重複なしで count 人ぶん選ぶ。シードを渡せば毎回同じ顔ぶれになる。"""
+    candidates = pool(include_dlc=include_dlc, include_echo=include_echo,
+                      include_mii=include_mii, exclude=exclude)
+    if len(candidates) < count:
+        raise NotEnoughFighters(count, len(candidates))
+    rng = random.Random(seed) if seed else random.Random()
+    return [f.name for f in rng.sample(candidates, count)]
