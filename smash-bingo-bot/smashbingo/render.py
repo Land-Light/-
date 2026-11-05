@@ -262,11 +262,13 @@ def render_card(card: Card) -> bytes:
         draw = ImageDraw.Draw(base)
 
     # フッター
-    foot = f"{card.owner_name} / 候補 {card.settings.get('pool_size', '?')}体"
+    parts = [card.owner_name] if card.owner_name else []
+    parts.append(f"候補 {card.settings.get('pool_size', '?')}体")
     if card.settings.get("exclude"):
-        foot += f" / 除外 {len(card.settings['exclude'])}件"
+        parts.append(f"除外 {len(card.settings['exclude'])}件")
     if card.seed:
-        foot += f" / seed: {card.seed}"
+        parts.append(f"seed: {card.seed}")
+    foot = " / ".join(parts)
     draw.text((PAD, height - FOOTER + 8), foot, font=_font(22), fill=TEXT_DIM)
 
     return _finish(base)
